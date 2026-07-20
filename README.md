@@ -115,8 +115,8 @@
 
 ### 1. 克隆项目
 ```bash
-git clone <repo-url>
-cd ai-resgen-learning-multi-agent
+git clone https://github.com/xnxnpy/ai-resgen-learning-multiagent-system.git
+cd ai-resgen-learning-multiagent-system
 ```
 
 ### 2. 后端启动
@@ -170,7 +170,7 @@ npm run dev
 ## 项目目录结构
 
 ```
-ai-resgen-learning-multi-agent/
+ai-resgen-learning-multiagent-system/
 ├── main.py                          # FastAPI 入口，lifespan 管理
 ├── requirements.txt                 # Python 依赖
 ├── app/
