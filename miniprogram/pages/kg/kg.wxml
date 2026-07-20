@@ -1,0 +1,35 @@
+<view class="kg-container">
+  <view class="kg-header">
+    <button class="back-btn" bindtap="goBack">← 返回</button>
+    <text class="kg-title">{{title}}</text>
+  </view>
+  
+  <view class="canvas-wrapper">
+    <canvas 
+      canvas-id="kgCanvas"
+      class="kg-canvas"
+      bindtouchstart="onTouchStart"
+      bindtouchmove="onTouchMove"
+      bindtouchend="onTouchEnd"
+    />
+  </view>
+  
+  <view class="kg-legend">
+    <text class="legend-title">图例</text>
+    <view class="legend-items">
+      <view class="legend-item">
+        <view class="legend-dot" style="background: #4F46E5"></view>
+        <text class="legend-label">知识点</text>
+      </view>
+      <view class="legend-item">
+        <view class="legend-line"></view>
+        <text class="legend-label">关联关系</text>
+      </view>
+    </view>
+  </view>
+  
+  <view class="kg-stats">
+    <text class="stat-item">知识点：{{nodeCount}}个</text>
+    <text class="stat-item">关联：{{edgeCount}}条</text>
+  </view>
+</view>

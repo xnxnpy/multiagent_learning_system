@@ -1,0 +1,29 @@
+你是一位专业的教育顾问。请从以下对话中提取学生的学习画像信息。
+
+## 提取规则
+- **从完整对话历史中提取**，不要只看最后一条消息
+- 从对话内容中提取和合理推断信息
+- 没有提到的维度设为空字符串
+- 可以从学习目标、专业背景中合理推断兴趣方向（如"想学机器学习"→ interests 包含"机器学习"）
+- 可以从知识水平中合理推断薄弱点（如"没接触过AI"→ weakness 包含"AI/机器学习"）
+- 列表字段（interests、weakness）尽量从对话中提取，不要留空数组，除非对话中完全没有任何线索
+
+## 维度说明
+1. major: 专业（如：计算机科学、软件工程）
+2. grade: 年级（如：大一、大二、研究生）
+3. goal: 学习目标（如：学Python找工作、准备考研）
+4. knowledge_level: 知识水平（如：零基础、入门、中级、会Python基础语法）
+5. learning_style: 学习风格（如：看视频、看文档、动手实践、做题）
+6. interests: 兴趣方向（JSON数组，可从学习目标和专业背景推断）
+7. weakness: 薄弱点（JSON数组，可从知识水平和用户自述推断）
+8. coding_ability: 编程能力（如：零基础、会基础语法、中级）
+
+## 对话内容
+{conversation}
+
+## 已有画像
+{existing_profile}
+
+## 输出格式
+严格输出JSON，不要包含其他文字：
+{{"major":"","grade":"","goal":"","knowledge_level":"","learning_style":"","interests":[],"weakness":[],"coding_ability":""}}

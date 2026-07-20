@@ -1,0 +1,114 @@
+<view class="page-container">
+  <view class="tabs">
+    <view class="tab {{activeTab === index ? 'active' : ''}}" wx:for="{{tabs}}" wx:key="index" data-index="{{index}}" bindtap="switchTab">
+      {{item}}
+    </view>
+  </view>
+
+  <!-- 安全配置 -->
+  <view class="tab-content" wx:if="{{activeTab === 0}}">
+    <view class="card">
+      <view class="card-header">
+        <text class="card-title">内容安全</text>
+      </view>
+      <view class="config-row">
+        <view class="config-info">
+          <text class="config-title">内容审核</text>
+          <text class="config-desc">开启后将对用户输入内容进行安全审核</text>
+        </view>
+        <switch checked="{{securityConfig.enabled}}" data-field="enabled" bindchange="onSwitch" />
+      </view>
+      <button class="btn primary full" bindtap="saveConfig" disabled="{{isSubmitting}}">
+        {{isSubmitting ? '保存中...' : '保存配置'}}
+      </button>
+    </view>
+  </view>
+
+  <!-- 敏感词管理 -->
+  <view class="tab-content" wx:if="{{activeTab === 1}}">
+    <view class="card">
+      <view class="card-header">
+        <text class="card-title">添加敏感词</text>
+      </view>
+      <view class="add-row">
+        <input class="word-input" placeholder="请输入敏感词" value="{{newWord}}" bindinput="onWordInput" />
+        <view class="category-tabs">
+          <view class="cat-tab {{wordCategory === 'black' ? 'active' : ''}}" data-value="black" bindtap="selectCategory">黑名单</view>
+          <view class="cat-tab {{wordCategory === 'white' ? 'active' : ''}}" data-value="white" bindtap="selectCategory">白名单</view>
+        </view>
+        <button class="btn primary" bindtap="addWord">添加</button>
+      </view>
+    </view>
+
+    <view class="card">
+      <view class="card-header">
+        <text class="card-title">敏感词列表</text>
+        <text class="card-tag">共 {{securityWords.length}} 个</text>
+      </view>
+      <view wx:if="{{securityWords.length === 0}}" class="empty-state">
+        <text class="empty-icon">🔒</text>
+        <text class="empty-text">暂无敏感词</text>
+      </view>
+      <view class="word-item" wx:for="{{securityWords}}" wx:key="id">
+        <view class="word-info">
+          <text class="word-text">{{item.word}}</text>
+          <text class="word-tag {{item.category === 'black' ? 'danger' : 'success'}}">{{item.category === 'black' ? '黑名单' : '白名单'}}</text>
+        </view>
+        <text class="action-link delete" bindtap="deleteWord" data-id="{{item.id}}" data-word="{{item.word}}">删除</text>
+      </view>
+    </view>
+  </view>
+
+  <!-- 审核日志 -->
+  <view class="tab-content" wx:if="{{activeTab === 2}}">
+    <view class="card">
+      <view class="card-header">
+        <text class="card-title">审核日志</text>
+        <text class="card-tag">共 {{securityLogs.length}} 条</text>
+      </view>
+      <view wx:if="{{securityLogs.length === 0}}" class="empty-state">
+        <text class="empty-icon">📋</text>
+        <text class="empty-text">暂无审核日志</text>
+      </view>
+      <view class="log-item" wx:for="{{securityLogs}}" wx:key="id">
+        <text class="log-message">{{item.message}}</text>
+        <view class="log-meta">
+          <text class="log-category" wx:if="{{item.category}}">{{item.category}}</text>
+          <text class="log-time">{{item.timestamp}}</text>
+        </view>
+      </view>
+    </view>
+  </view>
+
+  <!-- 内容审核 -->
+  <view class="tab-content" wx:if="{{activeTab === 3}}">
+    <view class="card">
+      <view class="card-header">
+        <text class="card-title">内容审核</text>
+        <picker range="{{statusOptions}}" bindchange="onReviewStatusChange">
+          <text class="card-action">筛选: {{reviewStatus || '全部'}} ▼</text>
+        </picker>
+      </view>
+      <view wx:if="{{reviewLoading}}" class="empty-state">
+        <text class="empty-text">加载中...</text>
+      </view>
+      <view wx:elif="{{reviewItems.length === 0}}" class="empty-state">
+        <text class="empty-icon">📝</text>
+        <text class="empty-text">暂无待审核内容</text>
+      </view>
+      <view class="review-item" wx:for="{{reviewItems}}" wx:key="id">
+        <view class="review-header">
+          <text class="review-type">{{item.content_type}}</text>
+          <text class="status-tag {{item.statusClass}}">{{item.statusText}}</text>
+        </view>
+        <text class="review-content">{{item.content}}</text>
+        <text class="review-comment" wx:if="{{item.review_comment}}">审核意见: {{item.review_comment}}</text>
+        <text class="review-time">{{item.created_at}}</text>
+        <view class="review-actions" wx:if="{{item.status === 'pending'}}">
+          <button class="btn small primary" bindtap="approveReview" data-id="{{item.id}}">通过</button>
+          <button class="btn small danger" bindtap="rejectReview" data-id="{{item.id}}">拒绝</button>
+        </view>
+      </view>
+    </view>
+  </view>
+</view>

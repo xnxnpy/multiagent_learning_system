@@ -1,0 +1,75 @@
+<view class="wrong-book-container">
+  <view class="header">
+    <text class="page-title">错题本</text>
+    <button class="refresh-btn" bindtap="refresh">🔄 刷新</button>
+  </view>
+
+  <scroll-view scroll-y class="main-content">
+    <view wx:if="{{loading}}" class="loading-state">
+      <text class="loading-icon">⏳</text>
+      <text>加载中...</text>
+    </view>
+
+    <view wx:if="{{!loading && wrongQuestions.length === 0}}" class="empty-state">
+      <view class="empty-icon">🎉</view>
+      <text class="empty-title">暂无错题</text>
+      <text class="empty-desc">太棒了！您目前没有答错的题目</text>
+      <button class="primary-btn" bindtap="reviewQuestion">继续练习</button>
+    </view>
+
+    <view wx:if="{{!loading && wrongQuestions.length > 0}}" class="wrong-content">
+      <view class="stats-bar">
+        <text class="stats-text">共 {{wrongQuestions.length}} 道错题</text>
+      </view>
+
+      <view class="question-nav">
+        <view 
+          class="nav-item {{selectedQuestionIdx === index ? 'active' : ''}}"
+          wx:for="{{wrongQuestions}}"
+          wx:key="question_id"
+          bindtap="selectQuestion"
+          data-index="{{index}}"
+        >
+          {{index + 1}}
+        </view>
+      </view>
+
+      <view wx:if="{{wrongQuestions[selectedQuestionIdx]}}" class="question-card">
+        <view class="question-header">
+          <text class="question-num">第 {{selectedQuestionIdx + 1}} 题</text>
+          <view class="question-tags">
+            <text class="tag wrong">答错</text>
+            <text class="tag score">得分：{{wrongQuestions[selectedQuestionIdx].score || 0}}分</text>
+          </view>
+        </view>
+
+        <view class="question-body">
+          <text class="question-text">{{wrongQuestions[selectedQuestionIdx].question_id || '题目详情加载中...'}}</text>
+        </view>
+
+        <view class="answer-section">
+          <view class="answer-row">
+            <text class="answer-label">您的答案：</text>
+            <text class="answer-value wrong">{{wrongQuestions[selectedQuestionIdx].answer || '未作答'}}</text>
+          </view>
+          <view class="answer-row">
+            <text class="answer-label">正确答案：</text>
+            <text class="answer-value correct">{{showAnswer ? '****' : '点击查看'}}</text>
+          </view>
+        </view>
+
+        <button class="toggle-btn" bindtap="toggleAnswer">
+          {{showAnswer ? '隐藏答案' : '查看答案'}}
+        </button>
+
+        <view class="meta-info">
+          <text class="submit-time">提交时间：{{wrongQuestions[selectedQuestionIdx].submittedDate}}</text>
+        </view>
+      </view>
+
+      <view class="action-bar">
+        <button class="action-btn primary" bindtap="reviewQuestion">返回练习</button>
+      </view>
+    </view>
+  </scroll-view>
+</view>

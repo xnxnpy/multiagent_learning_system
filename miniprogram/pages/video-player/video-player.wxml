@@ -1,0 +1,22 @@
+<view class="video-page">
+  <video 
+    id="videoPlayer"
+    class="video"
+    src="{{videoUrl}}"
+    controls
+    autoplay
+    show-center-play-btn
+    object-fit="contain"
+    binderror="onVideoError"
+    bindloadedmetadata="onVideoLoadedMetadata"
+    bindplay="onVideoPlay"
+    bindpause="onVideoPause"
+    bindended="onVideoEnded"
+  />
+  
+  <view class="overlay">
+    <button class="back-btn" bindtap="goBack">← 返回</button>
+    <text class="title">{{videoTitle}}</text>
+    <text class="status">{{playStatus}}</text>
+  </view>
+</view>

@@ -1,0 +1,40 @@
+<view class="mindmap-page">
+  <view class="header">
+    <view class="header-left">
+      <text class="back-btn" bindtap="goBack">← 返回</text>
+      <text class="title">{{title}}</text>
+    </view>
+    <view class="header-right">
+      <text class="action-btn" bindtap="zoomIn">+</text>
+      <text class="action-btn" bindtap="zoomOut">−</text>
+      <text class="action-btn" bindtap="fitView">适应</text>
+    </view>
+  </view>
+  
+  <scroll-view class="scroll-area" scroll-x scroll-y>
+    <view class="mindmap-wrapper" style="transform: scale({{scale}}); transform-origin: top left;">
+      <view class="mindmap-tree" style="width: {{treeWidth}}px; height: {{treeHeight}}px;">
+        <view 
+          wx:for="{{connections}}" 
+          wx:key="index"
+          class="connection-line"
+          style="left: {{item.x1}}px; top: {{item.y1}}px; width: {{item.length}}px; transform: rotate({{item.angle}}deg); background: {{item.color}};"
+        />
+        <view 
+          wx:for="{{nodes}}" 
+          wx:key="id"
+          class="node-item"
+          style="left: {{item.x}}px; top: {{item.y}}px; background: {{item.color}};"
+          bindtap="onNodeClick"
+          data-text="{{item.text}}"
+        >
+          <text class="node-text">{{item.text}}</text>
+        </view>
+      </view>
+    </view>
+  </scroll-view>
+  
+  <view class="footer">
+    <text class="footer-text">点击节点查看详情</text>
+  </view>
+</view>

@@ -1,0 +1,310 @@
+<view class="container">
+  <view class="page-header">
+    <text class="page-title">我的学习记录</text>
+    <view class="page-tag">AI个性化学习多智能体系统</view>
+  </view>
+
+  <view class="tabs">
+    <view 
+      class="tab {{activeTab === index ? 'active' : ''}}" 
+      wx:for="{{tabs}}" 
+      wx:key="index"
+      data-index="{{index}}"
+      bindtap="switchTab"
+    >
+      {{item}}
+    </view>
+  </view>
+
+  <scroll-view class="tab-content" scroll-y>
+    <view wx:if="{{activeTab === 0}}" class="tab-pane">
+      <view wx:if="{{profile}}" class="profile-card">
+        <view class="card-header">
+          <text class="card-title">{{profile.real_name || '我的学习画像'}}</text>
+          <view class="card-tag" wx:if="{{profile.major}}">{{profile.major}}</view>
+        </view>
+        <view class="profile-grid">
+          <view class="profile-item">
+            <text class="profile-label">专业</text>
+            <text class="profile-value">{{profile.major || '-'}}</text>
+          </view>
+          <view class="profile-item">
+            <text class="profile-label">年级</text>
+            <text class="profile-value">{{profile.grade || '-'}}</text>
+          </view>
+          <view class="profile-item">
+            <text class="profile-label">学习目标</text>
+            <text class="profile-value">{{profile.goal || '-'}}</text>
+          </view>
+          <view class="profile-item">
+            <text class="profile-label">知识水平</text>
+            <text class="profile-value">{{profile.knowledge_level || '-'}}</text>
+          </view>
+          <view class="profile-item">
+            <text class="profile-label">学习风格</text>
+            <text class="profile-value">{{profile.learning_style || '-'}}</text>
+          </view>
+          <view class="profile-item">
+            <text class="profile-label">编程能力</text>
+            <text class="profile-value">{{profile.coding_ability || '-'}}</text>
+          </view>
+          <view class="profile-item-full">
+            <text class="profile-label">兴趣方向</text>
+            <view class="profile-tags">
+              <view class="tag-item" wx:for="{{profile.interests || []}}" wx:key="item">{{item}}</view>
+            </view>
+          </view>
+          <view class="profile-item-full">
+            <text class="profile-label">薄弱点</text>
+            <view class="profile-tags warning">
+              <view class="tag-item" wx:for="{{profile.weakness || []}}" wx:key="item">{{item}}</view>
+            </view>
+          </view>
+        </view>
+      </view>
+      <view wx:else class="empty">
+        <text class="empty-icon">👤</text>
+        <text class="empty-text">暂无画像数据，请先完成画像构建</text>
+        <button class="empty-btn" bindtap="goToProfile">去构建画像</button>
+      </view>
+    </view>
+
+    <view wx:if="{{activeTab === 1}}" class="tab-pane">
+      <view wx:if="{{learningPath}}" class="path-content">
+        <text class="path-title">{{learningPath.title || '学习路径'}}</text>
+        <view class="path-steps">
+          <view 
+            class="path-step"
+            wx:for="{{learningPath.stages || []}}"
+            wx:key="index"
+            bindtap="viewStageDetail"
+            data-id="{{item.stage_id || item.id}}"
+          >
+            <view class="step-number">{{index + 1}}</view>
+            <view class="step-content">
+              <text class="step-title">{{item.title}}</text>
+              <text class="step-desc">{{item.description}}</text>
+            </view>
+            <view class="step-status">
+              <text wx:if="{{item.completed}}">✓</text>
+              <text wx:if="{{!item.completed && item.current}}">▶</text>
+              <text wx:if="{{!item.completed && !item.current}}">○</text>
+            </view>
+          </view>
+        </view>
+      </view>
+      <view wx:else class="empty">
+        <text class="empty-icon">🗺️</text>
+        <text class="empty-text">暂无学习路径，请先生成学习路径</text>
+      </view>
+    </view>
+
+    <view wx:if="{{activeTab === 2}}" class="tab-pane">
+      <view class="resource-tabs">
+        <view 
+          class="resource-tab {{activeResourceTab === index ? 'active' : ''}}"
+          wx:for="{{resourceTabs}}"
+          wx:key="index"
+          data-index="{{index}}"
+          bindtap="switchResourceTab"
+        >
+          {{item}}
+        </view>
+      </view>
+      <view class="resource-content">
+        <view wx:if="{{activeResourceTab === 0}}" class="resource-item">
+          <view wx:if="{{formattedResources.documentText}}" class="markdown-preview">
+            <text class="resource-text">{{formattedResources.documentText}}</text>
+          </view>
+          <view wx:else class="empty">
+            <text class="empty-text">暂无学习文档</text>
+          </view>
+        </view>
+
+        <view wx:if="{{activeResourceTab === 1}}" class="resource-item">
+          <view wx:if="{{formattedResources.mindmapText}}" class="markdown-preview">
+            <text class="resource-text">{{formattedResources.mindmapText}}</text>
+          </view>
+          <view wx:else class="empty">
+            <text class="empty-text">暂无思维导图</text>
+          </view>
+        </view>
+
+        <view wx:if="{{activeResourceTab === 2}}" class="resource-item">
+          <view wx:if="{{formattedResources.questionsList}}" class="questions-list">
+            <view class="question-item" wx:for="{{formattedResources.questionsList}}" wx:key="index">
+              <view class="question-header">
+                <text class="question-tag">{{item.type || '选择题'}}</text>
+                <text class="question-tag" wx:if="{{item.difficulty}}">{{item.difficulty}}</text>
+              </view>
+              <text class="question-text">{{index + 1}}. {{item.question}}</text>
+              <view class="question-options" wx:if="{{item.options}}">
+                <text class="option-item" wx:for="{{item.options}}" wx:for-index="optKey" wx:key="optKey">{{optKey}}. {{item}}</text>
+              </view>
+              <text class="question-answer">答案：{{item.answer}}</text>
+              <text class="question-explain" wx:if="{{item.explanation}}">解析：{{item.explanation}}</text>
+            </view>
+          </view>
+          <view wx:else class="empty">
+            <text class="empty-text">暂无练习题目</text>
+          </view>
+        </view>
+
+        <view wx:if="{{activeResourceTab === 3}}" class="resource-item">
+          <view wx:if="{{formattedResources.codeCode}}" class="code-preview">
+            <view class="code-header" wx:if="{{formattedResources.codeTitle}}">
+              <text class="code-title">{{formattedResources.codeTitle}}</text>
+              <text class="code-tag" wx:if="{{formattedResources.codeDifficulty}}">{{formattedResources.codeDifficulty}}</text>
+            </view>
+            <text class="code-desc" wx:if="{{formattedResources.codeDescription}}">{{formattedResources.codeDescription}}</text>
+            <view class="code-block">
+              <text class="code-text">{{formattedResources.codeCode}}</text>
+            </view>
+          </view>
+          <view wx:else class="empty">
+            <text class="empty-text">暂无代码示例</text>
+          </view>
+        </view>
+
+        <view wx:if="{{activeResourceTab === 4}}" class="resource-item">
+          <view wx:if="{{formattedResources.videoTitle || formattedResources.videoUrl}}" class="video-script">
+            <text class="script-title">{{formattedResources.videoTitle || '教学视频'}}</text>
+            <view wx:if="{{formattedResources.videoUrl}}" class="video-info">
+              <text class="video-url">视频链接：{{formattedResources.videoUrl}}</text>
+            </view>
+            <view wx:if="{{formattedResources.videoDuration}}" class="video-info">
+              <text class="video-meta">时长：{{formattedResources.videoDuration}}</text>
+              <text class="video-meta">页数：{{formattedResources.videoPages}}</text>
+            </view>
+            <view wx:if="{{formattedResources.videoScenes}}" class="scene-list">
+              <view class="scene-item" wx:for="{{formattedResources.videoScenes}}" wx:key="index">
+                <text class="scene-title">场景 {{item.scene_id || index + 1}}: {{item.title}}</text>
+                <text class="scene-desc">{{item.visual_description || item.description}}</text>
+              </view>
+            </view>
+            <view wx:if="{{formattedResources.videoContent}}" class="script-content">
+              <text class="script-text">{{formattedResources.videoContent}}</text>
+            </view>
+          </view>
+          <view wx:else class="empty">
+            <text class="empty-text">暂无教学视频</text>
+          </view>
+        </view>
+
+        <view wx:if="{{activeResourceTab === 5}}" class="resource-item">
+          <view wx:if="{{formattedResources.readingText}}" class="markdown-preview">
+            <text class="resource-text">{{formattedResources.readingText}}</text>
+          </view>
+          <view wx:else class="empty">
+            <text class="empty-text">暂无拓展阅读</text>
+          </view>
+        </view>
+
+        <view wx:if="{{activeResourceTab === 6}}" class="resource-item">
+          <view wx:if="{{formattedResources.glossaryTerms}}" class="glossary-grid">
+            <view class="glossary-card" wx:for="{{formattedResources.glossaryTerms}}" wx:key="item.term">
+              <text class="term-name">{{item.term}}</text>
+              <text class="term-def">{{item.definition}}</text>
+              <text class="term-example" wx:if="{{item.example}}">例：{{item.example}}</text>
+            </view>
+          </view>
+          <view wx:else class="empty">
+            <text class="empty-text">暂无术语词汇</text>
+          </view>
+        </view>
+
+        <view wx:if="{{activeResourceTab === 7}}" class="resource-item">
+          <view wx:if="{{formattedResources.knowledgeNodes}}" class="knowledge-link">
+            <text class="link-stats">节点数: {{formattedResources.knowledgeNodeCount}}，边数: {{formattedResources.knowledgeEdgeCount}}</text>
+            <view class="node-tags">
+              <view class="node-tag" wx:for="{{formattedResources.knowledgeNodes}}" wx:key="item.id">{{item.label}}</view>
+            </view>
+          </view>
+          <view wx:else class="empty">
+            <text class="empty-text">暂无知识关联图</text>
+          </view>
+        </view>
+
+        <view wx:if="{{activeResourceTab === 8}}" class="resource-item">
+          <view wx:if="{{formattedResources.summaryText}}" class="markdown-preview">
+            <text class="resource-text">{{formattedResources.summaryText}}</text>
+          </view>
+          <view wx:else class="empty">
+            <text class="empty-text">暂无学习总结</text>
+          </view>
+        </view>
+      </view>
+    </view>
+
+    <view wx:if="{{activeTab === 3}}" class="tab-pane">
+      <view wx:if="{{tutorSessions.length}}" class="tutor-sessions">
+        <view class="session-item" wx:for="{{tutorSessions}}" wx:key="id">
+          <text class="session-title">会话 {{item.id}}</text>
+          <view class="chat-messages">
+            <view 
+              class="chat-msg {{msg.role === 'user' ? 'msg-user' : 'msg-assistant'}}"
+              wx:for="{{item.messages}}"
+              wx:for-item="msg"
+              wx:key="index"
+            >
+              <text class="msg-label">{{msg.role === 'user' ? '我' : 'AI辅导'}}</text>
+              <text class="msg-content">{{msg.content}}</text>
+            </view>
+          </view>
+        </view>
+      </view>
+      <view wx:else class="empty">
+        <text class="empty-icon">💬</text>
+        <text class="empty-text">暂无辅导对话记录</text>
+        <button class="empty-btn" bindtap="goToTutor">去咨询</button>
+      </view>
+    </view>
+
+    <view wx:if="{{activeTab === 4}}" class="tab-pane">
+      <view wx:if="{{evaluation}}" class="eval-content">
+        <view class="eval-stats">
+          <view class="eval-stat">
+            <text class="eval-value">{{formattedEvaluation.totalScore}}</text>
+            <text class="eval-label">总分</text>
+          </view>
+          <view class="eval-stat">
+            <text class="eval-value">{{formattedEvaluation.accuracyRate}}%</text>
+            <text class="eval-label">正确率</text>
+          </view>
+          <view class="eval-stat">
+            <text class="eval-value">{{formattedEvaluation.masteryLevel}}%</text>
+            <text class="eval-label">掌握度</text>
+          </view>
+        </view>
+        <view class="eval-grade {{formattedEvaluation.overallGradeFirst ? 'grade-' + formattedEvaluation.overallGradeFirst : ''}}">
+          综合等级：{{formattedEvaluation.overallGrade}}
+        </view>
+        <view class="eval-analysis" wx:if="{{formattedEvaluation.strengths || formattedEvaluation.weaknesses || formattedEvaluation.suggestions}}">
+          <view class="analysis-section" wx:if="{{formattedEvaluation.strengths && formattedEvaluation.strengths.length}}">
+            <text class="analysis-label">优势：</text>
+            <view class="analysis-tags success">
+              <view class="analysis-tag" wx:for="{{formattedEvaluation.strengths}}" wx:key="item">{{item}}</view>
+            </view>
+          </view>
+          <view class="analysis-section" wx:if="{{formattedEvaluation.weaknesses && formattedEvaluation.weaknesses.length}}">
+            <text class="analysis-label">薄弱点：</text>
+            <view class="analysis-tags danger">
+              <view class="analysis-tag" wx:for="{{formattedEvaluation.weaknesses}}" wx:key="item">{{item}}</view>
+            </view>
+          </view>
+          <view class="analysis-section" wx:if="{{formattedEvaluation.suggestions && formattedEvaluation.suggestions.length}}">
+            <text class="analysis-label">建议：</text>
+            <view class="suggestion-list">
+              <text class="suggestion-item" wx:for="{{formattedEvaluation.suggestions}}" wx:key="index">{{item}}</text>
+            </view>
+          </view>
+        </view>
+      </view>
+      <view wx:else class="empty">
+        <text class="empty-icon">📊</text>
+        <text class="empty-text">暂无评估数据</text>
+        <button class="empty-btn" bindtap="goToReport">查看报告</button>
+      </view>
+    </view>
+  </scroll-view>
+</view>

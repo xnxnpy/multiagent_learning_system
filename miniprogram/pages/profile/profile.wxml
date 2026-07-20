@@ -1,0 +1,246 @@
+<view class="profile-container">
+  <view class="header">
+    <view class="header-left">
+      <text class="page-title">学习画像</text>
+    </view>
+    <view class="header-right">
+      <view class="notification-wrap" bindtap="goToNotifications">
+        <text class="notification-icon">🔔</text>
+        <view wx:if="{{unreadCount > 0}}" class="badge">{{unreadCount}}</view>
+      </view>
+      <view class="user-info">
+        <text class="greeting">{{userName}}</text>
+        <view class="logout-btn" bindtap="logout">退出</view>
+      </view>
+    </view>
+  </view>
+
+  <view wx:if="{{workflowRunning}}" class="workflow-progress">
+    <view class="workflow-progress-header">
+      <text class="workflow-icon">⚡</text>
+      <text class="workflow-label">{{currentAgentName}}</text>
+      <text class="workflow-pct">{{workflowProgress}}%</text>
+    </view>
+    <view class="progress-bar">
+      <view class="progress-fill" style="width: {{workflowProgress}}%"></view>
+    </view>
+  </view>
+
+  <view class="user-menu">
+    <view class="menu-item" bindtap="goToUserProfile">
+      <text class="menu-icon">👤</text>
+      <text class="menu-text">个人资料</text>
+    </view>
+    <view class="menu-item" bindtap="goToMyLearning">
+      <text class="menu-icon">📚</text>
+      <text class="menu-text">我的学习</text>
+    </view>
+  </view>
+
+  <scroll-view scroll-y class="main-content">
+    <view class="chat-section">
+      <view class="section-header">
+        <text class="section-title">对话式画像采集</text>
+        <text class="section-subtitle">与AI助手对话，构建专属学习画像</text>
+      </view>
+      
+      <scroll-view scroll-y class="chat-box" scroll-into-view="msg-{{messages.length}}" scroll-with-animation>
+        <view wx:if="{{profileComplete && !workflowRunning && !hasPath}}" class="profile-complete-tip">
+          ✅ 画像已采集完成，您可以继续修改或查看学习路径
+        </view>
+        <block wx:for="{{messages}}" wx:key="id">
+          <view id="msg-{{index}}" class="message {{item.role === 'user' ? 'user-msg' : 'ai-msg'}}">
+            <view class="avatar {{item.role === 'user' ? 'user-avatar' : 'ai-avatar'}}">
+              <text>{{item.role === 'user' ? '👤' : '🤖'}}</text>
+            </view>
+            <view class="bubble-wrap">
+              <view class="bubble">
+                <text>{{item.content}}</text>
+              </view>
+              <view wx:if="{{item.role === 'ai' && item.streaming}}" class="typing-indicator">
+                <text class="typing-dot">●</text>
+                <text class="typing-dot">●</text>
+                <text class="typing-dot">●</text>
+              </view>
+              <view wx:if="{{item.role === 'ai' && item.isThinking}}" class="thinking-status">
+                <text class="dot">●</text>
+                <text>画像Agent 正在分析您的认知风格与知识基础...</text>
+              </view>
+              <view class="msg-meta">
+                <text class="msg-time">{{item.time}}</text>
+              </view>
+            </view>
+          </view>
+        </block>
+      </scroll-view>
+
+      <view class="input-area">
+        <view class="voice-wrap">
+          <!-- 空闲状态：麦克风按钮 -->
+          <view wx:if="{{!isRecording && !isVoiceLoading}}" class="voice-btn" bindtap="startVoiceInput">
+            <text>🎤</text>
+          </view>
+          <!-- 录音中：取消 + 停止 -->
+          <view wx:elif="{{isRecording}}" class="voice-recording-group">
+            <view class="voice-btn cancel" bindtap="cancelVoiceInput">
+              <text>✕</text>
+            </view>
+            <view class="voice-btn recording" bindtap="stopVoiceInput">
+              <text>🎤</text>
+              <text class="recording-time">{{recordingTime}}s</text>
+            </view>
+          </view>
+          <!-- 识别中 -->
+          <view wx:elif="{{isVoiceLoading}}" class="voice-btn loading">
+            <text>⏳</text>
+          </view>
+        </view>
+        <!-- 录音中隐藏输入框和发送按钮 -->
+        <view wx:if="{{!isRecording}}" class="input-row">
+          <input class="input-box" placeholder="请描述您的学习背景、目标、兴趣等..." value="{{inputValue}}" bindinput="onInput" confirm-type="send" bindconfirm="sendMessage"/>
+          <button class="send-btn" bindtap="sendMessage">发送</button>
+        </view>
+        <view wx:else class="recording-hint">
+          <text>正在录音，点击麦克风停止并识别，点击✕取消</text>
+        </view>
+      </view>
+    </view>
+
+    <view class="profile-section">
+      <view class="section-header">
+        <text class="section-title">我的画像</text>
+      </view>
+      
+      <view class="profile-header-bar">
+        <view class="profile-name-display" bindtap="handleProfileCommand" data-action="dropdown">
+          <text class="profile-name-text">{{currentProfileName}}</text>
+          <text class="dropdown-arrow">▼</text>
+        </view>
+      </view>
+      
+      <view class="profile-card">
+        <view class="profile-row">
+          <view class="profile-item">
+            <text class="label">专业</text>
+            <text class="value {{profileData.major ? '' : 'pending'}}">{{profileData.major || '待完善'}}</text>
+          </view>
+          <view class="profile-item">
+            <text class="label">年级</text>
+            <text class="value {{profileData.grade ? '' : 'pending'}}">{{profileData.grade || '待完善'}}</text>
+          </view>
+        </view>
+        
+        <view class="profile-row">
+          <view class="profile-item">
+            <text class="label">学习目标</text>
+            <text class="value {{profileData.goal ? '' : 'pending'}}">{{profileData.goal || '待完善'}}</text>
+          </view>
+        </view>
+
+        <view class="profile-row">
+          <view class="profile-item">
+            <text class="label">知识水平</text>
+            <text class="value {{profileData.level ? '' : 'pending'}}">{{profileData.level || '待评估'}}</text>
+          </view>
+          <view class="profile-item">
+            <text class="label">学习风格</text>
+            <text class="value {{profileData.style ? '' : 'pending'}}">{{profileData.style || '待评估'}}</text>
+          </view>
+        </view>
+
+        <view class="profile-row">
+          <view class="profile-item">
+            <text class="label">编程能力</text>
+            <text class="value {{profileData.coding ? '' : 'pending'}}">{{profileData.coding || '待评估'}}</text>
+          </view>
+        </view>
+        
+        <view class="divider"></view>
+        
+        <view class="profile-section-title">兴趣方向</view>
+        <view class="tags-wrap">
+          <text class="tag" wx:for="{{profileData.interests}}" wx:key="index">{{item}}</text>
+          <text wx:if="{{!profileData.interests || profileData.interests.length === 0}}" class="empty-text">暂无兴趣标签</text>
+        </view>
+        
+        <view class="divider"></view>
+        
+        <view class="profile-section-title">薄弱环节</view>
+        <view class="tags-wrap">
+          <text class="tag weak" wx:for="{{profileData.weakness}}" wx:key="index">{{item}}</text>
+          <text wx:if="{{!profileData.weakness || profileData.weakness.length === 0}}" class="empty-text">暂无薄弱环节</text>
+        </view>
+      </view>
+
+      <button wx:if="{{!workflowRunning && profileData.major && profileData.grade && profileData.goal && profileData.level && hasPath}}" class="generate-path-btn" bindtap="goToPath">查看学习路径</button>
+    </view>
+  </scroll-view>
+
+  <view wx:if="{{showProfileList}}" class="modal-overlay" bindtap="closeProfileList">
+    <view class="modal-content" catchtap="">
+      <view class="modal-header">
+        <text class="modal-title">画像管理</text>
+        <view class="modal-close" bindtap="closeProfileList">✕</view>
+      </view>
+      <view class="modal-body">
+        <view class="profile-list">
+          <view wx:if="{{profiles.length === 0}}" class="empty-profiles">
+            <text>暂无画像</text>
+          </view>
+          <view wx:for="{{profiles}}" wx:key="id" class="profile-item">
+            <view wx:if="{{editingProfileId === item.id}}" class="edit-profile">
+              <input class="edit-input" value="{{editingProfileName}}" bindinput="saveProfileName" confirm-type="done" bindconfirm="saveProfileName" />
+            </view>
+            <view wx:else class="profile-info">
+              <text class="profile-name" bindtap="handleActivateProfile" data-id="{{item.id}}">{{item.profile_name}}</text>
+              <text wx:if="{{item.is_active}}" class="profile-status active">当前</text>
+              <text wx:elif="{{item.is_archived}}" class="profile-status archived">已归档</text>
+            </view>
+            <view class="profile-actions">
+              <view wx:if="{{editingProfileId !== item.id}}" class="action-btn" bindtap="startEditProfileName" data-id="{{item.id}}" data-name="{{item.profile_name}}">编辑</view>
+              <view wx:if="{{!item.is_active && !item.is_archived}}" class="action-btn" bindtap="handleActivateProfile" data-id="{{item.id}}">切换</view>
+              <view wx:if="{{!item.is_active && !item.is_archived}}" class="action-btn warning" bindtap="handleArchiveProfile" data-id="{{item.id}}">归档</view>
+              <view wx:if="{{item.is_archived}}" class="action-btn success" bindtap="handleRestoreProfile" data-id="{{item.id}}">恢复</view>
+            </view>
+          </view>
+        </view>
+        <button class="add-profile-btn" bindtap="handleProfileCommand" data-action="new">+ 新建画像</button>
+      </view>
+    </view>
+  </view>
+
+  <view wx:if="{{showNewProfileDialog}}" class="modal-overlay" bindtap="closeNewProfileDialog">
+    <view class="modal-content small" catchtap="">
+      <view class="modal-header">
+        <text class="modal-title">新建画像</text>
+        <view class="modal-close" bindtap="closeNewProfileDialog">✕</view>
+      </view>
+      <view class="modal-body">
+        <input class="profile-name-input" placeholder="输入画像名称（如：考研方向）" value="{{newProfileName}}" bindinput="onInput" confirm-type="done" bindconfirm="handleCreateProfile" />
+        <view class="modal-footer">
+          <button class="modal-btn cancel" bindtap="closeNewProfileDialog">取消</button>
+          <button class="modal-btn confirm" bindtap="handleCreateProfile">创建</button>
+        </view>
+      </view>
+    </view>
+  </view>
+
+  <view wx:if="{{showProfileDropdown}}" class="modal-overlay" bindtap="closeProfileDropdown">
+    <view class="dropdown-content" catchtap="">
+      <view wx:if="{{activeProfiles.length === 0}}" class="empty-profiles">
+        <text>暂无画像</text>
+      </view>
+      <view wx:for="{{activeProfiles}}" wx:key="id" class="dropdown-item">
+        <text class="dropdown-item-name" bindtap="handleActivateProfile" data-id="{{item.id}}">{{item.profile_name}}</text>
+        <text wx:if="{{item.is_active}}" class="dropdown-item-status active">当前</text>
+      </view>
+      <view class="dropdown-divider"></view>
+      <view class="dropdown-item" bindtap="handleProfileCommand" data-action="new">
+        <text class="dropdown-item-name add">+ 新建画像</text>
+      </view>
+      <view class="dropdown-item" bindtap="handleProfileCommand" data-action="manage">
+        <text class="dropdown-item-name">管理画像</text>
+      </view>
+    </view>
+  </view>
+</view>

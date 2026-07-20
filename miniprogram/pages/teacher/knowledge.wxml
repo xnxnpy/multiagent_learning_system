@@ -1,0 +1,58 @@
+<view class="container">
+  <view class="stats-card">
+    <view class="stat-item">
+      <text class="stat-value">{{stats.total_documents}}</text>
+      <text class="stat-label">文档数量</text>
+    </view>
+    <view class="stat-divider"></view>
+    <view class="stat-item">
+      <text class="stat-value">{{stats.total_chunks}}</text>
+      <text class="stat-label">分块数量</text>
+    </view>
+    <view class="stat-divider"></view>
+    <view class="stat-item">
+      <text class="stat-value">{{stats.total_tokens_k}}K</text>
+      <text class="stat-label">总Token</text>
+    </view>
+  </view>
+
+  <view class="action-bar">
+    <button class="action-btn primary" bindtap="uploadFile">
+      📤 上传文档
+    </button>
+    <button class="action-btn secondary" bindtap="generateKnowledgeGraph">
+      🗺️ 生成图谱
+    </button>
+    <button class="action-btn danger" bindtap="clearKnowledge">
+      🗑️ 清空知识库
+    </button>
+  </view>
+
+  <view class="search-bar">
+    <input class="search-input" placeholder="搜索文档" value="{{searchKeyword}}" bindinput="onSearch" />
+  </view>
+
+  <scroll-view class="document-list" scroll-y>
+    <view wx:if="{{documents.length === 0}}" class="empty">
+      <text class="empty-icon">📚</text>
+      <text class="empty-text">暂无文档</text>
+      <button class="upload-btn" bindtap="uploadFile">上传文档</button>
+    </view>
+
+    <view 
+      class="document-item"
+      wx:for="{{documents}}"
+      wx:key="id"
+    >
+      <view class="document-icon">📄</view>
+      <view class="document-content">
+        <text class="document-name">{{item.filename}}</text>
+        <text class="document-info">大小: {{item.size_kb}}KB | 分块: {{item.chunks}}</text>
+        <text class="document-time">{{item.uploaded_at}}</text>
+      </view>
+      <view class="document-actions">
+        <text class="delete-btn" bindtap="deleteDocument" data-id="{{item.id}}">删除</text>
+      </view>
+    </view>
+  </scroll-view>
+</view>

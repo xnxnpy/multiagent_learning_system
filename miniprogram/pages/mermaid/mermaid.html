@@ -1,0 +1,49 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Mermaid 流程图</title>
+  <style>
+    body { margin: 0; padding: 16px; background: #fff; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; }
+    .mermaid-container { width: 100%; overflow-x: auto; }
+    .mermaid-render { display: flex; justify-content: center; }
+    svg { max-width: 100%; height: auto; }
+  </style>
+</head>
+<body>
+  <div class="mermaid-container" id="container">
+    <div class="mermaid-render" id="mermaid"></div>
+  </div>
+  <script src="https://cdn.jsdelivr.net/npm/mermaid@10.6.1/dist/mermaid.min.js"></script>
+  <script>
+    function getUrlParam(name) {
+      const url = decodeURIComponent(window.location.href)
+      const params = new URLSearchParams(url.split('?')[1])
+      return params.get(name)
+    }
+    
+    const code = getUrlParam('code')
+    if (code) {
+      mermaid.initialize({
+        startOnLoad: false,
+        theme: 'default',
+        securityLevel: 'loose',
+        fontFamily: 'inherit',
+        flowchart: { useMaxWidth: false },
+        graph: { useMaxWidth: false }
+      })
+      
+      const el = document.getElementById('mermaid')
+      const id = 'mermaid-' + Date.now()
+      
+      mermaid.render(id, code).then(({ svg }) => {
+        el.innerHTML = svg
+      }).catch((e) => {
+        console.error('渲染失败:', e)
+        el.innerHTML = '<pre style="padding:16px;font-size:14px;color:#667085;background:#f8f9fb;border-radius:8px">' + code + '</pre>'
+      })
+    }
+  </script>
+</body>
+</html>

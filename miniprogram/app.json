@@ -1,0 +1,52 @@
+{
+  "pages": [
+    "pages/index/index",
+    "pages/register/register",
+    "pages/profile/profile",
+    "pages/user-profile/user-profile",
+    "pages/notifications/notifications",
+    "pages/my-learning/my-learning",
+    "pages/path/path",
+    "pages/resource/resource",
+    "pages/tutor/tutor",
+    "pages/report/report",
+    "pages/teacher/teacher",
+    "pages/teacher/knowledge",
+    "pages/wrong-book/wrong-book",
+    "pages/admin/admin",
+    "pages/admin/config",
+    "pages/admin/models",
+    "pages/admin/content-security",
+    "pages/admin/backup",
+    "pages/video-player/video-player",
+    "pages/kg/kg",
+    "pages/mindmap/mindmap",
+    "pages/mermaid/mermaid"
+  ],
+  "window": {
+    "backgroundTextStyle": "light",
+    "navigationBarBackgroundColor": "#1677ff",
+    "navigationBarTitleText": "AI 学习系统",
+    "navigationBarTextStyle": "white"
+  },
+  "tabBar": {
+    "color": "#999999",
+    "selectedColor": "#1677ff",
+    "backgroundColor": "#ffffff",
+    "list": [
+      { "pagePath": "pages/profile/profile", "text": "学习画像", "iconPath": "images/profile.png", "selectedIconPath": "images/profile-active.png" },
+      { "pagePath": "pages/path/path", "text": "学习路径", "iconPath": "images/path.png", "selectedIconPath": "images/path-active.png" },
+      { "pagePath": "pages/resource/resource", "text": "学习资源", "iconPath": "images/resource.png", "selectedIconPath": "images/resource-active.png" },
+      { "pagePath": "pages/tutor/tutor", "text": "智能辅导", "iconPath": "images/tutor.png", "selectedIconPath": "images/tutor-active.png" },
+      { "pagePath": "pages/report/report", "text": "学习报告", "iconPath": "images/report.png", "selectedIconPath": "images/report-active.png" }
+    ]
+  },
+  "style": "v2",
+  "sitemapLocation": "sitemap.json",
+  "lazyCodeLoading": "requiredComponents",
+  "permission": {
+    "scope.record": {
+      "desc": "需要使用麦克风进行语音输入"
+    }
+  }
+}

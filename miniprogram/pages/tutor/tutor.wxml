@@ -1,0 +1,121 @@
+<view class="tutor-container">
+  <view class="header">
+    <view class="header-left">
+      <view class="ai-avatar-header">
+        <text>🤖</text>
+      </view>
+      <view class="header-info">
+        <text class="page-title">AI 辅导助手</text>
+        <text class="page-status">随时解答您的学习疑问</text>
+      </view>
+    </view>
+    <view class="header-right">
+      <view class="header-btn" bindtap="toggleSessionList">
+        <text>📋</text>
+      </view>
+      <view class="header-btn" bindtap="clearChat">
+        <text>🗑️</text>
+      </view>
+    </view>
+  </view>
+
+  <view class="session-sidebar" wx:if="{{showSessionList}}">
+    <view class="sidebar-header">
+      <text class="sidebar-title">历史会话</text>
+      <button class="close-btn" bindtap="toggleSessionList">✕</button>
+    </view>
+    <view class="sidebar-top">
+      <button class="new-chat-btn" bindtap="createNewSession">+ 新对话</button>
+    </view>
+    <scroll-view scroll-y class="session-list">
+      <view wx:if="{{tutorSessions.length === 0}}" class="empty-sessions">
+        <text class="empty-text">暂无历史会话</text>
+      </view>
+      <view class="session-item" wx:for="{{tutorSessions}}" wx:key="id" bindtap="selectSession" data-index="{{index}}">
+        <view class="session-icon">💬</view>
+        <view class="session-info">
+          <text class="session-num">会话 {{item.id}}</text>
+          <text class="session-preview">{{item.preview}}</text>
+          <text class="session-time" wx:if="{{item.time}}">{{item.time}}</text>
+        </view>
+        <text class="session-delete" bindtap="deleteSession" data-index="{{index}}">🗑</text>
+      </view>
+    </scroll-view>
+    <view wx:if="{{tutorSessions.length > 0}}" class="sidebar-bottom">
+      <button class="clear-all-btn" bindtap="clearAllSessions">🗑 清空所有对话</button>
+    </view>
+  </view>
+
+  <scroll-view scroll-y class="main-content">
+    <view class="chat-area">
+      <view class="section-header">
+        <text class="section-title">AI 学习助手</text>
+        <text class="section-subtitle">随时解答您的学习疑问</text>
+      </view>
+
+      <scroll-view scroll-y class="chat-box" scroll-into-view="msg-{{chatHistory.length}}" scroll-with-animation>
+        <block wx:for="{{chatHistory}}" wx:key="id">
+          <view id="msg-{{index}}" class="msg-row {{item.role === 'user' ? 'right' : 'left'}}">
+            <view wx:if="{{item.role === 'ai' && item.showAvatar}}" class="avatar ai-avatar">
+              <text>🤖</text>
+            </view>
+            <view wx:elif="{{item.role === 'ai'}}" class="avatar-placeholder"></view>
+            <view class="msg-content">
+              <rich-text wx:if="{{item.renderedHtml}}" nodes="{{item.renderedHtml}}"></rich-text>
+              <text wx:else>{{item.content}}</text>
+            </view>
+            <view wx:if="{{item.role === 'user'}}" class="avatar user-avatar">
+              <text>👤</text>
+            </view>
+          </view>
+        </block>
+        <view wx:if="{{isTyping}}" class="msg-row left">
+          <view class="avatar ai-avatar">
+            <text>🤖</text>
+          </view>
+          <view class="typing-indicator">
+            <view class="dot"></view>
+            <view class="dot"></view>
+            <view class="dot"></view>
+          </view>
+        </view>
+      </scroll-view>
+
+      <view class="quick-questions">
+        <text class="quick-title">快捷提问</text>
+        <scroll-view scroll-x class="quick-list">
+          <view class="quick-item" wx:for="{{quickQuestions}}" wx:key="id" bindtap="sendQuickQuestion" data-question="{{item.text}}">
+            {{item.icon}} {{item.text}}
+          </view>
+        </scroll-view>
+      </view>
+    </view>
+
+    <view class="input-area">
+      <view class="voice-wrap">
+        <view wx:if="{{!isRecording && !isVoiceLoading}}" class="voice-btn" bindtap="startVoiceInput">
+          <text>🎤</text>
+        </view>
+        <view wx:elif="{{isRecording}}" class="voice-recording-group">
+          <view class="voice-btn cancel" bindtap="cancelVoiceInput">
+            <text>✕</text>
+          </view>
+          <view class="voice-btn recording" bindtap="stopVoiceInput">
+            <text>🎤</text>
+            <text class="recording-time">{{recordingTime}}s</text>
+          </view>
+        </view>
+        <view wx:elif="{{isVoiceLoading}}" class="voice-btn loading">
+          <text>⏳</text>
+        </view>
+      </view>
+      <view wx:if="{{!isRecording}}" class="input-row">
+        <input class="input" placeholder="输入您的问题..." value="{{inputValue}}" bindinput="onInput" confirm-type="send" bindconfirm="sendQuestion"/>
+        <button class="send-btn" bindtap="sendQuestion">发送</button>
+      </view>
+      <view wx:else class="recording-hint">
+        <text>正在录音，点击🎤停止并识别，点击✕取消</text>
+      </view>
+    </view>
+  </scroll-view>
+</view>

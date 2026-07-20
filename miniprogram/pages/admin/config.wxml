@@ -1,0 +1,167 @@
+<view class="page-container">
+  <!-- Tab 导航 -->
+  <view class="tabs">
+    <view class="tab {{activeTab === index ? 'active' : ''}}" wx:for="{{tabs}}" wx:key="index" data-index="{{index}}" bindtap="switchTab">
+      {{item}}
+    </view>
+  </view>
+
+  <!-- 基础配置 -->
+  <view class="tab-content" wx:if="{{activeTab === 0}}">
+    <view class="card">
+      <view class="card-header">
+        <text class="card-title">基础配置</text>
+      </view>
+      <view class="form-item">
+        <text class="form-label">应用名称</text>
+        <input class="form-input" placeholder="应用名称" value="{{config.app_name}}" data-field="app_name" bindinput="onInput" />
+      </view>
+      <view class="form-item">
+        <text class="form-label">调试模式</text>
+        <switch checked="{{config.debug}}" data-field="debug" bindchange="onSwitch" />
+      </view>
+      <view class="form-item">
+        <text class="form-label">后端主机</text>
+        <input class="form-input" placeholder="0.0.0.0" value="{{config.backend_host}}" data-field="backend_host" bindinput="onInput" />
+      </view>
+      <view class="form-item">
+        <text class="form-label">后端端口</text>
+        <input class="form-input" type="number" placeholder="8000" value="{{config.backend_port}}" data-field="backend_port" bindinput="onNumberInput" />
+      </view>
+    </view>
+
+    <view class="card">
+      <view class="card-header">
+        <text class="card-title">安全配置</text>
+      </view>
+      <view class="form-item">
+        <text class="form-label">JWT 过期时间</text>
+        <view class="inline-row">
+          <input class="form-input small" type="number" value="{{config.jwt_expire_minutes}}" data-field="jwt_expire_minutes" bindinput="onNumberInput" />
+          <text class="inline-label">分钟</text>
+        </view>
+      </view>
+      <view class="form-item">
+        <text class="form-label">Secret Key</text>
+        <text class="form-value disabled">{{config.secret_key || '自动生成'}}</text>
+      </view>
+    </view>
+
+    <view class="btn-group">
+      <button class="btn secondary" bindtap="resetConfig">重置</button>
+      <button class="btn primary" bindtap="saveConfig" disabled="{{isSubmitting}}">{{isSubmitting ? '保存中...' : '保存全部配置'}}</button>
+    </view>
+  </view>
+
+  <!-- 质量阈值 -->
+  <view class="tab-content" wx:if="{{activeTab === 1}}">
+    <view class="card">
+      <view class="card-header">
+        <text class="card-title">质量阈值</text>
+        <text class="card-tag">低于阈值的资源不展示给学生</text>
+      </view>
+      <view class="form-item" wx:for="{{thresholdLabels}}" wx:for-index="key" wx:for-item="label" wx:key="key">
+        <text class="form-label">{{label}}</text>
+        <view class="threshold-row">
+          <slider min="0" max="100" step="5" value="{{config.quality_thresholds[key] || 60}}" data-key="{{key}}" bindchange="onThresholdChange" style="flex:1" show-value="{{false}}" activeColor="#4F46E5" />
+          <text class="threshold-val">{{config.quality_thresholds[key] || 60}}</text>
+        </view>
+      </view>
+    </view>
+
+    <view class="btn-group">
+      <button class="btn primary full" bindtap="saveConfig" disabled="{{isSubmitting}}">{{isSubmitting ? '保存中...' : '保存阈值配置'}}</button>
+    </view>
+  </view>
+
+  <!-- 资源生成 -->
+  <view class="tab-content" wx:if="{{activeTab === 2}}">
+    <view class="card">
+      <view class="card-header">
+        <text class="card-title">资源生成配置</text>
+      </view>
+      <view class="form-item">
+        <text class="form-label">PPT 最大页数</text>
+        <slider min="1" max="15" step="1" value="{{config.ppt_video_max_pages}}" bindchange="onPptPagesChange" style="width:400rpx" show-value="{{true}}" activeColor="#4F46E5" />
+      </view>
+      <view class="form-item">
+        <text class="form-label">TTS 默认音色</text>
+        <picker range="{{ttsVoices}}" range-key="name" value="{{getTtsVoiceIndex()}}" bindchange="onTtsVoiceChange">
+          <text class="form-value picker">{{config.tts_voice || '讯飞小露'}}</text>
+        </picker>
+      </view>
+    </view>
+
+    <view class="btn-group">
+      <button class="btn primary full" bindtap="saveConfig" disabled="{{isSubmitting}}">{{isSubmitting ? '保存中...' : '保存生成配置'}}</button>
+    </view>
+  </view>
+
+  <!-- 系统监控 -->
+  <view class="tab-content" wx:if="{{activeTab === 3}}">
+    <view class="card">
+      <view class="card-header">
+        <text class="card-title">系统监控</text>
+        <text class="card-action" bindtap="fetchMonitor">{{monitorLoading ? '刷新中...' : '刷新'}}</text>
+      </view>
+      <view class="monitor-grid">
+        <view class="monitor-item">
+          <view class="monitor-circle">
+            <text class="monitor-value">{{monitor.cpu_percent || 0}}%</text>
+          </view>
+          <text class="monitor-label">CPU 使用率</text>
+        </view>
+        <view class="monitor-item">
+          <view class="monitor-circle green">
+            <text class="monitor-value">{{monitor.memory_percent || 0}}%</text>
+          </view>
+          <text class="monitor-label">内存使用率</text>
+        </view>
+      </view>
+      <view class="monitor-details">
+        <view class="monitor-detail-row">
+          <text class="detail-label">已用内存</text>
+          <text class="detail-value">{{monitor.memory_used_mb || 0}} MB</text>
+        </view>
+        <view class="monitor-detail-row">
+          <text class="detail-label">总内存</text>
+          <text class="detail-value">{{monitor.memory_total_mb || 0}} MB</text>
+        </view>
+        <view class="monitor-detail-row">
+          <text class="detail-label">磁盘使用率</text>
+          <text class="detail-value">{{monitor.disk_percent || 0}}%</text>
+        </view>
+      </view>
+    </view>
+
+    <view class="card">
+      <view class="card-header">
+        <text class="card-title">系统统计</text>
+      </view>
+      <view class="stats-grid">
+        <view class="stat-item">
+          <text class="stat-value">{{stats.total_users || 0}}</text>
+          <text class="stat-label">用户总数</text>
+        </view>
+        <view class="stat-item">
+          <text class="stat-value">{{stats.total_students || 0}}</text>
+          <text class="stat-label">学生数</text>
+        </view>
+        <view class="stat-item">
+          <text class="stat-value">{{stats.total_teachers || 0}}</text>
+          <text class="stat-label">教师数</text>
+        </view>
+      </view>
+      <view class="stats-grid">
+        <view class="stat-item">
+          <text class="stat-value">{{stats.total_profiles || 0}}</text>
+          <text class="stat-label">画像数</text>
+        </view>
+        <view class="stat-item">
+          <text class="stat-value">{{stats.total_learning_paths || 0}}</text>
+          <text class="stat-label">学习路径数</text>
+        </view>
+      </view>
+    </view>
+  </view>
+</view>

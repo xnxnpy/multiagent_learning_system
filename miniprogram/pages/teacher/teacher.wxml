@@ -1,0 +1,194 @@
+<!--pages/teacher/teacher.wxml-->
+<view class="teacher-container">
+  <view class="header">
+    <view class="header-left">
+      <view class="back-btn" bindtap="goBack">← 返回</view>
+      <text class="breadcrumbs">教师端 / {{currentTabName}}</text>
+    </view>
+    <view class="header-right">
+      <text class="greeting">晚上好，{{userName}} 👋</text>
+      <view class="logout-btn" bindtap="logout">退出登录</view>
+    </view>
+  </view>
+
+  <view class="main-content">
+    <view wx:if="{{currentTab === 0}}" class="tab-content">
+      <view class="section-header">
+        <text class="section-title">课程管理</text>
+        <button class="add-btn" bindtap="addCourse">+ 添加课程</button>
+      </view>
+      <view class="course-list">
+        <view class="course-card" wx:for="{{courses}}" wx:key="id">
+          <view class="course-header">
+            <text class="course-name">{{item.name}}</text>
+            <view class="course-status {{item.status}}">{{item.status === 'active' ? '进行中' : '已结束'}}</view>
+          </view>
+          <text class="course-desc">{{item.description}}</text>
+          <view class="course-meta">
+            <text class="meta-item">👥 {{item.students}} 名学生</text>
+            <text class="meta-item">📅 {{item.duration}}</text>
+            <text class="meta-item">📚 {{item.modules}} 个模块</text>
+          </view>
+          <view class="course-actions">
+            <button class="action-btn" bindtap="editCourse" data-id="{{item.id}}">编辑</button>
+            <button class="action-btn" bindtap="viewCourse" data-id="{{item.id}}">查看</button>
+          </view>
+        </view>
+      </view>
+    </view>
+
+    <view wx:if="{{currentTab === 1}}" class="tab-content">
+      <view class="section-header">
+        <text class="section-title">资源审核</text>
+        <view class="filter-btn" bindtap="showFilter">筛选</view>
+      </view>
+      <view class="review-list">
+        <view class="review-card" wx:for="{{reviewResources}}" wx:key="id">
+          <view class="review-header">
+            <text class="review-type">{{item.type}}</text>
+            <text class="review-time">{{item.time}}</text>
+          </view>
+          <text class="review-title">{{item.title}}</text>
+          <text class="review-desc">{{item.description}}</text>
+          <view class="review-meta">
+            <text class="meta-item">🤖 {{item.agent}} 生成</text>
+            <text class="meta-item">👤 {{item.student}}</text>
+          </view>
+          <view class="review-actions">
+            <button class="approve-btn" bindtap="approveResource" data-id="{{item.id}}">通过</button>
+            <button class="reject-btn" bindtap="rejectResource" data-id="{{item.id}}">驳回</button>
+          </view>
+        </view>
+      </view>
+    </view>
+
+    <view wx:if="{{currentTab === 2}}" class="tab-content">
+      <view class="section-header">
+        <text class="section-title">作业管理</text>
+        <button class="add-btn" bindtap="addHomework">+ 发布作业</button>
+      </view>
+      <view class="homework-list">
+        <view class="homework-card" wx:for="{{homeworkList}}" wx:key="id">
+          <view class="homework-header">
+            <text class="homework-title">{{item.title}}</text>
+            <view class="homework-status {{item.status}}">{{item.statusText}}</view>
+          </view>
+          <text class="homework-desc">{{item.description}}</text>
+          <view class="homework-meta">
+            <text class="meta-item">📅 截止: {{item.deadline}}</text>
+            <text class="meta-item">📝 {{item.submitted}}/{{item.total}} 已提交</text>
+          </view>
+          <view class="homework-actions">
+            <button class="action-btn" bindtap="gradeHomework" data-id="{{item.id}}">批改</button>
+            <button class="action-btn" bindtap="viewSubmissions" data-id="{{item.id}}">查看提交</button>
+          </view>
+        </view>
+      </view>
+    </view>
+
+    <view wx:if="{{currentTab === 3}}" class="tab-content">
+      <view class="section-header">
+        <text class="section-title">班级学情</text>
+      </view>
+      <view class="stats-overview">
+        <view class="stat-card">
+          <text class="stat-value">{{classStats.totalStudents}}</text>
+          <text class="stat-label">班级人数</text>
+        </view>
+        <view class="stat-card">
+          <text class="stat-value">{{classStats.avgScore}}</text>
+          <text class="stat-label">平均分</text>
+        </view>
+        <view class="stat-card">
+          <text class="stat-value">{{classStats.completionRate}}%</text>
+          <text class="stat-label">完成率</text>
+        </view>
+        <view class="stat-card">
+          <text class="stat-value">{{classStats.activeStudents}}</text>
+          <text class="stat-label">活跃人数</text>
+        </view>
+      </view>
+      <view class="student-table">
+        <view class="table-header">
+          <text class="th">学生</text>
+          <text class="th">进度</text>
+          <text class="th">得分</text>
+          <text class="th">状态</text>
+          <text class="th">操作</text>
+        </view>
+        <view class="table-row" wx:for="{{studentList}}" wx:key="id">
+          <text class="td name">{{item.name}}</text>
+          <view class="td progress">
+            <view class="progress-bar">
+              <view class="progress-fill" style="width: {{item.progress}}%"></view>
+            </view>
+            <text class="progress-text">{{item.progress}}%</text>
+          </view>
+          <text class="td score">{{item.score}}</text>
+          <text class="td status {{item.status}}">{{item.statusText}}</text>
+          <button class="td action-btn" bindtap="viewStudent" data-id="{{item.id}}">查看</button>
+        </view>
+      </view>
+    </view>
+
+    <view wx:if="{{currentTab === 4}}" class="tab-content">
+      <view class="section-header">
+        <text class="section-title">统计报表</text>
+        <button class="export-btn" bindtap="exportReport">导出报表</button>
+      </view>
+      <view class="report-charts">
+        <view class="chart-card">
+          <text class="chart-title">学习进度分布</text>
+          <view class="bar-chart">
+            <view class="bar-item" wx:for="{{progressDistribution}}" wx:key="label">
+              <view class="bar-fill" style="height: {{item.value}}%"></view>
+              <text class="bar-label">{{item.label}}</text>
+            </view>
+          </view>
+        </view>
+        <view class="chart-card">
+          <text class="chart-title">知识点掌握情况</text>
+          <view class="pie-chart">
+            <view class="pie-bg"></view>
+            <view class="pie-segment segment-1"></view>
+            <view class="pie-segment segment-2"></view>
+            <view class="pie-segment segment-3"></view>
+          </view>
+          <view class="pie-legend">
+            <view class="legend-item"><view class="legend-dot dot-1"></view><text>已掌握 65%</text></view>
+            <view class="legend-item"><view class="legend-dot dot-2"></view><text>学习中 25%</text></view>
+            <view class="legend-item"><view class="legend-dot dot-3"></view><text>未掌握 10%</text></view>
+          </view>
+        </view>
+      </view>
+    </view>
+  </view>
+
+  <view class="bottom-tab-bar">
+    <view class="tab-bar-item {{currentTab === 0 ? 'active' : ''}}" bindtap="switchTab" data-tab="0">
+      <text class="tab-icon">📚</text>
+      <text class="tab-text">课程管理</text>
+    </view>
+    <view class="tab-bar-item {{currentTab === 1 ? 'active' : ''}}" bindtap="switchTab" data-tab="1">
+      <text class="tab-icon">📖</text>
+      <text class="tab-text">知识库</text>
+    </view>
+    <view class="tab-bar-item {{currentTab === 2 ? 'active' : ''}}" bindtap="switchTab" data-tab="2">
+      <text class="tab-icon">✅</text>
+      <text class="tab-text">资源审核</text>
+      <view class="badge" wx:if="{{pendingReview > 0}}">{{pendingReview}}</view>
+    </view>
+    <view class="tab-bar-item {{currentTab === 3 ? 'active' : ''}}" bindtap="switchTab" data-tab="3">
+      <text class="tab-icon">📝</text>
+      <text class="tab-text">作业管理</text>
+    </view>
+    <view class="tab-bar-item {{currentTab === 4 ? 'active' : ''}}" bindtap="switchTab" data-tab="4">
+      <text class="tab-icon">📊</text>
+      <text class="tab-text">学情分析</text>
+    </view>
+    <view class="tab-bar-item {{currentTab === 5 ? 'active' : ''}}" bindtap="switchTab" data-tab="5">
+      <text class="tab-icon">📈</text>
+      <text class="tab-text">统计报表</text>
+    </view>
+  </view>
+</view>

@@ -1,0 +1,203 @@
+/* ============================================================
+ *  AI Learning System — Design Tokens & Global Styles
+ * ============================================================ */
+
+:root {
+  /* ── Colors ────────────────────────────────── */
+  --color-primary: #1E40AF;
+  --color-primary-light: #3B82F6;
+  --color-primary-lighter: #60A5FA;
+  --color-primary-lightest: #DBEAFE;
+  --color-primary-dark: #1E3A8A;
+
+  --color-success: #059669;
+  --color-success-light: #D1FAE5;
+  --color-warning: #D97706;
+  --color-warning-light: #FEF3C7;
+  --color-error: #DC2626;
+  --color-error-light: #FEE2E2;
+  --color-info: #2563EB;
+  --color-info-light: #DBEAFE;
+
+  --color-bg-page: #F4F5F7;
+  --color-bg-card: #FFFFFF;
+  --color-bg-sidebar: #fafafa;
+  --color-bg-sidebar-hover: #f0f0f0;
+
+  --color-text-primary: #1F2937;
+  --color-text-secondary: #6B7280;
+  --color-text-muted: #9CA3AF;
+  --color-text-inverse: #FFFFFF;
+
+  --color-border: #E5E7EB;
+  --color-border-light: #F3F4F6;
+
+  /* ── Typography ────────────────────────────── */
+  --font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto,
+    'Helvetica Neue', Arial, 'Noto Sans SC', 'PingFang SC',
+    'Microsoft YaHei', sans-serif;
+  --font-mono: 'SF Mono', 'Fira Code', 'Fira Mono', 'Roboto Mono',
+    'Consolas', monospace;
+
+  --text-xs: 12px;
+  --text-sm: 13px;
+  --text-base: 14px;
+  --text-lg: 16px;
+  --text-xl: 20px;
+  --text-2xl: 24px;
+  --text-3xl: 30px;
+
+  /* ── Spacing ───────────────────────────────── */
+  --space-page-padding: 24px;
+  --space-card-padding: 24px;
+  --space-card-gap: 20px;
+  --space-section-gap: 24px;
+
+  /* ── Border Radius ─────────────────────────── */
+  --radius-sm: 6px;
+  --radius-md: 8px;
+  --radius-lg: 12px;
+  --radius-xl: 16px;
+  --radius-full: 9999px;
+
+  /* ── Shadows ───────────────────────────────── */
+  --shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.05);
+  --shadow-md: 0 4px 6px -1px rgba(0, 0, 0, 0.07), 0 2px 4px -2px rgba(0, 0, 0, 0.05);
+  --shadow-lg: 0 10px 15px -3px rgba(0, 0, 0, 0.08), 0 4px 6px -4px rgba(0, 0, 0, 0.04);
+  --shadow-card: 0 1px 3px rgba(0, 0, 0, 0.06), 0 1px 2px rgba(0, 0, 0, 0.04);
+
+  /* ── Transitions ───────────────────────────── */
+  --transition-fast: 0.15s ease;
+  --transition-normal: 0.25s ease;
+  --transition-slow: 0.35s ease;
+
+  /* ── Element Plus Overrides ────────────────── */
+  --el-color-primary: #1E40AF;
+  --el-color-primary-light-3: #3B82F6;
+  --el-color-primary-light-5: #60A5FA;
+  --el-color-primary-light-7: #93C5FD;
+  --el-color-primary-light-8: #BFDBFE;
+  --el-color-primary-light-9: #DBEAFE;
+  --el-color-primary-dark-2: #1E3A8A;
+  --el-color-success: #059669;
+  --el-color-warning: #D97706;
+  --el-color-danger: #DC2626;
+  --el-color-info: #6B7280;
+  --el-border-radius-base: 8px;
+  --el-font-family: var(--font-family);
+}
+
+/* ── Reset ──────────────────────────────────────── */
+
+*, *::before, *::after {
+  margin: 0;
+  padding: 0;
+  box-sizing: border-box;
+}
+
+html, body {
+  height: 100%;
+  font-family: var(--font-family);
+  font-size: var(--text-base);
+  color: var(--color-text-primary);
+  background: var(--color-bg-page);
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+#app {
+  width: 100%;
+  height: 100vh;
+}
+
+/* ── Global Component Styles ────────────────────── */
+
+.page-card {
+  background: var(--color-bg-card);
+  border-radius: var(--radius-lg);
+  box-shadow: var(--shadow-card);
+  padding: var(--space-card-padding);
+  margin-bottom: var(--space-card-gap);
+  transition: box-shadow var(--transition-fast);
+}
+
+.page-card:hover {
+  box-shadow: var(--shadow-md);
+}
+
+.page-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: var(--space-section-gap);
+}
+
+.page-title {
+  font-size: var(--text-xl);
+  font-weight: 700;
+  color: var(--color-text-primary);
+  letter-spacing: -0.02em;
+}
+
+.stat-value {
+  font-size: var(--text-2xl);
+  font-weight: 800;
+  letter-spacing: -0.02em;
+  font-variant-numeric: tabular-nums;
+}
+
+.empty-state {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: 60px 24px;
+  color: var(--color-text-muted);
+}
+
+.empty-state-icon {
+  font-size: 48px;
+  margin-bottom: 16px;
+  opacity: 0.4;
+}
+
+/* ── Scrollbar ──────────────────────────────────── */
+
+::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+::-webkit-scrollbar-thumb {
+  background: #D1D5DB;
+  border-radius: 3px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: #9CA3AF;
+}
+
+/* ── Utilities ──────────────────────────────────── */
+
+.text-truncate {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.text-center { text-align: center; }
+.text-right { text-align: right; }
+.font-mono { font-family: var(--font-mono); }
+.font-bold { font-weight: 700; }
+
+.mt-4 { margin-top: 4px; }
+.mt-8 { margin-top: 8px; }
+.mt-16 { margin-top: 16px; }
+.mt-24 { margin-top: 24px; }
+.mb-8 { margin-bottom: 8px; }
+.mb-16 { margin-bottom: 16px; }
+.mb-24 { margin-bottom: 24px; }

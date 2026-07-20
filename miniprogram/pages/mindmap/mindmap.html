@@ -1,0 +1,52 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>思维导图渲染</title>
+  <style>
+    body { margin: 0; padding: 16px; background: #fff; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; }
+    .mindmap-container { width: 100%; height: calc(100vh - 32px); overflow: auto; }
+    svg { max-width: 100%; height: auto; }
+  </style>
+</head>
+<body>
+  <div class="mindmap-container" id="mindmap"></div>
+  <script src="https://cdn.jsdelivr.net/npm/markmap-lib@0.14.4/dist/browser.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/markmap-view@0.14.4/dist/browser.min.js"></script>
+  <script>
+    function getUrlParam(name) {
+      const url = decodeURIComponent(window.location.href)
+      const params = new URLSearchParams(url.split('?')[1])
+      return params.get(name)
+    }
+    
+    const md = getUrlParam('content')
+    if (md) {
+      const el = document.getElementById('mindmap')
+      const svg = document.createElementNS('http://www.w3.org/2000/svg', 'svg')
+      el.appendChild(svg)
+      
+      try {
+        const { Transformer } = markmap
+        const { Markmap } = markmap.view
+        
+        const transformer = new Transformer()
+        const { root } = transformer.transform(md)
+        
+        const markmapInstance = Markmap.create(svg, {
+          autoFit: true,
+          duration: 300,
+          maxWidth: 280,
+          paddingX: 12,
+        }, root)
+        
+        markmapInstance.fit()
+      } catch (e) {
+        console.error('渲染失败:', e)
+        el.innerHTML = '<pre style="padding:16px;font-size:14px;color:#667085">' + md + '</pre>'
+      }
+    }
+  </script>
+</body>
+</html>

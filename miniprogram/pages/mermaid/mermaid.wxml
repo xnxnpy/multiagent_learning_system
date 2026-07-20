@@ -1,0 +1,16 @@
+<view class="mermaid-page">
+  <view wx:if="{{loading}}" class="loading">
+    <text>加载中...</text>
+  </view>
+  <view wx:elif="{{error}}" class="error">
+    <text class="error-icon">⚠️</text>
+    <text class="error-text">流程图加载失败</text>
+    <view class="code-block">
+      <text class="code-label">Mermaid 源码:</text>
+      <text class="code-text">{{code}}</text>
+    </view>
+  </view>
+  <view wx:else class="image-container">
+    <image src="{{imageUrl}}" mode="widthFix" class="mermaid-image" binderror="onImageError" />
+  </view>
+</view>

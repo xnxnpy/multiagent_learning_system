@@ -1,0 +1,97 @@
+<view class="page-container">
+  <view class="tabs">
+    <view class="tab {{activeTab === index ? 'active' : ''}}" wx:for="{{tabs}}" wx:key="index" data-index="{{index}}" bindtap="switchTab">
+      {{item}}
+    </view>
+  </view>
+
+  <!-- 模型提供者 -->
+  <view class="tab-content" wx:if="{{activeTab === 0}}">
+    <view class="card">
+      <view class="card-header">
+        <text class="card-title">模型提供者</text>
+        <button class="btn small primary" bindtap="addProvider">+ 添加</button>
+      </view>
+      <view wx:if="{{providers.length === 0}}" class="empty-state">
+        <text class="empty-icon">🔌</text>
+        <text class="empty-text">暂无提供者</text>
+      </view>
+      <view class="provider-item" wx:for="{{providers}}" wx:key="id">
+        <view class="provider-info">
+          <text class="provider-name">{{item.name}}</text>
+          <text class="provider-meta">类型: {{item.provider_type}} | {{item.api_url || '未配置'}}</text>
+          <text class="provider-meta">创建: {{item.created_at}}</text>
+        </view>
+        <view class="provider-actions">
+          <switch checked="{{item.is_active}}" size="mini" data-id="{{item.id}}" data-active="{{item.is_active}}" bindchange="toggleProvider" />
+          <text class="action-link delete" bindtap="deleteProvider" data-id="{{item.id}}">删除</text>
+        </view>
+      </view>
+    </view>
+  </view>
+
+  <!-- Agent 模型 -->
+  <view class="tab-content" wx:if="{{activeTab === 1}}">
+    <view class="card">
+      <view class="card-header">
+        <text class="card-title">Agent 模型配置</text>
+        <text class="card-tag">每个 Agent 可配置独立模型</text>
+      </view>
+      <view wx:if="{{agentModels.length === 0}}" class="empty-state">
+        <text class="empty-icon">🤖</text>
+        <text class="empty-text">加载中...</text>
+      </view>
+      <view class="model-row" wx:for="{{agentModels}}" wx:key="agent">
+        <view class="model-label">
+          <text class="model-agent">{{item.agent}}</text>
+        </view>
+        <view class="model-value">
+          <text class="model-name">{{item.model}}</text>
+          <text class="model-provider">{{item.provider}}</text>
+        </view>
+      </view>
+    </view>
+  </view>
+
+  <!-- 图片模型 -->
+  <view class="tab-content" wx:if="{{activeTab === 2}}">
+    <view class="card">
+      <view class="card-header">
+        <text class="card-title">图片模型配置</text>
+      </view>
+      <view wx:if="{{imageModels.length === 0}}" class="empty-state">
+        <text class="empty-icon">🎨</text>
+        <text class="empty-text">加载中...</text>
+      </view>
+      <view class="model-row" wx:for="{{imageModels}}" wx:key="task">
+        <view class="model-label">
+          <text class="model-agent">{{item.task}}</text>
+        </view>
+        <view class="model-value">
+          <text class="model-name">{{item.model}}</text>
+          <text class="model-provider">{{item.provider}}</text>
+        </view>
+      </view>
+    </view>
+  </view>
+
+  <!-- TTS 音色 -->
+  <view class="tab-content" wx:if="{{activeTab === 3}}">
+    <view class="card">
+      <view class="card-header">
+        <text class="card-title">TTS 音色配置</text>
+      </view>
+      <view wx:if="{{ttsVoices.length === 0}}" class="empty-state">
+        <text class="empty-icon">🔊</text>
+        <text class="empty-text">暂无音色配置</text>
+      </view>
+      <view class="voice-item" wx:for="{{ttsVoices}}" wx:key="id">
+        <view class="voice-info">
+          <text class="voice-name">{{item.name || item.id}}</text>
+          <text class="voice-meta">{{item.id}} | {{item.gender || '-'}}</text>
+        </view>
+        <switch checked="{{item.is_active}}" size="mini" />
+      </view>
+    </view>
+  </view>
+</view>

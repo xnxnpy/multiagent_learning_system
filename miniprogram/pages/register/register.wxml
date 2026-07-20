@@ -1,0 +1,66 @@
+<view class="container">
+  <view class="logo-section">
+    <view class="logo">🤖</view>
+    <text class="title">创建账号</text>
+    <text class="subtitle">注册后即可开始个性化学习之旅</text>
+  </view>
+
+  <view class="form-section">
+    <view class="form-item">
+      <text class="form-label">用户名 <text class="required">*</text></text>
+      <input class="form-input" placeholder="请输入用户名（3-50个字符）" value="{{username}}" data-field="username" bindinput="onInput" maxlength="50" />
+    </view>
+
+    <view class="form-item">
+      <text class="form-label">真实姓名 <text class="required">*</text></text>
+      <input class="form-input" placeholder="请输入真实姓名" value="{{realName}}" data-field="realName" bindinput="onInput" />
+    </view>
+
+    <view class="form-item">
+      <text class="form-label">邮箱 <text class="required">*</text></text>
+      <input class="form-input" type="text" placeholder="请输入邮箱" value="{{email}}" data-field="email" bindinput="onInput" />
+    </view>
+
+    <view class="form-item">
+      <text class="form-label">用户角色 <text class="required">*</text></text>
+      <view class="role-options">
+        <view
+          class="role-option {{selectedRole === item.value ? 'active' : ''}}"
+          wx:for="{{roles}}"
+          wx:key="value"
+          data-value="{{item.value}}"
+          bindtap="selectRole"
+        >
+          <text class="role-icon">{{item.icon}}</text>
+          <text class="role-label">{{item.label}}</text>
+        </view>
+      </view>
+    </view>
+
+    <view class="form-item">
+      <text class="form-label">密码 <text class="required">*</text></text>
+      <input class="form-input" type="password" placeholder="请输入密码（至少6位）" value="{{password}}" data-field="password" bindinput="onInput" />
+    </view>
+
+    <view class="form-item">
+      <text class="form-label">确认密码 <text class="required">*</text></text>
+      <input class="form-input" type="password" placeholder="请再次输入密码" value="{{confirmPassword}}" data-field="confirmPassword" bindinput="onInput" />
+    </view>
+
+    <view class="agreement-item" bindtap="toggleAgreement">
+      <view class="checkbox {{agreementChecked ? 'checked' : ''}}">
+        <text wx:if="{{agreementChecked}}">✓</text>
+      </view>
+      <text class="agreement-text">我已阅读并同意《用户服务协议》</text>
+    </view>
+
+    <button class="submit-btn" bindtap="register" disabled="{{isSubmitting}}">
+      {{isSubmitting ? '注册中...' : '注册'}}
+    </button>
+  </view>
+
+  <view class="login-link" bindtap="goToLogin">
+    <text>已有账号？</text>
+    <text class="link-text">立即登录</text>
+  </view>
+</view>

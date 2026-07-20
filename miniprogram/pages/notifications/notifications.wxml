@@ -1,0 +1,41 @@
+<view class="container">
+  <view class="header">
+    <text class="title">通知中心</text>
+    <text class="unread-badge" wx:if="{{unreadCount > 0}}">{{unreadCount}}</text>
+  </view>
+
+  <view class="action-bar">
+    <button class="action-btn" bindtap="markAllRead">
+      全部已读
+    </button>
+  </view>
+
+  <scroll-view class="notification-list" scroll-y>
+    <view wx:if="{{isLoading}}" class="loading">
+      <text>加载中...</text>
+    </view>
+
+    <view wx:if="{{!isLoading && notifications.length === 0}}" class="empty">
+      <text class="empty-icon">📭</text>
+      <text class="empty-text">暂无通知</text>
+    </view>
+
+    <view 
+      class="notification-item {{item.read ? 'read' : 'unread'}}"
+      wx:for="{{notifications}}"
+      wx:key="id"
+      bindtap="markAsRead"
+      data-id="{{item.id}}"
+    >
+      <view class="notification-icon">{{getTypeIcon(item.type)}}</view>
+      <view class="notification-content">
+        <text class="notification-title">{{item.title}}</text>
+        <text class="notification-desc">{{item.content}}</text>
+        <text class="notification-time">{{item.time}}</text>
+      </view>
+      <view class="notification-actions">
+        <text class="delete-btn" bindtap="deleteNotification" data-id="{{item.id}}">删除</text>
+      </view>
+    </view>
+  </scroll-view>
+</view>

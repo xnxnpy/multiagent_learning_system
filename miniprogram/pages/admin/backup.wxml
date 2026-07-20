@@ -1,0 +1,153 @@
+<view class="page-container">
+  <view class="tabs">
+    <view class="tab {{activeTab === index ? 'active' : ''}}" wx:for="{{tabs}}" wx:key="index" data-index="{{index}}" bindtap="switchTab">
+      {{item}}
+    </view>
+  </view>
+
+  <!-- 系统统计 -->
+  <view class="tab-content" wx:if="{{activeTab === 0}}">
+    <view class="card">
+      <view class="card-header">
+        <text class="card-title">用户统计</text>
+      </view>
+      <view class="stats-grid">
+        <view class="stat-item blue">
+          <text class="stat-value">{{stats.total_users || 0}}</text>
+          <text class="stat-label">用户总数</text>
+        </view>
+        <view class="stat-item green">
+          <text class="stat-value">{{stats.total_students || 0}}</text>
+          <text class="stat-label">学生数</text>
+        </view>
+        <view class="stat-item purple">
+          <text class="stat-value">{{stats.total_teachers || 0}}</text>
+          <text class="stat-label">教师数</text>
+        </view>
+      </view>
+    </view>
+
+    <view class="card">
+      <view class="card-header">
+        <text class="card-title">学习数据</text>
+      </view>
+      <view class="stats-grid">
+        <view class="stat-item orange">
+          <text class="stat-value">{{stats.total_profiles || 0}}</text>
+          <text class="stat-label">画像数</text>
+        </view>
+        <view class="stat-item cyan">
+          <text class="stat-value">{{stats.total_learning_paths || 0}}</text>
+          <text class="stat-label">学习路径</text>
+        </view>
+        <view class="stat-item pink">
+          <text class="stat-value">{{stats.total_resources || 0}}</text>
+          <text class="stat-label">学习资源</text>
+        </view>
+      </view>
+    </view>
+
+    <view class="card">
+      <view class="card-header">
+        <text class="card-title">系统资源</text>
+      </view>
+      <view class="monitor-row">
+        <view class="monitor-item">
+          <text class="monitor-label">CPU</text>
+          <view class="progress-bar">
+            <view class="progress-fill blue" style="width: {{systemStats.cpu_percent || 0}}%"></view>
+          </view>
+          <text class="monitor-val">{{systemStats.cpu_percent || 0}}%</text>
+        </view>
+        <view class="monitor-item">
+          <text class="monitor-label">内存</text>
+          <view class="progress-bar">
+            <view class="progress-fill green" style="width: {{systemStats.memory_percent || 0}}%"></view>
+          </view>
+          <text class="monitor-val">{{systemStats.memory_used_mb || 0}}MB / {{systemStats.memory_total_mb || 0}}MB</text>
+        </view>
+        <view class="monitor-item">
+          <text class="monitor-label">磁盘</text>
+          <view class="progress-bar">
+            <view class="progress-fill orange" style="width: {{systemStats.disk_percent || 0}}%"></view>
+          </view>
+          <text class="monitor-val">{{systemStats.disk_percent || 0}}%</text>
+        </view>
+      </view>
+    </view>
+  </view>
+
+  <!-- 备份管理 -->
+  <view class="tab-content" wx:if="{{activeTab === 1}}">
+    <view class="card">
+      <view class="card-header">
+        <text class="card-title">备份操作</text>
+      </view>
+      <button class="btn primary full" bindtap="createBackup" disabled="{{isCreating}}">
+        {{isCreating ? '备份中...' : '立即备份'}}
+      </button>
+    </view>
+
+    <view class="card">
+      <view class="card-header">
+        <text class="card-title">备份列表</text>
+      </view>
+      <view wx:if="{{backups.length === 0}}" class="empty-state">
+        <text class="empty-icon">💾</text>
+        <text class="empty-text">暂无备份记录</text>
+      </view>
+      <view class="backup-item" wx:for="{{backups}}" wx:key="name">
+        <view class="backup-info">
+          <text class="backup-name">{{item.name}}</text>
+          <text class="backup-meta">大小: {{item.sizeText}} | {{item.created_at}}</text>
+        </view>
+        <view class="backup-actions">
+          <text class="action-link restore" bindtap="restoreBackup" data-name="{{item.name}}">恢复</text>
+          <text class="action-link delete" bindtap="deleteBackup" data-name="{{item.name}}">删除</text>
+        </view>
+      </view>
+    </view>
+  </view>
+
+  <!-- 维护操作 -->
+  <view class="tab-content" wx:if="{{activeTab === 2}}">
+    <view class="card">
+      <view class="card-header">
+        <text class="card-title">缓存管理</text>
+      </view>
+      <view class="maintain-item">
+        <view class="maintain-info">
+          <text class="maintain-title">清空系统缓存</text>
+          <text class="maintain-desc">清除 Redis 缓存数据，不影响业务数据</text>
+        </view>
+        <button class="btn small secondary" bindtap="clearCache">清空</button>
+      </view>
+    </view>
+
+    <view class="card">
+      <view class="card-header">
+        <text class="card-title">日志管理</text>
+      </view>
+      <view class="maintain-item">
+        <view class="maintain-info">
+          <text class="maintain-title">清理系统日志</text>
+          <text class="maintain-desc">清除历史日志文件，释放磁盘空间</text>
+        </view>
+        <button class="btn small secondary" bindtap="cleanLogs">清理</button>
+      </view>
+    </view>
+
+    <view class="card">
+      <view class="card-header">
+        <text class="card-title">数据安全</text>
+      </view>
+      <view class="maintain-item">
+        <view class="maintain-info">
+          <text class="maintain-title">创建数据库备份</text>
+          <text class="maintain-desc">在备份管理中可以查看和恢复备份</text>
+        </view>
+        <button class="btn small primary" bindtap="createBackup" disabled="{{isCreating}}">备份</button>
+      </view>
+    </view>
+  </view>
+</view>
