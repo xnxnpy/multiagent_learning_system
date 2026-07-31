@@ -106,6 +106,9 @@ class Settings(BaseSettings):
     # 讯飞 ASR 配置
     XUNFEI_ASR_WS_URL: str = "wss://iat-api.xfyun.cn/v2/iat"
 
+    # 讯飞 OCR 配置（通用文字识别 intsig，支持52种语言，用于辅导场景图片题目识别）
+    XUNFEI_OCR_URL: str = "https://api.xf-yun.com/v1/private/hh_ocr_recognize_doc"
+
     # 阿里云 OSS 配置
     OSS_ACCESS_KEY_ID: str = ""
     OSS_ACCESS_KEY_SECRET: str = ""

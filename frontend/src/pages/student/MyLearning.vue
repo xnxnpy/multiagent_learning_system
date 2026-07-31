@@ -76,7 +76,7 @@
             <el-tab-pane v-if="resources.questions" name="questions" label="练习题目">
               <div v-for="(q, qi) in (resources.questions.questions || [])" :key="qi" class="question-item">
                 <div class="question-header">
-                  <el-tag :type="q.type === '编程题' ? 'danger' : ''" size="small">{{ q.type }}</el-tag>
+                  <el-tag :type="q.type === '编程题' ? 'danger' : 'info'" size="small">{{ q.type }}</el-tag>
                   <el-tag size="small" :type="difficultyType(q.difficulty)">{{ q.difficulty }}</el-tag>
                 </div>
                 <p class="question-text">{{ qi + 1 }}. {{ q.question }}</p>
@@ -97,7 +97,7 @@
                   <el-tag v-if="resources.code.difficulty" size="small" :type="difficultyType(resources.code.difficulty)">{{ resources.code.difficulty }}</el-tag>
                 </div>
                 <p v-if="resources.code.description" class="code-desc">{{ resources.code.description }}</p>
-                <pre class="code-block"><code>{{ resources.code.code }}</code></pre>
+                <pre class="code-block"><code v-html="highlightedCode"></code></pre>
                 <div v-if="resources.code.test_cases?.length" class="test-cases">
                   <p style="font-size:13px;color:#909399;margin:8px 0 4px">测试用例：</p>
                   <div v-for="(tc, ti) in resources.code.test_cases" :key="ti" style="font-size:12px;color:#606266;margin:2px 0">
@@ -193,6 +193,8 @@
 <script setup lang="ts">
 import { ref, computed, onMounted } from 'vue'
 import { marked } from 'marked'
+import hljs from 'highlight.js'
+import 'highlight.js/styles/github.css'
 import { renderMath } from '@/utils/renderMath'
 import { renderMd } from '@/utils/renderMarkdown'
 import { ElMessage } from 'element-plus'
@@ -221,7 +223,7 @@ const renderMarkdown = (content: any) => {
 const gradeType = (grade: string) => {
   if (!grade) return 'info'
   if (grade.startsWith('A')) return 'success'
-  if (grade.startsWith('B')) return ''
+  if (grade.startsWith('B')) return 'primary'
   if (grade.startsWith('C')) return 'warning'
   return 'danger'
 }
@@ -232,18 +234,27 @@ const difficultyType = (d: string) => {
   return 'danger'
 }
 
+const highlightedCode = computed(() => {
+  if (!resources.value.code?.code) return ''
+  try {
+    return hljs.highlight(resources.value.code.code, { language: 'python' }).value
+  } catch {
+    return resources.value.code.code
+  }
+})
+
 onMounted(async () => {
   const token = localStorage.getItem('token')
   const headers = { Authorization: `Bearer ${token}` }
 
   try {
-    // 并行获取所有数据
+    // 并行获取画像/路径/资源/评估/辅导会话元数据
     const [profileRes, pathRes, resRes, evalRes, tutorRes] = await Promise.allSettled([
       axios.get('/api/v1/student/profile', { headers }),
       axios.get('/api/v1/student/learning-path', { headers }),
       axios.get('/api/v1/student/resources', { headers }),
       axios.get('/api/v1/student/evaluation/report', { headers }),
-      axios.get('/api/v1/student/tutor-chats', { headers }),
+      axios.get('/api/v1/tutor/sessions', { headers }),
     ])
 
     if (profileRes.status === 'fulfilled') profile.value = profileRes.value.data
@@ -251,8 +262,16 @@ onMounted(async () => {
     if (resRes.status === 'fulfilled') resources.value = resRes.value.data
     if (evalRes.status === 'fulfilled') evaluation.value = evalRes.value.data
     if (tutorRes.status === 'fulfilled') {
-      const sessionsData = tutorRes.value.data?.sessions || {}
-      tutorSessions.value = Object.values(sessionsData)
+      const sessionMetas: any[] = tutorRes.value.data?.sessions || []
+      // 逐个拉取每个会话的真实聊天历史消息
+      const histories = await Promise.allSettled(
+        sessionMetas.map((m: any) =>
+          axios.get(`/api/v1/tutor/history/${m.session_id}`, { headers })
+        )
+      )
+      tutorSessions.value = histories
+        .map((r: any) => (r.status === 'fulfilled' ? r.value.data?.messages ?? [] : []))
+        .filter((msgs: any[]) => msgs.length > 0)
     }
   } catch (e: any) {
     ElMessage.error('加载学习记录失败: ' + (e.message || '未知错误'))
@@ -315,7 +334,7 @@ onMounted(async () => {
 .markdown-body :deep(table) { width: 100%; border-collapse: collapse; margin: 12px 0; font-size: 14px; }
 .markdown-body :deep(th), .markdown-body :deep(td) { border: 1px solid var(--color-border); padding: 8px 12px; text-align: left; }
 .markdown-body :deep(th) { background: var(--color-bg-page); font-weight: 600; }
-.markdown-body :deep(pre) { background: #1e1e2e; color: #cdd6f4; padding: 16px; border-radius: 8px; overflow-x: auto; font-size: 13px; line-height: 1.6; margin: 12px 0; }
+.markdown-body :deep(pre) { background: #fff; color: var(--color-text-primary); padding: 16px; border-radius: 8px; overflow-x: auto; font-size: 13px; line-height: 1.6; margin: 12px 0; }
 .markdown-body :deep(code) { font-family: var(--font-mono); font-size: 13px; }
 .markdown-body :deep(p > code), .markdown-body :deep(li > code) { background: var(--color-bg-page); padding: 2px 6px; border-radius: 4px; color: var(--color-primary); }
 .markdown-body :deep(pre > code) { background: transparent; padding: 0; color: inherit; }
@@ -324,9 +343,10 @@ onMounted(async () => {
 
 .question-item {
   padding: 16px;
-  background: var(--color-bg-page);
+  background: var(--color-bg-card);
   border-radius: var(--radius-md);
   border: 1px solid var(--color-border-light);
+  border-left: 3px solid var(--color-primary);
   margin-bottom: 16px;
 }
 
@@ -374,7 +394,7 @@ onMounted(async () => {
   font-size: 13px;
   color: var(--color-text-secondary);
   padding: 8px 12px;
-  background: var(--color-primary-lightest);
+  background: var(--color-primary-faint);
   border-radius: var(--radius-sm);
 }
 
@@ -382,9 +402,10 @@ onMounted(async () => {
 
 .code-example-item {
   padding: 16px;
-  background: var(--color-bg-page);
+  background: var(--color-bg-card);
   border-radius: var(--radius-md);
   border: 1px solid var(--color-border-light);
+  border-left: 3px solid var(--color-student);
   margin-bottom: 16px;
 }
 
@@ -408,14 +429,17 @@ onMounted(async () => {
 }
 
 .code-block {
-  background: #1e1e2e;
-  color: #cdd6f4;
+  background: #fff;
   padding: 16px;
   border-radius: var(--radius-md);
   font-size: 13px;
   overflow-x: auto;
   margin: 0;
   line-height: 1.6;
+}
+
+.code-block code {
+  font-family: var(--font-mono);
 }
 
 .video-script h4 {
@@ -503,17 +527,24 @@ onMounted(async () => {
 
 .eval-stat {
   text-align: center;
-  background: var(--color-bg-page);
+  background: var(--color-bg-card);
   padding: 20px;
   border-radius: var(--radius-md);
   border: 1px solid var(--color-border-light);
 }
 
+.eval-stat:nth-child(1) { border-top: 3px solid var(--color-primary); }
+.eval-stat:nth-child(2) { border-top: 3px solid var(--color-success); }
+.eval-stat:nth-child(3) { border-top: 3px solid var(--color-student); }
+
 .eval-stat-value {
   font-size: 28px;
   font-weight: 700;
-  color: var(--color-primary);
 }
+
+.eval-stat:nth-child(1) .eval-stat-value { color: var(--color-primary); }
+.eval-stat:nth-child(2) .eval-stat-value { color: var(--color-success); }
+.eval-stat:nth-child(3) .eval-stat-value { color: var(--color-student); }
 
 .eval-stat-label {
   font-size: var(--text-xs);
@@ -538,7 +569,7 @@ onMounted(async () => {
   font-size: 14px;
   color: var(--color-text-secondary);
   padding-left: 12px;
-  border-left: 2px solid var(--color-border);
+  border-left: 2px solid var(--color-primary);
 }
 
 .tutor-sessions {
@@ -562,22 +593,29 @@ onMounted(async () => {
 }
 
 .msg-user {
-  background: var(--color-primary-lightest);
-  border: 1px solid var(--color-primary-lightest);
+  background: var(--color-student-pale);
+  border: 1px solid var(--color-student-soft);
   align-self: flex-end;
 }
 
 .msg-assistant {
-  background: var(--color-bg-page);
-  border: 1px solid var(--color-border-light);
+  background: var(--color-primary-faint);
+  border: 1px solid var(--color-primary-pale);
   align-self: flex-start;
 }
 
 .msg-label {
   font-size: var(--text-xs);
   font-weight: 600;
-  color: var(--color-text-muted);
   margin-bottom: 4px;
+}
+
+.msg-user .msg-label {
+  color: var(--color-student);
+}
+
+.msg-assistant .msg-label {
+  color: var(--color-primary-soft);
 }
 
 .msg-content {

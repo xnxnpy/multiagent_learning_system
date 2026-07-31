@@ -1,6 +1,7 @@
+/* ========== 登录页 · 学术编辑风格 ========== */
 .login-container {
   min-height: 100vh;
-  background: linear-gradient(180deg, #e6f0ff 0%, #f0f5ff 50%, #ffffff 100%);
+  background: var(--color-bg-page);
   padding: 60rpx 40rpx;
   box-sizing: border-box;
   position: relative;
@@ -10,55 +11,90 @@
   justify-content: center;
 }
 
+/* 顶部装饰渐变 */
+.login-container::before {
+  content: '';
+  position: absolute;
+  top: 0; left: 0; right: 0;
+  height: 420rpx;
+  background: linear-gradient(180deg, rgba(43, 45, 66, 0.06) 0%, rgba(176, 81, 44, 0.04) 60%, transparent 100%);
+  border-bottom: 1rpx solid var(--color-border-light);
+  pointer-events: none;
+}
+
 .bg-decoration {
   position: absolute;
-  top: -200rpx;
-  left: -100rpx;
+  top: -180rpx;
+  left: -120rpx;
   width: 600rpx;
   height: 600rpx;
-  background: radial-gradient(circle, rgba(22, 119, 255, 0.15) 0%, transparent 70%);
+  background: radial-gradient(circle, rgba(43, 45, 66, 0.1) 0%, transparent 70%);
   border-radius: 50%;
 }
 
 .bg-decoration::after {
   content: '';
   position: absolute;
-  bottom: -100rpx;
-  right: -100rpx;
-  width: 400rpx;
-  height: 400rpx;
-  background: radial-gradient(circle, rgba(64, 150, 255, 0.1) 0%, transparent 70%);
+  bottom: -80rpx;
+  right: -120rpx;
+  width: 420rpx;
+  height: 420rpx;
+  background: radial-gradient(circle, rgba(176, 81, 44, 0.08) 0%, transparent 70%);
   border-radius: 50%;
 }
 
+/* ---------- 卡片（纸张）---------- */
 .login-card {
-  background: rgba(255, 255, 255, 0.95);
-  border-radius: 24rpx;
+  background: var(--color-bg-card);
+  border-radius: 28rpx;
   padding: 50rpx 40rpx;
-  box-shadow: 0 20rpx 60rpx rgba(22, 119, 255, 0.15);
+  box-shadow: 0 2rpx 8rpx rgba(29, 31, 51, 0.05),
+              0 2rpx 4rpx rgba(29, 31, 51, 0.04);
   position: relative;
   z-index: 1;
+  border: 1rpx solid var(--color-border-light);
 }
 
+/* ---------- 头部 ---------- */
 .card-header {
   text-align: center;
-  margin-bottom: 40rpx;
+  margin-bottom: 44rpx;
+}
+
+.app-logo {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 100rpx;
+  height: 100rpx;
+  border-radius: 24rpx;
+  background: var(--color-primary);
+  color: #fff;
+  font-size: 48rpx;
+  font-family: 'Times New Roman', serif;
+  font-weight: 700;
+  margin-bottom: 20rpx;
+  box-shadow: 0 8rpx 20rpx rgba(43, 45, 66, 0.18);
+  letter-spacing: -0.02em;
 }
 
 .card-title {
   display: block;
-  font-size: 40rpx;
-  font-weight: bold;
-  color: #1677ff;
-  margin-bottom: 10rpx;
+  font-size: 42rpx;
+  font-weight: 700;
+  color: var(--color-text-ink);
+  margin-bottom: 8rpx;
+  letter-spacing: -0.02em;
 }
 
 .card-subtitle {
   display: block;
   font-size: 26rpx;
-  color: #999;
+  color: var(--color-text-muted);
+  letter-spacing: 0.01em;
 }
 
+/* ---------- 表单 ---------- */
 .form-content {
   display: flex;
   flex-direction: column;
@@ -66,38 +102,43 @@
 
 .input-group {
   display: flex;
-  align-items: center;
-  background: #f5f7fa;
-  border: 2rpx solid #e8e8e8;
-  border-radius: 12rpx;
-  padding: 0 30rpx;
-  margin-bottom: 25rpx;
-  transition: all 0.3s;
+  flex-direction: column;
+  align-items: flex-start;
+  margin-bottom: 22rpx;
 }
 
-.input-group:focus-within {
-  border-color: #1677ff;
-  background: #ffffff;
-}
-
-.input-icon {
-  font-size: 32rpx;
-  margin-right: 20rpx;
-  color: #999;
+.input-label {
+  font-size: 24rpx;
+  font-weight: 600;
+  color: var(--color-text-body);
+  margin-bottom: 10rpx;
+  letter-spacing: 0.02em;
+  padding-left: 4rpx;
 }
 
 .input {
-  flex: 1;
-  height: 90rpx;
+  width: 100%;
+  height: 88rpx;
+  background: var(--color-bg-card);
+  border: 1rpx solid var(--color-border);
+  border-radius: 20rpx;
+  padding: 0 28rpx;
   font-size: 28rpx;
-  color: #333;
+  color: var(--color-text-body);
+  box-sizing: border-box;
+  transition: all 0.15s;
+}
+
+.input:focus {
+  border-color: rgba(43, 45, 66, 0.35);
+  box-shadow: 0 0 0 4rpx rgba(43, 45, 66, 0.06);
 }
 
 .form-options {
   display: flex;
   justify-content: space-between;
   align-items: center;
-  margin-bottom: 30rpx;
+  margin: 4rpx 0 30rpx;
 }
 
 .checkbox-wrap {
@@ -109,14 +150,15 @@
 .checkbox {
   width: 36rpx;
   height: 36rpx;
-  border: 2rpx solid #d9d9d9;
-  border-radius: 6rpx;
+  border: 2rpx solid var(--color-border-strong);
+  border-radius: 10rpx;
   position: relative;
+  transition: all 0.15s;
 }
 
 .checkbox.checked {
-  background: #1677ff;
-  border-color: #1677ff;
+  background: var(--color-student);
+  border-color: var(--color-student);
 }
 
 .checkbox.checked::after {
@@ -125,62 +167,79 @@
   top: 50%;
   left: 50%;
   transform: translate(-50%, -50%);
-  color: #fff;
+  color: var(--color-text-inverse);
   font-size: 24rpx;
 }
 
 .option-text {
-  font-size: 26rpx;
-  color: #666;
+  font-size: 24rpx;
+  color: var(--color-text-body);
 }
 
 .forgot {
-  font-size: 26rpx;
-  color: #1677ff;
+  font-size: 24rpx;
+  color: var(--color-primary);
+  font-weight: 600;
+  text-decoration: underline;
+  text-underline-offset: 3rpx;
+  text-decoration-thickness: 1rpx;
 }
 
+/* ---------- 登录按钮 ---------- */
 .login-btn {
   width: 100%;
-  height: 90rpx;
-  background: linear-gradient(135deg, #1677ff 0%, #4096ff 100%);
-  color: #fff;
-  border-radius: 12rpx;
-  font-size: 32rpx;
-  font-weight: bold;
+  height: 92rpx;
+  background: var(--color-student);
+  color: var(--color-text-inverse);
+  border-radius: 24rpx;
+  font-size: 30rpx;
+  font-weight: 700;
+  letter-spacing: 0.04em;
   margin-bottom: 20rpx;
-  box-shadow: 0 8rpx 24rpx rgba(22, 119, 255, 0.3);
+  border: none;
+  box-shadow: 0 4rpx 12rpx rgba(176, 81, 44, 0.18);
+  transition: all 0.2s;
 }
 
 .login-btn:active {
-  transform: scale(0.98);
+  background: #964527;
+  transform: translateY(-1rpx);
+  box-shadow: 0 6rpx 16rpx rgba(176, 81, 44, 0.26);
 }
 
-
-
+/* ---------- 注册跳转 ---------- */
 .register-link {
   display: flex;
   justify-content: center;
   align-items: center;
   gap: 10rpx;
+  margin-top: 12rpx;
 }
 
 .link-text {
   font-size: 26rpx;
-  color: #666;
+  color: var(--color-text-muted);
 }
 
 .register {
   font-size: 26rpx;
-  color: #1677ff;
-  font-weight: 500;
+  color: var(--color-primary);
+  font-weight: 700;
+  text-decoration: underline;
+  text-underline-offset: 3rpx;
+  text-decoration-thickness: 1rpx;
 }
 
+/* ---------- 底部 ---------- */
 .footer {
   text-align: center;
   margin-top: 60rpx;
+  position: relative;
+  z-index: 1;
 }
 
 .footer text {
-  font-size: 24rpx;
-  color: #999;
+  font-size: 22rpx;
+  color: var(--color-text-faint);
+  letter-spacing: 0.02em;
 }

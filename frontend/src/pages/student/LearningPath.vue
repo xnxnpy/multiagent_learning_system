@@ -355,6 +355,41 @@ watch(() => pathStore.currentStage, async () => {
   background: var(--color-bg-page);
   border-radius: var(--radius-md);
 }
+
+/* Override Element Plus timeline colors to match theme */
+.timeline-card :deep(.el-timeline-item__node--success) {
+  background-color: var(--color-success);
+  border-color: var(--color-success);
+}
+.timeline-card :deep(.el-timeline-item__node--primary) {
+  background-color: var(--color-student);
+  border-color: var(--color-student);
+}
+.timeline-card :deep(.el-timeline-item__node--info) {
+  background-color: var(--color-border-strong);
+  border-color: var(--color-border-strong);
+}
+.timeline-card :deep(.el-timeline-item__tail) {
+  border-left-color: var(--color-border);
+}
+
+/* Override el-tag types for timeline */
+.timeline-card :deep(.el-tag--success) {
+  background-color: var(--color-success-soft);
+  color: var(--color-success);
+  border-color: var(--color-success-soft);
+}
+.timeline-card :deep(.el-tag--primary) {
+  background-color: var(--color-student-pale);
+  color: var(--color-student);
+  border-color: var(--color-student-soft);
+}
+.timeline-card :deep(.el-tag--info) {
+  background-color: var(--color-bg-page-2);
+  color: var(--color-text-muted);
+  border-color: var(--color-border-light);
+}
+
 .timeline-header {
   display: flex;
   align-items: center;

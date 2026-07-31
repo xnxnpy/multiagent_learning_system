@@ -1,69 +1,57 @@
 <view class="report-container">
   <view class="header">
     <text class="page-title">学习报告</text>
-    <button class="refresh-btn" bindtap="refreshReport" disabled="{{loading}}">刷新报告</button>
+    <button class="refresh-btn" bindtap="refreshReport" disabled="{{loading}}">刷新</button>
   </view>
 
   <scroll-view scroll-y class="main-content">
-    <!-- 统计卡片 2x2 -->
-    <view class="stat-grid">
-      <view class="stat-card"><view class="stat-card-inner">
-        <view class="stat-icon trophy">🏆</view>
-        <view class="stat-info">
-          <text class="stat-value grade">{{overallGrade}}</text>
-          <text class="stat-label">评估等级</text>
+
+    <!-- 概览卡片 -->
+    <view class="overview-card">
+      <view class="grade-card">
+        <view class="grade-left">
+          <text class="grade-label">评估等级</text>
+          <text class="grade-value">{{overallGrade}}</text>
         </view>
-      </view></view>
-      <view class="stat-card"><view class="stat-card-inner">
-        <view class="stat-icon score">📊</view>
-        <view class="stat-info">
-          <text class="stat-value">{{reportData.score}}</text>
-          <text class="stat-label">总分</text>
+        <view class="grade-icon">🏆</view>
+      </view>
+      <view class="stat-row">
+        <view class="stat-chip">
+          <text class="chip-value">{{reportData.score}}</text>
+          <text class="chip-label">总分</text>
         </view>
-      </view></view>
-      <view class="stat-card"><view class="stat-card-inner">
-        <view class="stat-icon questions">⏱️</view>
-        <view class="stat-info">
-          <text class="stat-value">{{reportData.totalQuestions}}</text>
-          <text class="stat-label">答题数</text>
+        <view class="chip-divider"></view>
+        <view class="stat-chip">
+          <text class="chip-value">{{reportData.totalQuestions}}</text>
+          <text class="chip-label">答题数</text>
         </view>
-      </view></view>
-      <view class="stat-card"><view class="stat-card-inner">
-        <view class="stat-icon accuracy">🎯</view>
-        <view class="stat-info">
-          <text class="stat-value">{{reportData.correctRate}}%</text>
-          <text class="stat-label">正确率</text>
+        <view class="chip-divider"></view>
+        <view class="stat-chip">
+          <text class="chip-value">{{reportData.correctRate}}%</text>
+          <text class="chip-label">正确率</text>
         </view>
-      </view></view>
+      </view>
     </view>
 
-    <!-- 知识点详情表格 -->
-    <view class="content-card">
+    <!-- 知识点掌握列表 -->
+    <view class="section-card">
       <view class="card-header">
-        <text class="card-title">📋 各知识点详情</text>
+        <text class="card-title">知识点掌握</text>
       </view>
-      <view wx:if="{{knowledgePoints.length > 0}}" class="table-wrap">
-        <view class="table-header">
-          <text class="th" style="flex:2">知识点</text>
-          <text class="th" style="flex:1;text-align:center">得分</text>
-          <text class="th" style="flex:1;text-align:center">满分</text>
-          <text class="th" style="flex:1.5">掌握度</text>
-          <text class="th" style="flex:1;text-align:center">状态</text>
-        </view>
-        <view wx:for="{{knowledgePoints}}" wx:key="id" class="table-row {{index % 2 === 0 ? 'even' : ''}}">
-          <text class="td" style="flex:2">{{item.name}}</text>
-          <text class="td" style="flex:1;text-align:center">{{item.score}}</text>
-          <text class="td" style="flex:1;text-align:center">{{item.total}}</text>
-          <view class="td" style="flex:1.5">
-            <view class="mini-progress">
-              <view class="mini-track">
-                <view class="mini-fill {{item.masteryClass}}" style="width:{{item.masteryPercent}}%"></view>
-              </view>
-              <text class="mini-pct">{{item.masteryPercent}}%</text>
-            </view>
+      <view wx:if="{{knowledgePoints.length > 0}}" class="kp-list">
+        <view wx:for="{{knowledgePoints}}" wx:key="id" class="kp-item">
+          <view class="kp-top">
+            <text class="kp-name">{{item.name}}</text>
+            <text class="kp-score">{{item.score}}/{{item.total}}</text>
           </view>
-          <view class="td" style="flex:1;text-align:center">
-            <text class="status-tag {{item.statusClass}}">{{item.status}}</text>
+          <view class="kp-progress-row">
+            <view class="kp-progress-track">
+              <view class="kp-progress-fill {{item.masteryClass}}" style="width:{{item.masteryPercent}}%"></view>
+            </view>
+            <text class="kp-percent">{{item.masteryPercent}}%</text>
+          </view>
+          <view class="kp-bottom">
+            <text class="kp-status {{item.statusClass}}">{{item.status}}</text>
           </view>
         </view>
       </view>
@@ -72,95 +60,103 @@
       </view>
     </view>
 
-    <!-- 学习趋势 + 行为分布 -->
-    <view class="two-col">
-      <view class="content-card col-left">
-        <view class="card-header">
-          <text class="card-title">📈 近7天学习趋势</text>
-          <text class="card-tag">日均 {{summaryStats.avgDaily}} 分钟</text>
-        </view>
-        <view wx:if="{{dailyTrend.length > 0}}" class="trend-chart">
-          <view class="trend-bars">
-            <view wx:for="{{dailyTrend}}" wx:key="date" class="bar-item">
-              <view class="bar-wrapper">
-                <view class="bar-fill" style="height: {{item.minutes > 0 ? (item.minutes / maxTrendMinutes) * 100 : 2}}%"></view>
-              </view>
-              <text class="bar-value">{{item.minutes}}m</text>
-              <text class="bar-label">{{item.date}}</text>
+    <!-- 学习趋势卡片 -->
+    <view class="section-card">
+      <view class="card-header">
+        <text class="card-title">近7天学习趋势</text>
+        <text class="card-tag">日均 {{summaryStats.avgDaily}} 分钟</text>
+      </view>
+      <view wx:if="{{dailyTrend.length > 0}}" class="trend-card">
+        <view class="trend-bars">
+          <view wx:for="{{dailyTrend}}" wx:key="date" class="bar-item">
+            <view class="bar-wrapper">
+              <view class="bar-fill" style="height: {{item.minutes > 0 ? (item.minutes / maxTrendMinutes) * 100 : 2}}%"></view>
             </view>
+            <text class="bar-value">{{item.minutes}}m</text>
+            <text class="bar-label">{{item.date}}</text>
           </view>
-        </view>
-        <view wx:else class="empty-state">
-          <text class="empty-text">暂无学习数据</text>
         </view>
       </view>
-
-      <view class="content-card col-right">
-        <view class="card-header">
-          <text class="card-title">📊 行为分布</text>
-        </view>
-        <view wx:if="{{behaviorPie.length > 0}}" class="behavior-list">
-          <view wx:for="{{behaviorPie}}" wx:key="name" class="behavior-item">
-            <view class="behavior-left">
-              <view class="behavior-dot" style="background: {{getPieColor(index)}}"></view>
-              <text class="behavior-name">{{item.name}}</text>
-            </view>
-            <text class="behavior-value">{{item.value}}</text>
-          </view>
-        </view>
-        <view wx:else class="empty-state">
-          <text class="empty-text">暂无行为数据</text>
-        </view>
+      <view wx:else class="empty-state">
+        <text class="empty-text">暂无学习数据</text>
       </view>
     </view>
 
-    <!-- 学习行为统计 -->
-    <view class="stat-grid">
-      <view class="stat-card mini"><view class="stat-card-inner">
-        <view class="stat-info">
-          <text class="stat-value">{{summaryStats.totalStudy}}</text>
-          <text class="stat-label">总学习时长</text>
+    <!-- 行为分布卡片 -->
+    <view class="section-card">
+      <view class="card-header">
+        <text class="card-title">行为分布</text>
+      </view>
+      <view wx:if="{{behaviorPie.length > 0}}" class="behavior-list">
+        <view wx:for="{{behaviorPie}}" wx:key="name" class="behavior-item">
+          <view class="behavior-left">
+            <view class="behavior-dot" style="background: {{getPieColor(index)}}"></view>
+            <text class="behavior-name">{{item.name}}</text>
+          </view>
+          <text class="behavior-value">{{item.value}}</text>
         </view>
-      </view></view>
-      <view class="stat-card mini"><view class="stat-card-inner">
-        <view class="stat-info">
-          <text class="stat-value">{{summary.resource_access_count || 0}}</text>
-          <text class="stat-label">资源访问</text>
+      </view>
+      <view wx:else class="empty-state">
+        <text class="empty-text">暂无行为数据</text>
+      </view>
+    </view>
+
+    <!-- 学习统计卡片 -->
+    <view class="section-card">
+      <view class="card-header">
+        <text class="card-title">学习统计</text>
+      </view>
+      <view class="stats-list">
+        <view class="stats-row">
+          <text class="stats-value">{{summaryStats.totalStudy}}</text>
+          <text class="stats-label">总学习时长</text>
         </view>
-      </view></view>
-      <view class="stat-card mini"><view class="stat-card-inner">
-        <view class="stat-info">
-          <text class="stat-value">{{summary.avg_session_duration || 0}}分</text>
-          <text class="stat-label">平均时长</text>
+        <view class="stats-row">
+          <text class="stats-value">{{summary.resource_access_count || 0}}</text>
+          <text class="stats-label">资源访问</text>
         </view>
-      </view></view>
-      <view class="stat-card mini"><view class="stat-card-inner">
-        <view class="stat-info">
-          <text class="stat-value">{{summary.learning_streak || 0}}天</text>
-          <text class="stat-label">连续学习</text>
+        <view class="stats-row">
+          <text class="stats-value">{{summary.avg_session_duration || 0}}分</text>
+          <text class="stats-label">平均时长</text>
         </view>
-      </view></view>
+        <view class="stats-row">
+          <text class="stats-value">{{summary.learning_streak || 0}}天</text>
+          <text class="stats-label">连续学习</text>
+        </view>
+      </view>
     </view>
 
     <!-- 详细评估报告 -->
-    <view wx:if="{{reportData.suggestion}}" class="content-card">
+    <view wx:if="{{reportData.suggestion}}" class="section-card">
       <view class="card-header">
-        <text class="card-title">📝 详细评估报告</text>
+        <text class="card-title">详细评估报告</text>
       </view>
       <rich-text nodes="{{reportData.suggestionHtml}}" class="report-text"></rich-text>
     </view>
 
     <!-- 循环提升 -->
-    <view class="content-card loop-card">
+    <view class="section-card loop-card">
       <view class="card-header">
-        <text class="card-title">🔄 循环提升</text>
+        <text class="card-title">循环提升</text>
       </view>
       <text class="loop-desc">根据评估结果，您可以采取以下行动来持续提升学习效果：</text>
       <view class="loop-actions">
-        <button class="loop-btn primary" bindtap="updateProfile">更新画像</button>
-        <button class="loop-btn success" bindtap="replanPath">重新规划路径</button>
-        <button class="loop-btn default" bindtap="practiceAgain">继续学习</button>
+        <button class="loop-btn primary" bindtap="updateProfile">
+          <text class="loop-btn-icon">✎</text>
+          <text class="loop-btn-label">更新画像</text>
+        </button>
+        <view class="loop-row">
+          <button class="loop-btn secondary" bindtap="replanPath">
+            <text class="loop-btn-icon small">↻</text>
+            <text class="loop-btn-label">重新规划路径</text>
+          </button>
+          <button class="loop-btn outline" bindtap="practiceAgain">
+            <text class="loop-btn-icon small">▶</text>
+            <text class="loop-btn-label">继续学习</text>
+          </button>
+        </view>
       </view>
     </view>
+
   </scroll-view>
 </view>

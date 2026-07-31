@@ -1,506 +1,537 @@
 <view class="resource-container">
-  <!-- 顶部操作栏 -->
+
+  <!-- 顶部操作区 -->
   <view class="action-bar">
-    <view class="action-left">
-      <button class="action-btn primary" bindtap="generateResources" disabled="{{isGenerating}}">
-        <text class="btn-icon">✨</text>
-        <text>{{hasResources ? '重新生成全部资源' : '一键生成全部资源'}}</text>
-      </button>
+    <view class="topic-tag" wx:if="{{currentTopic}}">
+      <text class="topic-label">主题</text>
+      <text class="topic-value">{{currentTopic}}</text>
     </view>
-    <view class="action-right" wx:if="{{currentTopic}}">
-      <text class="topic-tag">主题：{{currentTopic}}</text>
-    </view>
+    <view class="topic-tag placeholder" wx:else>选择学习主题开始</view>
+    <button wx:if="{{currentTopic}}" class="regen-btn-sm" bindtap="generateResources" disabled="{{isGenerating}}">
+      <text class="btn-icon">{{isGenerating ? '⏳' : (hasResources ? '↻' : '✨')}}</text>
+      <text class="btn-text">{{isGenerating ? '生成中' : (hasResources ? '重新生成' : '生成')}}</text>
+    </button>
   </view>
 
   <!-- 个性化推荐 -->
   <view wx:if="{{hasResources && (profileInfo.major || profileInfo.level || profileInfo.goal)}}" class="recommend-card">
-    <text class="recommend-icon">💬</text>
-    <view class="recommend-info">
-      <text class="recommend-title">个性化推荐依据：</text>
-      <text class="recommend-desc">基于您的专业「{{profileInfo.major || '未知'}}」、知识水平「{{profileInfo.level || '未知'}}」、学习目标「{{profileInfo.goal || '未知'}}」</text>
+    <view class="recommend-icon">💬</view>
+    <view class="recommend-body">
+      <view class="recommend-title">个性化推荐依据</view>
+      <view class="recommend-desc">
+        专业「{{profileInfo.major || '未知'}}」 · 水平「{{profileInfo.level || '未知'}}」 · 目标「{{profileInfo.goal || '未知'}}」
+      </view>
     </view>
   </view>
 
-  <!-- Tab 栏：始终可见 -->
+  <!-- Tab 栏 -->
   <scroll-view scroll-x class="tabs-scroll" wx:if="{{hasResources}}">
-    <view class="tabs">
-      <view class="tab-item {{activeTab === index ? 'active' : ''}}" wx:for="{{tabs}}" wx:key="index" bindtap="switchTab" data-index="{{index}}">
-        <text class="tab-icon">{{item.icon}}</text>
-        <text class="tab-name">{{item.name}}</text>
+    <view class="tabs-track">
+      <view
+        class="tab-chip {{activeTab === index ? 'active' : ''}}"
+        wx:for="{{tabs}}"
+        wx:key="index"
+        bindtap="switchTab"
+        data-index="{{index}}"
+      >
+        <text class="tab-chip-icon">{{item.icon}}</text>
+        <text class="tab-chip-label">{{item.name}}</text>
       </view>
     </view>
   </scroll-view>
 
-  <!-- 思维导图 Canvas（CSS 控制显隐，始终在 DOM 中） -->
+  <!-- 思维导图 Canvas -->
   <view class="canvas-area" style="display:{{activeTab === 2 ? 'flex' : 'none'}}">
     <view class="canvas-toolbar">
-      <text class="toolbar-title">思维导图</text>
+      <text class="canvas-title">🧠 思维导图</text>
       <view class="regen-btn" bindtap="regenerateSingle" data-type="mindmap">重新生成</view>
     </view>
-    <scroll-view scroll-x scroll-y class="canvas-scroll">
-      <canvas type="2d" id="mindmapCanvasTouch" class="touch-canvas"
-        bindtouchstart="onMindmapTouch" bindtouchmove="onMindmapMove" bindtouchend="onMindmapEnd">
-      </canvas>
+    <view wx:if="{{qualityGate.mindmap}}" class="quality-gate">
+      <view class="qg-icon">⚠️</view>
+      <view class="qg-body">
+        <text class="qg-title">质量未达标</text>
+        <text class="qg-desc">当前评分 {{qualityGate.mindmap.score}} 分</text>
+      </view>
+      <view class="qg-btn" bindtap="regenerateSingle" data-type="mindmap">重新生成</view>
+    </view>
+    <scroll-view scroll-x scroll-y class="canvas-viewport">
+      <canvas
+        type="2d"
+        id="mindmapCanvasTouch"
+        class="canvas-node"
+        bindtouchstart="onMindmapTouch"
+        bindtouchmove="onMindmapMove"
+        bindtouchend="onMindmapEnd"
+      ></canvas>
     </scroll-view>
+    <view wx:if="{{mindmaps.length === 0}}" class="empty-inline">暂无思维导图，请先生成</view>
   </view>
 
-  <!-- 知识图谱 Canvas（CSS 控制显隐，始终在 DOM 中） -->
+  <!-- 知识关联 Canvas -->
   <view class="canvas-area" style="display:{{activeTab === 7 ? 'flex' : 'none'}}">
     <view class="canvas-toolbar">
-      <text class="toolbar-title">知识图谱</text>
+      <text class="canvas-title">🔗 知识关联</text>
       <view class="regen-btn" bindtap="regenerateSingle" data-type="knowledge_link">重新生成</view>
     </view>
-    <scroll-view scroll-x scroll-y class="canvas-scroll">
-      <canvas type="2d" id="kgCanvasTouch" class="touch-canvas"
-        bindtouchstart="onKgTouch" bindtouchmove="onKgMove" bindtouchend="onKgEnd">
-      </canvas>
+    <view wx:if="{{qualityGate.knowledge_link}}" class="quality-gate">
+      <view class="qg-icon">⚠️</view>
+      <view class="qg-body">
+        <text class="qg-title">质量未达标</text>
+        <text class="qg-desc">当前评分 {{qualityGate.knowledge_link.score}} 分</text>
+      </view>
+      <view class="qg-btn" bindtap="regenerateSingle" data-type="knowledge_link">重新生成</view>
+    </view>
+    <scroll-view scroll-x scroll-y class="canvas-viewport">
+      <canvas
+        type="2d"
+        id="kgCanvasTouch"
+        class="canvas-node"
+        bindtouchstart="onKgTouch"
+        bindtouchmove="onKgMove"
+        bindtouchend="onKgEnd"
+      ></canvas>
     </scroll-view>
+    <view wx:if="{{knowledgeLinks.length === 0}}" class="empty-inline">暂无知识关联图，请先生成</view>
   </view>
 
-  <!-- 其他 Tab 的 scroll-view 内容 -->
-  <scroll-view wx:if="{{activeTab !== 2 && activeTab !== 7}}" scroll-y enable-flex class="main-content">
+  <!-- 内容区 -->
+  <scroll-view
+    wx:if="{{activeTab !== 2 && activeTab !== 7}}"
+    scroll-y
+    enable-flex
+    class="content-scroll"
+  >
+    <!-- 空状态 -->
     <view wx:if="{{!hasResources}}" class="empty-state">
-      <view class="empty-icon">📚</view>
-      <text class="empty-title">暂无学习资源</text>
-      <text class="empty-desc">请先生成学习路径，系统将为您匹配专属学习资源</text>
-      <button class="primary-btn" bindtap="goToPath">去生成路径</button>
+      <view class="empty-emoji">📚</view>
+      <text class="empty-heading">暂无学习资源</text>
+      <text class="empty-text">请先生成学习路径，系统将为您匹配专属学习资源</text>
+      <button class="empty-btn" bindtap="goToPath">去生成路径</button>
     </view>
 
-    <view wx:else class="resource-content">
-      <view class="agent-status-bar" wx:if="{{isGenerating}}">
-        <view class="spinner"></view>
-        <text>{{currentAgent}} 正在为您生成资源...</text>
+    <view wx:else class="content-inner">
+
+      <!-- 生成中状态 -->
+      <view wx:if="{{isGenerating}}" class="generating-bar">
+        <view class="gen-spinner"></view>
+        <text class="gen-text">{{currentAgent}} 正在为您生成资源...</text>
       </view>
 
-      <view class="tab-content">
-        <block wx:if="{{activeTab === 0}}">
-          <view class="tab-action-bar">
-            <view class="regen-btn" bindtap="regenerateSingle" data-type="document">重新生成</view>
+      <!-- ========== Tab 0: 学习文档 ========== -->
+      <block wx:if="{{activeTab === 0}}">
+        <view wx:if="{{qualityGate.document}}" class="quality-gate">
+          <view class="qg-icon">⚠️</view>
+          <view class="qg-body">
+            <text class="qg-title">质量未达标</text>
+            <text class="qg-desc">当前评分 {{qualityGate.document.score}} 分</text>
           </view>
-          <view wx:if="{{qualityGate.document}}" class="quality-gate-card">
-            <view class="gate-icon">⚠️</view>
-            <view class="gate-info">
-              <text class="gate-title">质量未达标</text>
-              <text class="gate-detail">当前评分 {{qualityGate.document.score}} 分，质量未达标</text>
+          <view class="qg-btn" bindtap="regenerateSingle" data-type="document">重新生成</view>
+        </view>
+        <view class="list-toolbar">
+          <view class="regen-btn" bindtap="regenerateSingle" data-type="document">重新生成</view>
+        </view>
+        <view wx:if="{{documents.length === 0}}" class="empty-inline">暂无文档，请先生成</view>
+        <view class="res-card" wx:for="{{documents}}" wx:key="id">
+          <view class="res-head">
+            <view class="res-icon">📄</view>
+            <view class="res-head-body">
+              <text class="res-title">{{item.title}}</text>
+              <text class="res-desc">{{item.description}}</text>
             </view>
-            <button class="action-btn warning" bindtap="regenerateSingle" data-type="document">重新生成</button>
           </view>
-          <view class="resource-card" wx:for="{{documents}}" wx:key="id">
-            <view class="card-header">
-              <view class="card-icon">📄</view>
-              <view class="card-info">
-                <text class="card-title">{{item.title}}</text>
-                <text class="card-desc">{{item.description}}</text>
-              </view>
+          <view wx:if="{{item.images && item.images.length > 0}}" class="res-images">
+            <view wx:for="{{item.images}}" wx:for-item="img" wx:key="index" class="res-img-wrap">
+              <image src="{{img.src}}" mode="widthFix" class="res-img" />
+              <text wx:if="{{img.description}}" class="res-img-caption">{{img.description}}</text>
             </view>
-            <view wx:if="{{item.images && item.images.length > 0}}" class="doc-images">
-              <view wx:for="{{item.images}}" wx:for-item="imageItem" wx:key="index" class="doc-image-item">
-                <image src="{{imageItem.src}}" mode="widthFix" class="doc-image" />
-                <text wx:if="{{imageItem.description}}" class="image-caption">{{imageItem.description}}</text>
-              </view>
-            </view>
-            <view class="markdown-body">
-              <rich-text nodes="{{item.htmlContent}}"></rich-text>
-            </view>
-            <view wx:if="{{item.mermaidBlocks && item.mermaidBlocks.length > 0}}" class="mermaid-section">
-              <text class="mermaid-title">📊 流程图</text>
-              <view wx:for="{{item.mermaidBlocks}}" wx:for-item="mCode" wx:key="index" class="mermaid-item" bindtap="viewMermaid" data-code="{{mCode}}">
-                <view class="mermaid-card">
-                  <text class="mermaid-icon">📈</text>
-                  <text class="mermaid-label">查看流程图 {{index + 1}}</text>
-                  <text class="mermaid-arrow">→</text>
-                </view>
-              </view>
-            </view>
-            <view class="card-footer">
-              <view class="tags">
-                <text class="tag">文档Agent生成</text>
-                <text class="tag">{{item.difficulty}}</text>
+          </view>
+          <view class="res-body">
+            <rich-text nodes="{{item.htmlContent}}"></rich-text>
+          </view>
+          <view wx:if="{{item.mermaidBlocks && item.mermaidBlocks.length > 0}}" class="res-mermaid">
+            <text class="mermaid-label">📊 流程图</text>
+            <view wx:for="{{item.mermaidBlocks}}" wx:for-item="mCode" wx:key="index" class="mermaid-item" bindtap="viewMermaid" data-code="{{mCode}}">
+              <view class="mermaid-btn">
+                <text>查看流程图 {{index + 1}}</text>
+                <text class="mermaid-arrow">→</text>
               </view>
             </view>
           </view>
-          <view wx:if="{{documents.length === 0}}" class="empty-content">暂无文档，请先生成</view>
-        </block>
+          <view class="res-foot">
+            <view class="res-tags">
+              <text class="tag tag-primary">文档Agent生成</text>
+              <text class="tag">{{item.difficulty}}</text>
+            </view>
+          </view>
+        </view>
+      </block>
 
-        <block wx:if="{{activeTab === 1}}">
-          <view class="tab-action-bar">
-            <view class="regen-btn" bindtap="regenerateSingle" data-type="video">重新生成</view>
+      <!-- ========== Tab 1: 教学视频 ========== -->
+      <block wx:if="{{activeTab === 1}}">
+        <view wx:if="{{qualityGate.video}}" class="quality-gate">
+          <view class="qg-icon">⚠️</view>
+          <view class="qg-body">
+            <text class="qg-title">质量未达标</text>
+            <text class="qg-desc">当前评分 {{qualityGate.video.score}} 分</text>
           </view>
-          <view wx:if="{{qualityGate.video}}" class="quality-gate-card">
-            <view class="gate-icon">⚠️</view>
-            <view class="gate-info">
-              <text class="gate-title">质量未达标</text>
-              <text class="gate-detail">当前评分 {{qualityGate.video.score}} 分，质量未达标</text>
+          <view class="qg-btn" bindtap="regenerateSingle" data-type="video">重新生成</view>
+        </view>
+        <view class="list-toolbar">
+          <view class="regen-btn" bindtap="regenerateSingle" data-type="video">重新生成</view>
+        </view>
+        <view wx:if="{{videos.length === 0}}" class="empty-inline">暂无教学视频，请先生成</view>
+        <view class="res-card" wx:for="{{videos}}" wx:key="id">
+          <view class="res-head">
+            <view class="res-icon">🎬</view>
+            <view class="res-head-body">
+              <text class="res-title">{{item.title}}</text>
+              <text class="res-desc">{{item.description}}</text>
             </view>
-            <button class="action-btn warning" bindtap="regenerateSingle" data-type="video">重新生成</button>
           </view>
-          <view class="resource-card video-card" wx:for="{{videos}}" wx:key="id">
-            <view class="card-header">
-              <view class="card-icon">🎬</view>
-              <view class="card-info">
-                <text class="card-title">{{item.title}}</text>
-                <text class="card-desc">{{item.description}}</text>
+          <view wx:if="{{item.video_url}}" class="video-wrap">
+            <video src="{{item.video_url}}" controls class="video-player" />
+          </view>
+          <view wx:else class="video-ph">
+            <view class="play-emoji">▶</view>
+            <text class="video-ph-title">{{item.title}}</text>
+            <text class="video-ph-meta">时长 {{item.duration}} · {{item.pagesCount}} 页</text>
+            <text class="video-ph-tip">视频暂未生成，请重新生成</text>
+          </view>
+          <view class="res-foot">
+            <view class="res-tags">
+              <text class="tag tag-info">多模态Agent生成</text>
+              <text class="tag">{{item.pagesCount}} 页</text>
+            </view>
+          </view>
+        </view>
+      </block>
+
+      <!-- ========== Tab 3: 练习题目 ========== -->
+      <block wx:if="{{activeTab === 3}}">
+        <view wx:if="{{qualityGate.questions}}" class="quality-gate">
+          <view class="qg-icon">⚠️</view>
+          <view class="qg-body">
+            <text class="qg-title">质量未达标</text>
+            <text class="qg-desc">当前评分 {{qualityGate.questions.score}} 分</text>
+          </view>
+          <view class="qg-btn" bindtap="regenerateSingle" data-type="questions">重新生成</view>
+        </view>
+        <view class="list-toolbar">
+          <view class="regen-btn" bindtap="regenerateSingle" data-type="questions">重新生成</view>
+        </view>
+
+        <view wx:if="{{exercises.length > 0}}">
+          <!-- 答题卡 -->
+          <view class="answer-card">
+            <view class="answer-card-head">
+              <text class="answer-card-title">答题卡</text>
+              <text class="answer-card-total">共 {{exercises.length}} 题</text>
+            </view>
+            <view class="answer-grid">
+              <view
+                class="answer-cell"
+                wx:for="{{exercises}}"
+                wx:key="questionId"
+                data-index="{{index}}"
+                bindtap="selectQuestion"
+              >{{index + 1}}</view>
+            </view>
+            <view class="view-switch">
+              <view class="switch-item {{viewMode === 'single' ? 'on' : ''}}" bindtap="switchViewMode" data-mode="single">单题</view>
+              <view class="switch-item {{viewMode === 'all' ? 'on' : ''}}" bindtap="switchViewMode" data-mode="all">全部</view>
+            </view>
+          </view>
+
+          <!-- 单题模式 -->
+          <view wx:if="{{viewMode === 'single'}}">
+            <view wx:if="{{exercises[selectedQuestionIdx]}}" class="quiz-card">
+              <view class="quiz-nav">
+                <view wx:if="{{selectedQuestionIdx > 0}}" class="nav-btn" bindtap="selectQuestion" data-index="{{selectedQuestionIdx - 1}}">← 上一题</view>
+                <text class="nav-ind">{{selectedQuestionIdx + 1}} / {{exercises.length}}</text>
+                <view wx:if="{{selectedQuestionIdx < exercises.length - 1}}" class="nav-btn" bindtap="selectQuestion" data-index="{{selectedQuestionIdx + 1}}">下一题 →</view>
               </view>
-            </view>
-            <view wx:if="{{item.video_url}}" class="video-player-wrap">
-              <video src="{{item.video_url}}" controls class="video-player" poster="" />
-            </view>
-            <view wx:else class="video-placeholder">
-              <view class="play-icon">▶</view>
-              <text class="video-title">{{item.title}}</text>
-              <text class="video-duration">时长: {{item.duration}} | {{item.pagesCount}} 页</text>
-              <text class="video-hint">视频暂未生成，请重新生成</text>
-            </view>
-            <view class="card-footer">
-              <view class="tags">
-                <text class="tag">多模态Agent生成</text>
-                <text class="tag">{{item.pagesCount}} 页</text>
+
+              <view class="quiz-head">
+                <text class="quiz-num">第 {{selectedQuestionIdx + 1}} 题</text>
+                <text class="quiz-tag {{exercises[selectedQuestionIdx].difficultyClass}}">{{exercises[selectedQuestionIdx].difficulty}}</text>
+                <text class="quiz-tag info">{{exercises[selectedQuestionIdx].score}}分</text>
               </view>
-            </view>
-          </view>
-          <view wx:if="{{videos.length === 0}}" class="empty-content">暂无教学视频，请先生成</view>
-        </block>
+              <view class="quiz-q">
+                <rich-text nodes="{{exercises[selectedQuestionIdx].questionHtml}}"></rich-text>
+              </view>
 
-        <block wx:if="{{activeTab === 2}}">
-          <view class="tab-action-bar">
-            <view class="regen-btn" bindtap="regenerateSingle" data-type="mindmap">重新生成</view>
-          </view>
-          <view wx:if="{{qualityGate.mindmap}}" class="quality-gate-card">
-            <view class="gate-icon">⚠️</view>
-            <view class="gate-info">
-              <text class="gate-title">质量未达标</text>
-              <text class="gate-detail">当前评分 {{qualityGate.mindmap.score}} 分，质量未达标</text>
-            </view>
-            <button class="action-btn warning" bindtap="regenerateSingle" data-type="mindmap">重新生成</button>
-          </view>
-          <view wx:if="{{mindmaps.length === 0}}" class="empty-content">暂无思维导图，请先生成</view>
-        </block>
-
-        <block wx:if="{{activeTab === 3}}">
-          <view class="tab-action-bar">
-            <view class="regen-btn" bindtap="regenerateSingle" data-type="questions">重新生成</view>
-          </view>
-          <view wx:if="{{qualityGate.questions}}" class="quality-gate-card">
-            <view class="gate-icon">⚠️</view>
-            <view class="gate-info">
-              <text class="gate-title">质量未达标</text>
-              <text class="gate-detail">当前评分 {{qualityGate.questions.score}} 分，质量未达标</text>
-            </view>
-            <button class="action-btn warning" bindtap="regenerateSingle" data-type="questions">重新生成</button>
-          </view>
-
-          <view wx:if="{{exercises.length > 0}}">
-            <view class="answer-card">
-              <text class="card-title">答题卡</text>
-              <view class="card-grid">
-                <view 
-                  class="card-cell"
-                  wx:for="{{exercises}}" 
-                  wx:key="questionId"
-                  data-index="{{index}}"
-                  bindtap="selectQuestion"
+              <!-- 选择题选项 -->
+              <view wx:if="{{exercises[selectedQuestionIdx].type === 'choice' && exercises[selectedQuestionIdx].options.length > 0}}" class="quiz-opts">
+                <view
+                  class="opt-row {{answers[exercises[selectedQuestionIdx].questionId] === item ? 'picked' : ''}}"
+                  wx:for="{{exercises[selectedQuestionIdx].options}}"
+                  wx:for-index="optKey"
+                  wx:key="optKey"
+                  bindtap="selectOption"
+                  data-question-id="{{exercises[selectedQuestionIdx].questionId}}"
+                  data-option="{{item}}"
                 >
-                  {{index + 1}}
-                </view>
-              </view>
-              <view class="card-stats">
-                <text class="stat-total">共 {{exercises.length}} 题</text>
-              </view>
-              <view class="card-actions">
-                <view class="view-toggle">
-                  <view class="toggle-item {{viewMode === 'single' ? 'active' : ''}}" bindtap="switchViewMode" data-mode="single">单题</view>
-                  <view class="toggle-item {{viewMode === 'all' ? 'active' : ''}}" bindtap="switchViewMode" data-mode="all">全部</view>
-                </view>
-              </view>
-            </view>
-
-            <view class="question-panel">
-              <view wx:if="{{viewMode === 'single'}}">
-                <view class="question-nav">
-                  <button class="nav-btn" wx:if="{{selectedQuestionIdx > 0}}" bindtap="selectQuestion" data-index="{{selectedQuestionIdx - 1}}">← 上一题</button>
-                  <text class="nav-indicator">{{selectedQuestionIdx + 1}} / {{exercises.length}}</text>
-                  <button class="nav-btn" wx:if="{{selectedQuestionIdx < exercises.length - 1}}" bindtap="selectQuestion" data-index="{{selectedQuestionIdx + 1}}">下一题 →</button>
-                </view>
-                <view wx:if="{{exercises[selectedQuestionIdx]}}" class="question-card">
-                  <view class="question-card-header">
-                    <text class="question-num">第 {{selectedQuestionIdx + 1}} 题</text>
-                    <text class="question-tag {{exercises[selectedQuestionIdx].difficultyClass}}">{{exercises[selectedQuestionIdx].difficulty}}</text>
-                    <text class="question-tag info">{{exercises[selectedQuestionIdx].score}}分</text>
-                  </view>
-                  <view class="question-text"><rich-text nodes="{{exercises[selectedQuestionIdx].questionHtml}}"></rich-text></view>
-                  <view class="question-body">
-                    <view wx:if="{{exercises[selectedQuestionIdx].type === 'choice' && exercises[selectedQuestionIdx].options.length > 0}}" class="question-options">
-                      <view 
-                        class="option-item {{answers[exercises[selectedQuestionIdx].questionId] === item ? 'selected' : ''}}" 
-                        wx:for="{{exercises[selectedQuestionIdx].options}}" 
-                        wx:for-index="optKey"
-                        wx:key="optKey"
-                        bindtap="selectOption"
-                        data-question-id="{{exercises[selectedQuestionIdx].questionId}}"
-                        data-option="{{item}}"
-                      >
-                        <view class="option-radio">{{answers[exercises[selectedQuestionIdx].questionId] === item ? '✓' : ''}}</view>
-                        <text class="option-label">{{String.fromCharCode(65 + optKey)}}. {{item}}</text>
-                      </view>
-                    </view>
-                    <view wx:elif="{{exercises[selectedQuestionIdx].type === 'judge'}}" class="question-options">
-                      <view class="option-item {{answers[exercises[selectedQuestionIdx].questionId] === '正确' ? 'selected' : ''}}" bindtap="selectOption" data-question-id="{{exercises[selectedQuestionIdx].questionId}}" data-option="正确">
-                        <view class="option-radio">{{answers[exercises[selectedQuestionIdx].questionId] === '正确' ? '✓' : ''}}</view>
-                        <text class="option-label">正确</text>
-                      </view>
-                      <view class="option-item {{answers[exercises[selectedQuestionIdx].questionId] === '错误' ? 'selected' : ''}}" bindtap="selectOption" data-question-id="{{exercises[selectedQuestionIdx].questionId}}" data-option="错误">
-                        <view class="option-radio">{{answers[exercises[selectedQuestionIdx].questionId] === '错误' ? '✓' : ''}}</view>
-                        <text class="option-label">错误</text>
-                      </view>
-                    </view>
-                    <view wx:elif="{{exercises[selectedQuestionIdx].type === 'blank' || exercises[selectedQuestionIdx].type === 'fill'}}">
-                      <input class="answer-input" placeholder="请输入答案..." bindinput="onAnswerInput" data-question-id="{{exercises[selectedQuestionIdx].questionId}}" />
-                    </view>
-                    <view wx:elif="{{exercises[selectedQuestionIdx].type === 'code'}}">
-                      <textarea class="answer-textarea" placeholder="请输入 Python 代码..." bindinput="onAnswerInput" data-question-id="{{exercises[selectedQuestionIdx].questionId}}" />
-                      <view wx:if="{{exercises[selectedQuestionIdx].test_cases.length > 0}}" class="test-cases">
-                        <text class="test-cases-title">测试用例：</text>
-                        <text class="test-case" wx:for="{{exercises[selectedQuestionIdx].test_cases}}" wx:key="index">输入: {{item.input}} → 期望: {{item.expected}}</text>
-                      </view>
-                    </view>
-                    <view wx:elif="{{exercises[selectedQuestionIdx].type === 'case_analysis'}}">
-                      <textarea class="answer-textarea" placeholder="请输入分析答案..." bindinput="onAnswerInput" data-question-id="{{exercises[selectedQuestionIdx].questionId}}" />
-                    </view>
-                  </view>
-                  <button class="submit-btn" bindtap="submitAnswer" data-question-id="{{exercises[selectedQuestionIdx].questionId}}">提交答案</button>
-                  <view wx:if="{{submittedAnswers[exercises[selectedQuestionIdx].questionId]}}" class="answer-feedback">
-                    <text class="feedback-text {{submittedAnswers[exercises[selectedQuestionIdx].questionId].correct ? 'correct' : 'wrong'}}">
-                      {{submittedAnswers[exercises[selectedQuestionIdx].questionId].correct ? '✓ 回答正确！得分：' + submittedAnswers[exercises[selectedQuestionIdx].questionId].score : '✗ 回答错误。正确答案：' + exercises[selectedQuestionIdx].answer}}
-                    </text>
-                  </view>
+                  <view class="opt-rad">{{answers[exercises[selectedQuestionIdx].questionId] === item ? '✓' : ''}}</view>
+                  <text class="opt-label">{{String.fromCharCode(65 + optKey)}}. {{item}}</text>
                 </view>
               </view>
 
-              <view wx:else>
-                <view wx:for="{{exercises}}" wx:key="questionId" class="question-card">
-                  <view class="question-card-header">
-                    <text class="question-num">第 {{index + 1}} 题</text>
-                    <text class="question-tag {{item.difficultyClass}}">{{item.difficulty}}</text>
-                    <text class="question-tag info">{{item.score}}分</text>
-                  </view>
-                  <view class="question-text"><rich-text nodes="{{item.questionHtml}}"></rich-text></view>
-                  <view class="question-body">
-                    <view wx:if="{{item.type === 'choice' && item.options.length > 0}}" class="question-options">
-                      <view class="option-item {{answers[item.questionId] === option ? 'selected' : ''}}" wx:for="{{item.options}}" wx:for-index="optKey" wx:for-item="option" wx:key="optKey" bindtap="selectOption" data-question-id="{{item.questionId}}" data-option="{{option}}">
-                        <view class="option-radio">{{answers[item.questionId] === option ? '✓' : ''}}</view>
-                        <text class="option-label">{{String.fromCharCode(65 + optKey)}}. {{option}}</text>
-                      </view>
-                    </view>
-                    <view wx:elif="{{item.type === 'judge'}}" class="question-options">
-                      <view class="option-item {{answers[item.questionId] === '正确' ? 'selected' : ''}}" bindtap="selectOption" data-question-id="{{item.questionId}}" data-option="正确">
-                        <view class="option-radio">{{answers[item.questionId] === '正确' ? '✓' : ''}}</view>
-                        <text class="option-label">正确</text>
-                      </view>
-                      <view class="option-item {{answers[item.questionId] === '错误' ? 'selected' : ''}}" bindtap="selectOption" data-question-id="{{item.questionId}}" data-option="错误">
-                        <view class="option-radio">{{answers[item.questionId] === '错误' ? '✓' : ''}}</view>
-                        <text class="option-label">错误</text>
-                      </view>
-                    </view>
-                    <view wx:elif="{{item.type === 'blank' || item.type === 'fill'}}">
-                      <input class="answer-input" placeholder="请输入答案..." bindinput="onAnswerInput" data-question-id="{{item.questionId}}" />
-                    </view>
-                    <view wx:elif="{{item.type === 'code'}}">
-                      <textarea class="answer-textarea" placeholder="请输入 Python 代码..." bindinput="onAnswerInput" data-question-id="{{item.questionId}}" />
-                    </view>
-                    <view wx:elif="{{item.type === 'case_analysis'}}">
-                      <textarea class="answer-textarea" placeholder="请输入分析答案..." bindinput="onAnswerInput" data-question-id="{{item.questionId}}" />
-                    </view>
-                  </view>
-                  <button class="submit-btn" bindtap="submitAnswer" data-question-id="{{item.questionId}}">提交答案</button>
+              <!-- 判断题 -->
+              <view wx:elif="{{exercises[selectedQuestionIdx].type === 'judge'}}" class="quiz-opts">
+                <view class="opt-row {{answers[exercises[selectedQuestionIdx].questionId] === '正确' ? 'picked' : ''}}" bindtap="selectOption" data-question-id="{{exercises[selectedQuestionIdx].questionId}}" data-option="正确">
+                  <view class="opt-rad">{{answers[exercises[selectedQuestionIdx].questionId] === '正确' ? '✓' : ''}}</view>
+                  <text class="opt-label">正确</text>
+                </view>
+                <view class="opt-row {{answers[exercises[selectedQuestionIdx].questionId] === '错误' ? 'picked' : ''}}" bindtap="selectOption" data-question-id="{{exercises[selectedQuestionIdx].questionId}}" data-option="错误">
+                  <view class="opt-rad">{{answers[exercises[selectedQuestionIdx].questionId] === '错误' ? '✓' : ''}}</view>
+                  <text class="opt-label">错误</text>
                 </view>
               </view>
-            </view>
-          </view>
-          <view wx:if="{{exercises.length === 0}}" class="empty-content">暂无练习题目，请先生成</view>
-        </block>
 
-        <block wx:if="{{activeTab === 4}}">
-          <view class="tab-action-bar">
-            <view class="regen-btn" bindtap="regenerateSingle" data-type="code">重新生成</view>
-          </view>
-          <view wx:if="{{qualityGate.code}}" class="quality-gate-card">
-            <view class="gate-icon">⚠️</view>
-            <view class="gate-info">
-              <text class="gate-title">质量未达标</text>
-              <text class="gate-detail">当前评分 {{qualityGate.code.score}} 分，质量未达标</text>
-            </view>
-            <button class="action-btn warning" bindtap="regenerateSingle" data-type="code">重新生成</button>
-          </view>
-          <view class="resource-card code-card" wx:for="{{codeExamples}}" wx:key="id">
-            <view class="card-header">
-              <view class="card-icon">💻</view>
-              <view class="card-info">
-                <text class="card-title">{{item.title}}</text>
-                <text class="card-desc">{{item.description}}</text>
+              <!-- 填空 -->
+              <view wx:elif="{{exercises[selectedQuestionIdx].type === 'blank' || exercises[selectedQuestionIdx].type === 'fill'}}">
+                <input class="quiz-input" placeholder="请输入答案..." bindinput="onAnswerInput" data-question-id="{{exercises[selectedQuestionIdx].questionId}}" />
               </view>
-            </view>
-            <view class="code-info">
-              <view class="info-row">
-                <text class="info-label">语言：</text>
-                <text class="info-value">{{item.language}}</text>
-              </view>
-              <view wx:if="{{item.input_example}}" class="info-row">
-                <text class="info-label">输入示例：</text>
-                <text class="info-value code-text">{{item.input_example}}</text>
-              </view>
-              <view wx:if="{{item.expected_output}}" class="info-row">
-                <text class="info-label">期望输出：</text>
-                <text class="info-value code-text">{{item.expected_output}}</text>
-              </view>
-            </view>
-            <view class="code-block">
-              <rich-text nodes="{{item.codeHtml}}"></rich-text>
-            </view>
-            <view class="card-footer">
-              <view class="tags">
-                <text class="tag">代码Agent生成</text>
-                <text class="tag">{{item.language}}</text>
-              </view>
-              <button class="run-btn" bindtap="runCode" data-id="{{item.id}}">运行</button>
-            </view>
-          </view>
-          <view wx:if="{{codeExamples.length === 0}}" class="empty-content">暂无代码示例，请先生成</view>
-        </block>
 
-        <block wx:if="{{activeTab === 5}}">
-          <view class="tab-action-bar">
-            <view class="regen-btn" bindtap="regenerateSingle" data-type="reading_material">重新生成</view>
-          </view>
-          <view wx:if="{{qualityGate.reading_material}}" class="quality-gate-card">
-            <view class="gate-icon">⚠️</view>
-            <view class="gate-info">
-              <text class="gate-title">质量未达标</text>
-              <text class="gate-detail">当前评分 {{qualityGate.reading_material.score}} 分，质量未达标</text>
-            </view>
-            <button class="action-btn warning" bindtap="regenerateSingle" data-type="reading_material">重新生成</button>
-          </view>
-          <view class="resource-card" wx:for="{{readingMaterials}}" wx:key="id">
-            <view class="card-header">
-              <view class="card-icon">📖</view>
-              <view class="card-info">
-                <text class="card-title">{{item.title}}</text>
-                <text class="card-desc">{{item.description}}</text>
+              <!-- 代码 -->
+              <view wx:elif="{{exercises[selectedQuestionIdx].type === 'code'}}">
+                <textarea class="quiz-textarea" placeholder="请输入 Python 代码..." bindinput="onAnswerInput" data-question-id="{{exercises[selectedQuestionIdx].questionId}}" />
+                <view wx:if="{{exercises[selectedQuestionIdx].test_cases.length > 0}}" class="test-cases">
+                  <text class="tc-title">测试用例</text>
+                  <text class="tc-item" wx:for="{{exercises[selectedQuestionIdx].test_cases}}" wx:key="index">输入: {{item.input}} → 期望: {{item.expected}}</text>
+                </view>
               </view>
-            </view>
-            <view class="markdown-body">
-              <rich-text nodes="{{item.htmlContent}}"></rich-text>
-            </view>
-            <view class="card-footer">
-              <view class="tags">
-                <text class="tag">拓展阅读Agent生成</text>
-              </view>
-              <button class="read-btn" bindtap="readDocument" data-id="{{item.id}}">阅读</button>
-            </view>
-          </view>
-          <view wx:if="{{readingMaterials.length === 0}}" class="empty-content">暂无拓展阅读材料，请先生成</view>
-        </block>
 
-        <block wx:if="{{activeTab === 6}}">
-          <view class="tab-action-bar">
-            <view class="regen-btn" bindtap="regenerateSingle" data-type="glossary">重新生成</view>
-          </view>
-          <view wx:if="{{qualityGate.glossary}}" class="quality-gate-card">
-            <view class="gate-icon">⚠️</view>
-            <view class="gate-info">
-              <text class="gate-title">质量未达标</text>
-              <text class="gate-detail">当前评分 {{qualityGate.glossary.score}} 分，质量未达标</text>
-            </view>
-            <button class="action-btn warning" bindtap="regenerateSingle" data-type="glossary">重新生成</button>
-          </view>
-          <view class="glossary-list">
-            <view class="glossary-card" wx:for="{{glossaries}}" wx:key="id">
-              <view class="glossary-term">{{item.term}}</view>
-              <view class="glossary-def"><rich-text nodes="{{item.definitionHtml}}"></rich-text></view>
-              <view wx:if="{{item.example}}" class="glossary-example">
-                <text class="example-icon">💡</text>
-                <text>{{item.example}}</text>
+              <!-- 案例分析 -->
+              <view wx:elif="{{exercises[selectedQuestionIdx].type === 'case_analysis'}}">
+                <textarea class="quiz-textarea" placeholder="请输入分析答案..." bindinput="onAnswerInput" data-question-id="{{exercises[selectedQuestionIdx].questionId}}" />
               </view>
-              <view wx:if="{{item.related_terms && item.related_terms.length > 0}}" class="glossary-related">
-                <text class="related-label">相关术语：</text>
-                <text class="related-tag" wx:for="{{item.related_terms}}" wx:key="index">{{item}}</text>
-              </view>
-            </view>
-          </view>
-          <view wx:if="{{glossaries.length === 0}}" class="empty-content">暂无术语词汇，请先生成</view>
-        </block>
 
-        <block wx:if="{{activeTab === 7}}">
-          <view class="tab-action-bar">
-            <view class="regen-btn" bindtap="regenerateSingle" data-type="knowledge_link">重新生成</view>
-          </view>
-          <view wx:if="{{qualityGate.knowledge_link}}" class="quality-gate-card">
-            <view class="gate-icon">⚠️</view>
-            <view class="gate-info">
-              <text class="gate-title">质量未达标</text>
-              <text class="gate-detail">当前评分 {{qualityGate.knowledge_link.score}} 分，质量未达标</text>
-            </view>
-            <button class="action-btn warning" bindtap="regenerateSingle" data-type="knowledge_link">重新生成</button>
-          </view>
-          <view wx:if="{{knowledgeLinks.length === 0}}" class="empty-content">暂无知识关联图，请先生成</view>
-        </block>
+              <button class="submit-btn" bindtap="submitAnswer" data-question-id="{{exercises[selectedQuestionIdx].questionId}}">提交答案</button>
 
-        <block wx:if="{{activeTab === 8}}">
-          <view class="tab-action-bar">
-            <view class="regen-btn" bindtap="regenerateSingle" data-type="summary">重新生成</view>
-          </view>
-          <view wx:if="{{qualityGate.summary}}" class="quality-gate-card">
-            <view class="gate-icon">⚠️</view>
-            <view class="gate-info">
-              <text class="gate-title">质量未达标</text>
-              <text class="gate-detail">当前评分 {{qualityGate.summary.score}} 分，质量未达标</text>
-            </view>
-            <button class="action-btn warning" bindtap="regenerateSingle" data-type="summary">重新生成</button>
-          </view>
-          <view class="resource-card" wx:for="{{summaries}}" wx:key="id">
-            <view class="card-header">
-              <view class="card-icon">📊</view>
-              <view class="card-info">
-                <text class="card-title">{{item.title}}</text>
-                <text class="card-desc">{{item.description}}</text>
+              <view wx:if="{{submittedAnswers[exercises[selectedQuestionIdx].questionId]}}" class="quiz-feedback">
+                <text class="fb-text {{submittedAnswers[exercises[selectedQuestionIdx].questionId].correct ? 'ok' : 'bad'}}">
+                  {{submittedAnswers[exercises[selectedQuestionIdx].questionId].correct ? '✓ 回答正确！得分：' + submittedAnswers[exercises[selectedQuestionIdx].questionId].score : '✗ 回答错误。正确答案：' + exercises[selectedQuestionIdx].answer}}
+                </text>
               </view>
             </view>
-            <view class="markdown-body">
-              <rich-text nodes="{{item.htmlContent}}"></rich-text>
-            </view>
-            <view class="card-footer">
-              <view class="tags">
-                <text class="tag">学习总结Agent生成</text>
+          </view>
+
+          <!-- 全部模式 -->
+          <view wx:else>
+            <view wx:for="{{exercises}}" wx:key="questionId" class="quiz-card">
+              <view class="quiz-head">
+                <text class="quiz-num">第 {{index + 1}} 题</text>
+                <text class="quiz-tag {{item.difficultyClass}}">{{item.difficulty}}</text>
+                <text class="quiz-tag info">{{item.score}}分</text>
               </view>
-              <button class="read-btn" bindtap="readDocument" data-id="{{item.id}}">阅读</button>
+              <view class="quiz-q"><rich-text nodes="{{item.questionHtml}}"></rich-text></view>
+
+              <view wx:if="{{item.type === 'choice' && item.options.length > 0}}" class="quiz-opts">
+                <view class="opt-row {{answers[item.questionId] === option ? 'picked' : ''}}" wx:for="{{item.options}}" wx:for-index="optKey" wx:for-item="option" wx:key="optKey" bindtap="selectOption" data-question-id="{{item.questionId}}" data-option="{{option}}">
+                  <view class="opt-rad">{{answers[item.questionId] === option ? '✓' : ''}}</view>
+                  <text class="opt-label">{{String.fromCharCode(65 + optKey)}}. {{option}}</text>
+                </view>
+              </view>
+              <view wx:elif="{{item.type === 'judge'}}" class="quiz-opts">
+                <view class="opt-row {{answers[item.questionId] === '正确' ? 'picked' : ''}}" bindtap="selectOption" data-question-id="{{item.questionId}}" data-option="正确">
+                  <view class="opt-rad">{{answers[item.questionId] === '正确' ? '✓' : ''}}</view>
+                  <text class="opt-label">正确</text>
+                </view>
+                <view class="opt-row {{answers[item.questionId] === '错误' ? 'picked' : ''}}" bindtap="selectOption" data-question-id="{{item.questionId}}" data-option="错误">
+                  <view class="opt-rad">{{answers[item.questionId] === '错误' ? '✓' : ''}}</view>
+                  <text class="opt-label">错误</text>
+                </view>
+              </view>
+              <view wx:elif="{{item.type === 'blank' || item.type === 'fill'}}">
+                <input class="quiz-input" placeholder="请输入答案..." bindinput="onAnswerInput" data-question-id="{{item.questionId}}" />
+              </view>
+              <view wx:elif="{{item.type === 'code'}}">
+                <textarea class="quiz-textarea" placeholder="请输入 Python 代码..." bindinput="onAnswerInput" data-question-id="{{item.questionId}}" />
+              </view>
+              <view wx:elif="{{item.type === 'case_analysis'}}">
+                <textarea class="quiz-textarea" placeholder="请输入分析答案..." bindinput="onAnswerInput" data-question-id="{{item.questionId}}" />
+              </view>
+
+              <button class="submit-btn" bindtap="submitAnswer" data-question-id="{{item.questionId}}">提交答案</button>
             </view>
           </view>
-          <view wx:if="{{summaries.length === 0}}" class="empty-content">暂无学习总结，请先生成</view>
-        </block>
-      </view>
+        </view>
+
+        <view wx:if="{{exercises.length === 0}}" class="empty-inline">暂无练习题目，请先生成</view>
+      </block>
+
+      <!-- ========== Tab 4: 代码示例 ========== -->
+      <block wx:if="{{activeTab === 4}}">
+        <view wx:if="{{qualityGate.code}}" class="quality-gate">
+          <view class="qg-icon">⚠️</view>
+          <view class="qg-body">
+            <text class="qg-title">质量未达标</text>
+            <text class="qg-desc">当前评分 {{qualityGate.code.score}} 分</text>
+          </view>
+          <view class="qg-btn" bindtap="regenerateSingle" data-type="code">重新生成</view>
+        </view>
+        <view class="list-toolbar">
+          <view class="regen-btn" bindtap="regenerateSingle" data-type="code">重新生成</view>
+        </view>
+        <view wx:if="{{codeExamples.length === 0}}" class="empty-inline">暂无代码示例，请先生成</view>
+        <view class="res-card code-card" wx:for="{{codeExamples}}" wx:key="id">
+          <view class="res-head">
+            <view class="res-icon">💻</view>
+            <view class="res-head-body">
+              <text class="res-title">{{item.title}}</text>
+              <text class="res-desc">{{item.description}}</text>
+            </view>
+          </view>
+          <view class="code-meta">
+            <view class="code-meta-row">
+              <text class="code-k">语言</text>
+              <text class="code-v">{{item.language}}</text>
+            </view>
+            <view wx:if="{{item.input_example}}" class="code-meta-row">
+              <text class="code-k">输入示例</text>
+              <text class="code-v code-pre">{{item.input_example}}</text>
+            </view>
+            <view wx:if="{{item.expected_output}}" class="code-meta-row">
+              <text class="code-k">期望输出</text>
+              <text class="code-v code-pre">{{item.expected_output}}</text>
+            </view>
+          </view>
+          <view class="code-body">
+            <rich-text nodes="{{item.codeHtml}}"></rich-text>
+          </view>
+          <view class="res-foot">
+            <view class="res-tags">
+              <text class="tag tag-info">代码Agent生成</text>
+              <text class="tag">{{item.language}}</text>
+            </view>
+            <view class="run-btn" bindtap="runCode" data-id="{{item.id}}">▶ 运行</view>
+          </view>
+        </view>
+      </block>
+
+      <!-- ========== Tab 5: 拓展阅读 ========== -->
+      <block wx:if="{{activeTab === 5}}">
+        <view wx:if="{{qualityGate.reading_material}}" class="quality-gate">
+          <view class="qg-icon">⚠️</view>
+          <view class="qg-body">
+            <text class="qg-title">质量未达标</text>
+            <text class="qg-desc">当前评分 {{qualityGate.reading_material.score}} 分</text>
+          </view>
+          <view class="qg-btn" bindtap="regenerateSingle" data-type="reading_material">重新生成</view>
+        </view>
+        <view class="list-toolbar">
+          <view class="regen-btn" bindtap="regenerateSingle" data-type="reading_material">重新生成</view>
+        </view>
+        <view wx:if="{{readingMaterials.length === 0}}" class="empty-inline">暂无拓展阅读材料，请先生成</view>
+        <view class="res-card" wx:for="{{readingMaterials}}" wx:key="id">
+          <view class="res-head">
+            <view class="res-icon">📖</view>
+            <view class="res-head-body">
+              <text class="res-title">{{item.title}}</text>
+              <text class="res-desc">{{item.description}}</text>
+            </view>
+          </view>
+          <view class="res-body">
+            <rich-text nodes="{{item.htmlContent}}"></rich-text>
+          </view>
+          <view class="res-foot">
+            <view class="res-tags">
+              <text class="tag tag-primary">拓展阅读Agent生成</text>
+            </view>
+            <view class="read-btn" bindtap="readDocument" data-id="{{item.id}}">阅读</view>
+          </view>
+        </view>
+      </block>
+
+      <!-- ========== Tab 6: 术语词汇 ========== -->
+      <block wx:if="{{activeTab === 6}}">
+        <view wx:if="{{qualityGate.glossary}}" class="quality-gate">
+          <view class="qg-icon">⚠️</view>
+          <view class="qg-body">
+            <text class="qg-title">质量未达标</text>
+            <text class="qg-desc">当前评分 {{qualityGate.glossary.score}} 分</text>
+          </view>
+          <view class="qg-btn" bindtap="regenerateSingle" data-type="glossary">重新生成</view>
+        </view>
+        <view class="list-toolbar">
+          <view class="regen-btn" bindtap="regenerateSingle" data-type="glossary">重新生成</view>
+        </view>
+        <view wx:if="{{glossaries.length === 0}}" class="empty-inline">暂无术语词汇，请先生成</view>
+        <view class="glossary-list">
+          <view class="glossary-card" wx:for="{{glossaries}}" wx:key="id">
+            <view class="glossary-term">{{item.term}}</view>
+            <view class="glossary-def"><rich-text nodes="{{item.definitionHtml}}"></rich-text></view>
+            <view wx:if="{{item.example}}" class="glossary-example">
+              <text class="ex-icon">💡</text>
+              <text class="ex-text">{{item.example}}</text>
+            </view>
+            <view wx:if="{{item.related_terms && item.related_terms.length > 0}}" class="glossary-related">
+              <text class="rel-label">相关术语</text>
+              <text class="rel-tag" wx:for="{{item.related_terms}}" wx:key="index">{{item}}</text>
+            </view>
+          </view>
+        </view>
+      </block>
+
+      <!-- ========== Tab 8: 学习总结 ========== -->
+      <block wx:if="{{activeTab === 8}}">
+        <view wx:if="{{qualityGate.summary}}" class="quality-gate">
+          <view class="qg-icon">⚠️</view>
+          <view class="qg-body">
+            <text class="qg-title">质量未达标</text>
+            <text class="qg-desc">当前评分 {{qualityGate.summary.score}} 分</text>
+          </view>
+          <view class="qg-btn" bindtap="regenerateSingle" data-type="summary">重新生成</view>
+        </view>
+        <view class="list-toolbar">
+          <view class="regen-btn" bindtap="regenerateSingle" data-type="summary">重新生成</view>
+        </view>
+        <view wx:if="{{summaries.length === 0}}" class="empty-inline">暂无学习总结，请先生成</view>
+        <view class="res-card" wx:for="{{summaries}}" wx:key="id">
+          <view class="res-head">
+            <view class="res-icon">📊</view>
+            <view class="res-head-body">
+              <text class="res-title">{{item.title}}</text>
+              <text class="res-desc">{{item.description}}</text>
+            </view>
+          </view>
+          <view class="res-body">
+            <rich-text nodes="{{item.htmlContent}}"></rich-text>
+          </view>
+          <view class="res-foot">
+            <view class="res-tags">
+              <text class="tag tag-primary">学习总结Agent生成</text>
+            </view>
+            <view class="read-btn" bindtap="readDocument" data-id="{{item.id}}">阅读</view>
+          </view>
+        </view>
+      </block>
+
     </view>
   </scroll-view>
 
-  <!-- 浮动辅导助手按钮 -->
-  <view class="float-btn" bindtap="toggleFloatChat">
-    <text class="float-icon">💬</text>
+  <!-- 浮动辅导按钮 -->
+  <view class="fab-btn" bindtap="toggleFloatChat">
+    <text class="fab-icon">💬</text>
   </view>
 
   <!-- 辅导浮窗 -->
   <view wx:if="{{showFloatChat}}" class="float-overlay">
     <view class="float-panel">
-      <view class="float-header">
+      <view class="float-head">
         <text class="float-title">AI 辅导助手</text>
         <text class="float-close" catchtap="closeFloatChat">✕</text>
       </view>
-      <scroll-view scroll-y class="float-chat-box" scroll-into-view="fmsg-{{floatChatHistory.length}}">
+      <scroll-view scroll-y class="float-chat" scroll-into-view="fmsg-{{floatChatHistory.length}}">
         <block wx:for="{{floatChatHistory}}" wx:key="id">
-          <view id="fmsg-{{index}}" class="float-msg {{item.role === 'user' ? 'right' : 'left'}}">
+          <view id="fmsg-{{index}}" class="float-row {{item.role === 'user' ? 'is-user' : 'is-ai'}}">
             <view wx:if="{{item.role === 'ai'}}" class="float-avatar">🤖</view>
             <view class="float-bubble {{item.role}}">
               <rich-text wx:if="{{item.renderedHtml}}" nodes="{{item.renderedHtml}}"></rich-text>
               <text wx:else>{{item.content}}</text>
             </view>
-            <view wx:if="{{item.role === 'user'}}" class="float-avatar user">👤</view>
+            <view wx:if="{{item.role === 'user'}}" class="float-avatar">👤</view>
           </view>
         </block>
       </scroll-view>
@@ -510,4 +541,7 @@
       </view>
     </view>
   </view>
+
+  <!-- 底部安全区 -->
+  <view class="safe-bottom"></view>
 </view>

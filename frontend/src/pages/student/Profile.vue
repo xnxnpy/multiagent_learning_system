@@ -93,10 +93,13 @@
           <template #header>
             <div class="card-header">
               <div class="header-left">
-                <div class="ai-avatar" style="background: linear-gradient(135deg, #10b981, #059669);">
+                <div class="ai-avatar profile-avatar">
                   <el-icon :size="18" color="#fff"><User /></el-icon>
                 </div>
-                <span class="card-title">我的画像</span>
+                <div>
+                  <span class="card-title">我的画像</span>
+                  <span class="card-subtitle">实时同步对话采集的信息</span>
+                </div>
               </div>
             </div>
           </template>
@@ -119,6 +122,7 @@
                       <el-tag v-if="p.is_active" size="small" type="success" style="margin-left: 8px">当前</el-tag>
                     </el-dropdown-item>
                     <el-dropdown-item divided :command="{ action: 'new' }">+ 新建画像</el-dropdown-item>
+                    <el-dropdown-item :command="{ action: 'edit' }">编辑画像</el-dropdown-item>
                     <el-dropdown-item :command="{ action: 'manage' }">管理画像</el-dropdown-item>
                   </el-dropdown-menu>
                 </template>
@@ -177,11 +181,11 @@
 
           <div v-if="workflowRunning" class="workflow-progress">
             <div class="workflow-progress-header">
-              <el-icon class="is-loading" :size="14" color="#4F46E5"><Loading /></el-icon>
+              <el-icon class="is-loading workflow-spinner"><Loading /></el-icon>
               <span class="workflow-progress-label">{{ currentAgentName }}</span>
               <span class="workflow-progress-pct">{{ workflowProgress }}%</span>
             </div>
-            <el-progress :percentage="workflowProgress" :stroke-width="6" :show-text="false" color="#4F46E5" />
+            <el-progress :percentage="workflowProgress" :stroke-width="6" :show-text="false" class="workflow-progress-bar" />
           </div>
 
           <el-button
@@ -241,6 +245,62 @@
         <el-button type="primary" @click="handleCreateProfile">创建</el-button>
       </template>
     </el-dialog>
+
+    <!-- 编辑画像对话框 -->
+    <el-dialog v-model="showEditProfileDialog" title="编辑画像" width="520px" class="custom-dialog">
+      <el-form :model="editForm" label-width="90px" label-position="left">
+        <el-form-item label="画像名称">
+          <el-input v-model="editForm.profile_name" placeholder="画像名称" />
+        </el-form-item>
+        <el-form-item label="专业">
+          <el-input v-model="editForm.major" placeholder="如：计算机科学" />
+        </el-form-item>
+        <el-form-item label="年级">
+          <el-select v-model="editForm.grade" placeholder="选择年级" allow-create filterable style="width: 100%">
+            <el-option label="大一" value="大一" />
+            <el-option label="大二" value="大二" />
+            <el-option label="大三" value="大三" />
+            <el-option label="大四" value="大四" />
+            <el-option label="研一" value="研一" />
+            <el-option label="研二" value="研二" />
+            <el-option label="研三" value="研三" />
+          </el-select>
+        </el-form-item>
+        <el-form-item label="学习目标">
+          <el-input v-model="editForm.goal" type="textarea" :rows="2" placeholder="如：掌握数据结构与算法" />
+        </el-form-item>
+        <el-form-item label="学习风格">
+          <el-select v-model="editForm.learning_style" placeholder="选择学习风格" allow-create filterable style="width: 100%">
+            <el-option label="视觉型" value="视觉型" />
+            <el-option label="听觉型" value="听觉型" />
+            <el-option label="实践型" value="实践型" />
+            <el-option label="理论型" value="理论型" />
+            <el-option label="混合型" value="混合型" />
+          </el-select>
+        </el-form-item>
+        <el-form-item label="编程能力">
+          <el-select v-model="editForm.coding_ability" placeholder="选择编程能力" style="width: 100%">
+            <el-option label="入门" value="入门" />
+            <el-option label="初级" value="初级" />
+            <el-option label="中级" value="中级" />
+            <el-option label="高级" value="高级" />
+          </el-select>
+        </el-form-item>
+        <el-form-item label="兴趣方向">
+          <el-select v-model="editForm.interests" multiple filterable allow-create default-first-option
+            placeholder="输入兴趣后回车，可多选" style="width: 100%">
+          </el-select>
+        </el-form-item>
+      </el-form>
+      <div class="edit-hint">
+        <el-icon><InfoFilled /></el-icon>
+        <span>「知识水平」和「薄弱环节」由系统评估自动更新，不支持手动修改</span>
+      </div>
+      <template #footer>
+        <el-button @click="showEditProfileDialog = false">取消</el-button>
+        <el-button type="primary" :loading="editSaving" @click="handleSaveProfile">保存</el-button>
+      </template>
+    </el-dialog>
   </div>
 </template>
 
@@ -248,7 +308,7 @@
 import { ref, reactive, computed, onMounted, onUnmounted, nextTick, watch } from 'vue'
 import { useRouter } from 'vue-router'
 import { ElMessage, ElMessageBox } from 'element-plus'
-import { ChatDotRound, User, Promotion, DataAnalysis, Loading, ArrowDown, Edit } from '@element-plus/icons-vue'
+import { ChatDotRound, User, Promotion, DataAnalysis, Loading, ArrowDown, Edit, InfoFilled } from '@element-plus/icons-vue'
 import { studentAPI } from '@/api'
 import VoiceInputButton from '@/components/VoiceInputButton.vue'
 import { useUserStore } from '@/stores/userStore'
@@ -305,6 +365,19 @@ const showNewProfileDialog = ref(false)
 const newProfileName = ref('')
 const editingProfileId = ref<number | null>(null)
 const editingProfileName = ref('')
+
+/* ── 编辑画像状态 ── */
+const showEditProfileDialog = ref(false)
+const editSaving = ref(false)
+const editForm = reactive({
+  profile_name: '',
+  major: '',
+  grade: '',
+  goal: '',
+  learning_style: '',
+  coding_ability: '',
+  interests: [] as string[],
+})
 
 /* ── Profile state ───────────────────────────── */
 
@@ -677,7 +750,7 @@ const saveProfileName = async () => {
     return
   }
   try {
-    await studentAPI.updateProfileName(editingProfileId.value, { profile_name: editingProfileName.value.trim() })
+    await studentAPI.updateProfile(editingProfileId.value, { profile_name: editingProfileName.value.trim() })
     editingProfileId.value = null
     await fetchProfiles()
     await fetchProfile()
@@ -691,8 +764,55 @@ const handleProfileCommand = async (command: any) => {
     await handleActivateProfile(command.id)
   } else if (command.action === 'new') {
     showNewProfileDialog.value = true
+  } else if (command.action === 'edit') {
+    openEditDialog()
   } else if (command.action === 'manage') {
     showProfileList.value = true
+  }
+}
+
+/* ── 编辑画像 ── */
+function openEditDialog() {
+  const active = profiles.value.find((p: any) => p.is_active)
+  const id = active?.id || activeProfileId.value
+  if (!id) {
+    ElMessage.warning('暂无活跃画像可编辑')
+    return
+  }
+  // 用当前画像数据填充表单
+  editForm.profile_name = profile.profile_name || ''
+  editForm.major = profile.major || ''
+  editForm.grade = profile.grade || ''
+  editForm.goal = profile.goal || ''
+  editForm.learning_style = profile.learning_style || ''
+  editForm.coding_ability = profile.coding_ability || ''
+  editForm.interests = [...(profile.interests || [])]
+  showEditProfileDialog.value = true
+}
+
+async function handleSaveProfile() {
+  const active = profiles.value.find((p: any) => p.is_active)
+  const id = active?.id || activeProfileId.value
+  if (!id) return
+  editSaving.value = true
+  try {
+    await studentAPI.updateProfile(id, {
+      profile_name: editForm.profile_name.trim() || undefined,
+      major: editForm.major.trim() || undefined,
+      grade: editForm.grade || undefined,
+      goal: editForm.goal.trim() || undefined,
+      learning_style: editForm.learning_style || undefined,
+      coding_ability: editForm.coding_ability || undefined,
+      interests: editForm.interests,
+    })
+    ElMessage.success('画像已更新')
+    showEditProfileDialog.value = false
+    await fetchProfiles()
+    await fetchProfile()
+  } catch (e) {
+    ElMessage.error('保存失败')
+  } finally {
+    editSaving.value = false
   }
 }
 
@@ -765,11 +885,17 @@ onUnmounted(() => {
   width: 34px;
   height: 34px;
   border-radius: 10px;
-  background: linear-gradient(135deg, var(--color-primary), var(--color-primary-light));
+  background: linear-gradient(135deg, var(--color-student), var(--color-student-soft));
   display: flex;
   align-items: center;
   justify-content: center;
   flex-shrink: 0;
+  box-shadow: 0 2px 6px rgba(176, 81, 44, 0.15);
+}
+
+.profile-avatar {
+  background: linear-gradient(135deg, var(--color-primary-deep), var(--color-primary-soft));
+  box-shadow: 0 2px 6px rgba(29, 31, 51, 0.15);
 }
 
 .card-title {
@@ -825,8 +951,8 @@ onUnmounted(() => {
   display: flex; align-items: center; justify-content: center;
   flex-shrink: 0; font-size: var(--text-xs); font-weight: 600;
 }
-.msg-avatar.ai { background: linear-gradient(135deg, var(--color-primary), var(--color-primary-light)); color: #fff; }
-.msg-avatar.user { background: var(--color-primary); color: #fff; }
+.msg-avatar.ai { background: linear-gradient(135deg, var(--color-student), var(--color-student-soft)); color: #fff; }
+.msg-avatar.user { background: var(--color-student); color: #fff; }
 
 .bubble-wrap {
   max-width: 75%;
@@ -838,17 +964,20 @@ onUnmounted(() => {
   padding: 11px 15px;
   border-radius: 14px;
   background: var(--color-bg-card);
-  box-shadow: var(--shadow-sm);
-  color: var(--color-text-primary);
+  box-shadow: var(--shadow-paper);
+  color: var(--color-text-body);
   font-size: 14px;
   line-height: 1.7;
   word-break: break-word;
+  border: 1px solid var(--color-border-light);
 }
 .chat-message.assistant .bubble { border-top-left-radius: 4px; }
 .chat-message.user .bubble {
-  background: var(--color-primary);
+  background: var(--color-student);
   color: #fff;
   border-top-right-radius: 4px;
+  border: none;
+  box-shadow: 0 2px 8px rgba(176, 81, 44, 0.18);
 }
 
 /* ── Typing indicator ──────────────────────── */
@@ -860,7 +989,7 @@ onUnmounted(() => {
 }
 .typing-indicator .dot {
   width: 6px; height: 6px; border-radius: 50%;
-  background: var(--color-primary);
+  background: var(--color-student);
   opacity: 0.4;
   animation: typing-bounce 1.2s ease-in-out infinite;
 }
@@ -909,7 +1038,8 @@ onUnmounted(() => {
   cursor: not-allowed; transition: all var(--transition-fast); flex-shrink: 0;
 }
 .send-btn.active {
-  background: var(--color-primary); color: #fff; cursor: pointer;
+  background: var(--color-student); color: #fff; cursor: pointer;
+  box-shadow: 0 2px 8px rgba(176, 81, 44, 0.22);
 }
 .send-btn.active:hover { transform: scale(1.05); }
 
@@ -925,31 +1055,59 @@ onUnmounted(() => {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  padding: 8px 0;
-  border-bottom: 1px solid var(--color-border-light);
+  padding: 9px 0;
+  border-bottom: 1px dashed var(--color-border-light);
+  position: relative;
 }
 .field-row:last-child { border-bottom: none; }
+.field-row::before {
+  content: '';
+  position: absolute;
+  left: 0; top: 50%;
+  transform: translateY(-50%);
+  width: 3px; height: 3px;
+  border-radius: 50%;
+  background: var(--color-student);
+  opacity: 0.6;
+}
 
 .field-label {
   font-size: 13px;
-  color: var(--color-text-secondary);
+  color: var(--color-text-muted);
   font-weight: 500;
+  padding-left: 12px;
+  font-family: var(--font-serif);
+  letter-spacing: 0.02em;
 }
 
 .field-value {
   font-size: 13px;
-  color: var(--color-text-primary);
+  color: var(--color-text-body);
+  font-weight: 500;
 }
 
 .profile-section {
-  margin-top: 16px;
+  margin-top: 18px;
+  padding-top: 14px;
+  border-top: 1px solid var(--color-border-light);
+  position: relative;
+}
+.profile-section::before {
+  content: '';
+  position: absolute;
+  top: -1px; left: 0;
+  width: 36px; height: 2px;
+  background: var(--color-student);
+  border-radius: 2px;
 }
 
 .section-title {
   font-size: 13px;
   font-weight: 600;
-  color: var(--color-text-secondary);
-  margin-bottom: 8px;
+  color: var(--color-text-body);
+  margin-bottom: 10px;
+  font-family: var(--font-serif);
+  letter-spacing: 0.03em;
 }
 
 .tag-list {
@@ -963,12 +1121,24 @@ onUnmounted(() => {
   font-size: var(--text-xs);
 }
 
+.edit-hint {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin-top: 8px;
+  padding: 10px 12px;
+  background: var(--color-bg-page-2, #f5f5f5);
+  border-radius: var(--radius-md, 8px);
+  font-size: 12px;
+  color: var(--color-text-muted);
+}
+
 .workflow-progress {
   margin-top: 16px;
   padding: 14px;
-  background: var(--color-primary-lightest);
+  background: var(--color-student-pale);
   border-radius: var(--radius-md);
-  border: 1px solid var(--color-primary-lightest);
+  border: 1px solid var(--color-student-soft);
 }
 
 .workflow-progress-header {
@@ -978,22 +1148,40 @@ onUnmounted(() => {
   margin-bottom: 8px;
 }
 
+.workflow-spinner {
+  color: var(--color-student);
+}
+
 .workflow-progress-label {
   font-size: 13px;
   font-weight: 600;
-  color: var(--color-primary);
+  color: var(--color-student);
   flex: 1;
 }
 
 .workflow-progress-pct {
   font-size: var(--text-xs);
-  color: var(--color-primary-light);
-  font-weight: 500;
+  color: var(--color-text-muted);
+  font-weight: 600;
+}
+
+.workflow-progress-bar :deep(.el-progress-bar__inner) {
+  background: linear-gradient(90deg, var(--color-student), var(--color-student-soft));
 }
 
 .workflow-btn {
   width: 100%;
   margin-top: 16px;
+  background: var(--color-student);
+  border: none;
+  font-weight: 500;
+  transition: all var(--transition-fast);
+}
+.workflow-btn:hover {
+  background: var(--color-student) !important;
+  opacity: 0.88;
+  transform: translateY(-1px);
+  box-shadow: 0 4px 12px rgba(176, 81, 44, 0.25);
 }
 
 .profile-header-bar {
@@ -1005,37 +1193,75 @@ onUnmounted(() => {
   border-bottom: 1px solid var(--color-border-light);
 }
 
+.profile-name-display :deep(.el-dropdown) {
+  display: flex;
+  align-items: center;
+}
+
 .profile-name-text {
+  font-family: var(--font-serif);
   font-size: var(--text-lg);
   font-weight: 600;
-  color: var(--color-text-primary);
+  color: var(--color-text-ink);
   cursor: pointer;
   display: flex;
   align-items: center;
   gap: 4px;
+  padding: 4px 10px;
+  border-radius: var(--radius-sm);
+  transition: all var(--transition-fast);
 }
-
 .profile-name-text:hover {
-  color: var(--color-primary);
+  background: var(--color-student-pale);
+  color: var(--color-student);
 }
 
 .profile-complete-tip {
-  background: #f0fdf4;
+  background: var(--color-success-soft);
   color: var(--color-success);
-  padding: 10px 14px;
+  padding: 11px 14px;
   border-radius: var(--radius-md);
   font-size: 13px;
   margin-bottom: 12px;
-  border: 1px solid #bbf7d0;
-}
-
-.link-text {
-  color: var(--color-primary);
-  cursor: pointer;
+  border: 1px solid var(--color-success-soft);
   font-weight: 500;
 }
 
+.tag-item {
+  border-radius: var(--radius-sm);
+  transition: all var(--transition-fast);
+}
+.tag-item:hover {
+  transform: translateY(-1px);
+  box-shadow: var(--shadow-card);
+}
+
+.link-text {
+  color: var(--color-student);
+  cursor: pointer;
+  font-weight: 500;
+}
 .link-text:hover {
   text-decoration: underline;
+  text-decoration-color: var(--color-student-soft);
+  text-underline-offset: 3px;
+}
+
+.page-title {
+  font-family: var(--font-serif);
+  font-weight: 700;
+  color: var(--color-text-ink);
+  letter-spacing: 0.02em;
+  position: relative;
+  display: inline-block;
+  padding-left: 14px;
+}
+.page-title::before {
+  content: '';
+  position: absolute;
+  left: 0; top: 18%;
+  width: 4px; height: 64%;
+  background: linear-gradient(180deg, var(--color-student), var(--color-student-soft));
+  border-radius: 4px;
 }
 </style>

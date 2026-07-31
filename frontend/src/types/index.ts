@@ -118,6 +118,7 @@ export interface Question {
   question_id: number
   type: 'choice' | 'judge' | 'blank' | 'fill' | 'code' | 'case_analysis'
   difficulty?: 'easy' | 'medium' | 'hard'
+  knowledge_point?: string
   question: string
   options?: string[] | null
   answer?: string
@@ -315,6 +316,9 @@ export interface TutorMessage {
   role: 'user' | 'assistant'
   content: string
   time?: string
+  image_base64?: string       // 用户上传的题目图片 base64（仅 role=user 时有值）
+  image_name?: string         // 图片文件名（如 image.png）
+  image_size?: number         // 图片文件大小（字节）
 }
 
 export interface ChatMsg extends TutorMessage {

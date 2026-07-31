@@ -133,14 +133,6 @@ export const studentAPI = {
     return request.get('/v1/student/profile')
   },
 
-  updateProfile: (data: any) => {
-    return request.put('/v1/student/profile', data)
-  },
-
-  buildProfile: (message: string) => {
-    return request.post('/v1/student/profile/build', { message })
-  },
-
   getLearningPath: () => {
     return request.get('/v1/student/learning-path')
   },
@@ -155,10 +147,6 @@ export const studentAPI = {
 
   submitAnswer: (data: { question_id: string; answer: string }) => {
     return request.post('/v1/student/question/submit', data)
-  },
-
-  generateCode: (data: { task_description: string }) => {
-    return request.post('/v1/student/code/generate', data)
   },
 
   runCode: (data: { code: string; timeout?: number }) => {
@@ -198,6 +186,13 @@ export const studentAPI = {
     })
   },
 
+  recognizeImage: (formData: FormData) => {
+    return request.post('/v1/student/ocr/recognize', formData, {
+      headers: { 'Content-Type': 'multipart/form-data' },
+      timeout: 30000,
+    })
+  },
+
   // 多画像管理
   getProfiles: () => {
     return request.get('/v1/student/profiles')
@@ -207,7 +202,15 @@ export const studentAPI = {
     return request.post('/v1/student/profiles', data)
   },
 
-  updateProfileName: (id: number, data: { profile_name?: string }) => {
+  updateProfile: (id: number, data: {
+    profile_name?: string
+    major?: string
+    grade?: string
+    goal?: string
+    learning_style?: string
+    interests?: string[]
+    coding_ability?: string
+  }) => {
     return request.put(`/v1/student/profiles/${id}`, data)
   },
 
@@ -225,10 +228,6 @@ export const studentAPI = {
 
   getProfileChatHistory: (profileId: number) => {
     return request.get(`/v1/student/profiles/${profileId}/chat-history`)
-  },
-
-  getAllChatHistory: () => {
-    return request.get('/v1/student/profiles/chat-history/all')
   },
 }
 

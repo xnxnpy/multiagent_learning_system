@@ -1,6 +1,6 @@
 <view class="container">
   <view class="logo-section">
-    <view class="logo">🤖</view>
+    <view class="logo">智</view>
     <text class="title">创建账号</text>
     <text class="subtitle">注册后即可开始个性化学习之旅</text>
   </view>
@@ -25,7 +25,7 @@
       <text class="form-label">用户角色 <text class="required">*</text></text>
       <view class="role-options">
         <view
-          class="role-option {{selectedRole === item.value ? 'active' : ''}}"
+          class="role-option {{selectedRole === item.value ? 'active' : ''}} {{item.value === 'teacher' ? 'role-option-teacher' : ''}}"
           wx:for="{{roles}}"
           wx:key="value"
           data-value="{{item.value}}"

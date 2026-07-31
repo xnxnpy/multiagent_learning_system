@@ -1,10 +1,10 @@
 <template>
   <AppLayout
     :menu-items="menuItems"
-    portal-title="教师端"
+    portal-title="教师教研中心"
     portal-type="teacher"
-    portal-color="#059669"
-    avatar-color="#059669"
+    portal-color="#3D6B4F"
+    avatar-color="#3D6B4F"
   >
     <router-view />
   </AppLayout>

@@ -162,6 +162,8 @@ class ChatHistoryResponse(BaseModel):
 
 class ProfileListResponse(BaseModel):
     """画像列表响应"""
+    model_config = {"from_attributes": True}
+
     id: int
     profile_name: str
     is_active: bool
@@ -170,10 +172,11 @@ class ProfileListResponse(BaseModel):
     grade: Optional[str] = None
     goal: Optional[str] = None
     knowledge_level: Optional[str] = None
+    learning_style: Optional[str] = None
+    weakness: Optional[List[str]] = None
+    interests: Optional[List[str]] = None
+    coding_ability: Optional[str] = None
     updated_at: Optional[datetime] = None
-
-    class Config:
-        from_attributes = True
 
 
 class ProfileCreateRequest(BaseModel):
@@ -184,6 +187,13 @@ class ProfileCreateRequest(BaseModel):
 class ProfileUpdateRequest(BaseModel):
     """更新画像请求"""
     profile_name: Optional[str] = Field(None, min_length=1, max_length=100)
+    major: Optional[str] = Field(None, max_length=100)
+    grade: Optional[str] = Field(None, max_length=50)
+    goal: Optional[str] = Field(None, max_length=500)
+    learning_style: Optional[str] = Field(None, max_length=100)
+    interests: Optional[List[str]] = Field(None)
+    coding_ability: Optional[str] = Field(None, max_length=50)
+
 
 
 @router.get("/profile", response_model=ProfileResponse)
@@ -272,12 +282,27 @@ async def update_profile(
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ):
-    """更新画像名称"""
+    """更新画像信息（允许手动修改：专业/年级/目标/学习风格/兴趣/编程能力）"""
     profile = await db.get(StudentProfile, profile_id)
     if not profile or profile.user_id != current_user.id:
         raise HTTPException(status_code=404, detail="画像不存在")
+
+    # 更新允许手动修改的字段
     if request.profile_name is not None:
         profile.profile_name = request.profile_name
+    if request.major is not None:
+        profile.major = request.major
+    if request.grade is not None:
+        profile.grade = request.grade
+    if request.goal is not None:
+        profile.goal = request.goal
+    if request.learning_style is not None:
+        profile.learning_style = request.learning_style
+    if request.interests is not None:
+        profile.interests = request.interests
+    if request.coding_ability is not None:
+        profile.coding_ability = request.coding_ability
+
     await db.commit()
     await db.refresh(profile)
     return ProfileListResponse.model_validate(profile)
@@ -472,34 +497,6 @@ async def get_chat_history(
         ))
 
     return ChatHistoryResponse(messages=messages)
-
-
-@router.get("/tutor-chats")
-async def get_tutor_chats(
-    current_user: User = Depends(get_current_user),
-    db: AsyncSession = Depends(get_db),
-):
-    """获取当前学生的辅导对话记录，按 session_id 分组"""
-    from sqlalchemy import select as sa_select
-    from app.models.chat_history import TutorChatMessage
-
-    result = await db.execute(
-        sa_select(TutorChatMessage)
-        .where(TutorChatMessage.user_id == current_user.id)
-        .order_by(TutorChatMessage.session_id, TutorChatMessage.id)
-    )
-    records = result.scalars().all()
-
-    # 按 session_id 分组
-    sessions: dict = {}
-    for r in records:
-        sessions.setdefault(r.session_id, []).append({
-            "role": r.role,
-            "content": r.content,
-            "time": r.created_at.strftime("%H:%M") if r.created_at else "",
-        })
-
-    return {"sessions": sessions}
 
 
 @router.post("/chat/message")
@@ -702,7 +699,21 @@ async def get_resources(
             select(LearningResource).where(LearningResource.id.in_(latest_ids))
         )
         for row in content_result.scalars().all():
-            resources[row.resource_type] = row.content
+            # 统一 content 为 dict：兼容历史保存的 JSON 字符串
+            raw = row.content
+            if isinstance(raw, str):
+                try:
+                    import json as _json
+                    parsed = _json.loads(raw)
+                    if isinstance(parsed, (dict, list)):
+                        raw = parsed
+                    else:
+                        raw = {"content": raw}
+                except Exception:
+                    raw = {"content": raw}
+            elif raw is None:
+                raw = {}
+            resources[row.resource_type] = raw
 
     result = {
         "document": resources.get("document"),
@@ -796,6 +807,16 @@ async def _generate_and_evaluate(db, user_id, stage_id, stage_topic, resource_ty
         raise ValueError(f"不支持的资源类型: {resource_type}")
 
     content = await globals()[gen_func](db, user_id, stage_topic, stage_id)
+    # 统一 content 为 dict：兼容 Agent 返回字符串 / DB 读取的历史 JSON 字符串
+    if isinstance(content, str):
+        try:
+            import json as _json
+            _parsed = _json.loads(content)
+            content = _parsed if isinstance(_parsed, (dict, list)) else {"content": content}
+        except Exception:
+            content = {"content": content}
+    elif content is None:
+        content = {}
 
     resource_values = {
         "user_id": user_id, "profile_id": profile_id, "stage_id": stage_id,
@@ -809,6 +830,7 @@ async def _generate_and_evaluate(db, user_id, stage_id, stage_topic, resource_ty
         topic=stage_topic, resource_type=resource_type,
         content=content, user_id=user_id,
     )
+    # content 已是 dict，直接拷贝并追加质量评分
     updated_content = dict(content) if isinstance(content, dict) else {"content": content}
     updated_content["quality_score"] = quality
     resource_values["content"] = updated_content
@@ -896,7 +918,12 @@ async def regenerate_resource(
         raise HTTPException(status_code=404, detail=f"阶段 {request.stage_id} 不存在")
 
     kps = stage.get("knowledge_points", [])
-    stage_topic = "、".join([kp.get("name", "") if isinstance(kp, dict) else str(kp) for kp in kps]) or stage.get("title", "")
+    raw_kps = [kp.get("name", "") if isinstance(kp, dict) else str(kp) for kp in kps]
+    # 限制知识点数量和长度，避免 topic 过长
+    raw_kps = [kp[:20] for kp in raw_kps[:5]]
+    stage_topic = "、".join(raw_kps) or stage.get("title", "")
+    if len(stage_topic) > 80:
+        stage_topic = "、".join(raw_kps[:3]) or stage.get("title", "")
 
     from app.models import LearningResource
     delete_query = LearningResource.__table__.delete().where(
@@ -977,6 +1004,9 @@ async def submit_answer(
 
     evaluation = await evaluate_answer(request.answer, question)
 
+    # 从题目数据中提取考察的知识点
+    kp = question.get("knowledge_point", "") or request.topic or "通用"
+
     learning_record = LearningRecord(
         user_id=current_user.id,
         resource_type="question",
@@ -984,7 +1014,7 @@ async def submit_answer(
         correct=evaluation.correct,
         score=evaluation.score,
         duration_seconds=getattr(request, 'duration_seconds', 0) or 0,
-        behavior_data={"topic": request.topic, "answer": request.answer}
+        behavior_data={"topic": kp, "answer": request.answer, "knowledge_point": kp}
     )
     db.add(learning_record)
     await db.commit()
@@ -1282,7 +1312,23 @@ async def get_evaluation_report(
     )
     report = result.scalar_one_or_none()
 
+    # 判断是否需要重新评估：报告对应的已完成阶段数与当前不一致则重新评估
+    should_re_evaluate = False
+    from app.models import LearningPath
+    path_result = await db.execute(
+        select(LearningPath).where(LearningPath.user_id == current_user.id)
+        .order_by(LearningPath.created_at.desc()).limit(1)
+    )
+    path = path_result.scalar_one_or_none()
+    current_completed_count = len(path.completed_stages) if path and path.completed_stages else 0
+    report_completed_count = 0
     if report and report.report_data:
+        report_completed_count = report.report_data.get("_completed_stages_count", 0)
+    if report and current_completed_count != report_completed_count:
+        should_re_evaluate = True
+        log.info(f"学生 {current_user.id} 已完成阶段数变化（{report_completed_count}→{current_completed_count}），重新评估")
+
+    if report and report.report_data and not should_re_evaluate:
         log.info(f"从数据库返回评估报告，用户 {current_user.id}")
         report_data = dict(report.report_data)
 
@@ -1314,6 +1360,63 @@ async def get_evaluation_report(
         report_data["total_score"] = total_score
         report_data["total_attempts"] = total_attempts
         report_data["accuracy_rate"] = accuracy_rate
+
+        # 用真实答题数据重新按知识点分组计算，确保与最新答题记录一致
+        kp_data: dict = {}
+        for r in records:
+            behavior = r.behavior_data if isinstance(r.behavior_data, dict) else {}
+            kp = behavior.get("knowledge_point") or behavior.get("topic") or "通用"
+            # 按 resource_id 去重，同一题目只取最高分
+            rid = r.resource_id
+            if rid is None:
+                continue
+            if rid not in kp_data:
+                kp_data[rid] = {"kp": kp, "score": r.score or 0, "correct": r.correct}
+            elif (r.score or 0) > kp_data[rid]["score"]:
+                kp_data[rid] = {"kp": kp, "score": r.score or 0, "correct": r.correct}
+
+        kp_grouped: dict = {}
+        for rid, info in kp_data.items():
+            kp = info["kp"]
+            if kp not in kp_grouped:
+                kp_grouped[kp] = {"total": 0, "correct": 0, "score": 0, "max_score": 0}
+            kp_grouped[kp]["total"] += 1
+            kp_grouped[kp]["max_score"] += 10
+            if info["correct"]:
+                kp_grouped[kp]["correct"] += 1
+            kp_grouped[kp]["score"] += info["score"]
+
+        new_kps = []
+        for kp_name, data in kp_grouped.items():
+            mastery = data["correct"] / data["total"] if data["total"] > 0 else 0.0
+            if mastery >= 0.8:
+                status = "掌握"
+            elif mastery >= 0.3:
+                status = "学习中"
+            else:
+                status = "薄弱"
+            new_kps.append({
+                "topic": kp_name,
+                "score": min(data["score"], data["max_score"]),
+                "total": data["max_score"],
+                "mastery": round(mastery, 2),
+                "status": status,
+            })
+
+        # 补充未考查的知识点
+        existing_kp_names = {kp["topic"] for kp in new_kps}
+        old_kps = report_data.get("knowledge_points", [])
+        for old_kp in old_kps:
+            if old_kp.get("topic") not in existing_kp_names:
+                new_kps.append({
+                    "topic": old_kp["topic"],
+                    "score": 0,
+                    "total": 10,
+                    "mastery": 0.0,
+                    "status": "未考查",
+                })
+
+        report_data["knowledge_points"] = new_kps
 
         # 回写数据库
         report.total_score = total_score
@@ -1548,8 +1651,14 @@ async def generate_all_stage_resources(user_id: int):
 
 
 
-async def _generate_one_stage(user_id: int, stage: dict, force: bool = False):
-    """为单个阶段生成资源（文档/思维导图/代码）"""
+async def _generate_one_stage(user_id: int, stage: dict, force: bool = False,
+                             progress_base: int = 0, progress_range: int = 100):
+    """为单个阶段生成资源（文档/思维导图/代码）
+
+    Args:
+        progress_base: 进度基准百分比（用于在更大流程中映射进度）
+        progress_range: 进度区间宽度（百分比）
+    """
     from app.models import AsyncSessionLocal, LearningResource
     from app.core.websocket_manager import notification_manager
 
@@ -1563,12 +1672,14 @@ async def _generate_one_stage(user_id: int, stage: dict, force: bool = False):
     _stage_gen_locks[lock_key] = asyncio.Lock()
     try:
         async with _stage_gen_locks[lock_key]:
-            await _do_generate_one_stage(user_id, stage, force=force)
+            await _do_generate_one_stage(user_id, stage, force=force,
+                                         progress_base=progress_base, progress_range=progress_range)
     finally:
         _stage_gen_locks.pop(lock_key, None)
 
 
-async def _do_generate_one_stage(user_id: int, stage: dict, force: bool = False):
+async def _do_generate_one_stage(user_id: int, stage: dict, force: bool = False,
+                                 progress_base: int = 0, progress_range: int = 100):
     """实际的资源生成逻辑"""
     from app.models import AsyncSessionLocal, LearningResource
     from app.core.websocket_manager import notification_manager
@@ -1577,9 +1688,14 @@ async def _do_generate_one_stage(user_id: int, stage: dict, force: bool = False)
     kps = stage.get("knowledge_points", [])
     # knowledge_points 可能是字符串列表或字典列表
     if kps and isinstance(kps[0], dict):
-        stage_topic = "、".join([kp.get("name", "") for kp in kps]) or stage.get("title", "")
+        raw_kps = [kp.get("name", "") for kp in kps]
     else:
-        stage_topic = "、".join([str(kp) for kp in kps]) or stage.get("title", "")
+        raw_kps = [str(kp) for kp in kps]
+    # 限制知识点数量和长度，避免 topic 过长
+    raw_kps = [kp[:20] for kp in raw_kps[:5]]
+    stage_topic = "、".join(raw_kps) or stage.get("title", "")
+    if len(stage_topic) > 80:
+        stage_topic = "、".join(raw_kps[:3]) or stage.get("title", "")
     # 固定生成全部资源类型，名称与主工作流对齐
     resource_steps = [
         ("document", "文档生成 Agent · 生成学习文档"),
@@ -1628,7 +1744,7 @@ async def _do_generate_one_stage(user_id: int, stage: dict, force: bool = False)
     async def _send_gen_progress(step_key: str, step_name: str, idx: int, total: int, status: str = "running"):
         """发送资源生成进度通知"""
         try:
-            pct = round((idx / total) * 100)
+            pct = round(progress_base + (idx / total) * progress_range)
             await notification_manager.send_notification(
                 user_id=user_id,
                 notification_type="resource_generation",
@@ -1836,22 +1952,44 @@ async def complete_stage(
     async def _post_complete():
         try:
             from app.models import AsyncSessionLocal
-            # 评估（独立 session，阶段完成时强制触发）
+            from app.core.websocket_manager import notification_manager
+
+            # ── 阶段1：学习评估 ──
+            await notification_manager.send_notification(
+                user_id=current_user.id,
+                notification_type="resource_generation",
+                title="📊 正在评估学习效果",
+                content="评估 Agent 正在分析您的学习情况...",
+                data={"step": "evaluation", "step_name": "评估 Agent · 分析学习效果", "progress": 5, "status": "running"},
+            )
             eval_result = None
             try:
                 async with AsyncSessionLocal() as eval_db:
                     eval_result = await _try_trigger_evaluation(current_user.id, eval_db, force=True)
             except Exception as e:
                 log.error(f"后台评估失败: {e}")
+            await notification_manager.send_notification(
+                user_id=current_user.id,
+                notification_type="resource_generation",
+                title="📊 评估完成",
+                content="学习评估已完成，正在判断是否需要优化路径...",
+                data={"step": "evaluation", "step_name": "评估 Agent · 分析学习效果", "progress": 25, "status": "running"},
+            )
 
-            # 路径增量更新（内部自己建 session）
+            # ── 阶段2：路径增量更新判断 ──
+            await notification_manager.send_notification(
+                user_id=current_user.id,
+                notification_type="resource_generation",
+                title="🧭 正在优化学习路径",
+                content="路径规划 Agent 正在判断是否需要调整学习路径...",
+                data={"step": "path_update", "step_name": "路径规划 Agent · 优化学习路径", "progress": 30, "status": "running"},
+            )
             if eval_result:
                 try:
                     from app.agents.evaluation_agent import EvaluationAgent
                     eval_agent = EvaluationAgent(db=None)
                     path_updated = await eval_agent._update_path_incrementally(current_user.id, eval_result)
                     if path_updated:
-                        from app.core.websocket_manager import notification_manager
                         await notification_manager.send_notification(
                             user_id=current_user.id,
                             notification_type="learning_progress",
@@ -1861,17 +1999,16 @@ async def complete_stage(
                         )
                 except Exception as e:
                     log.error(f"后台路径更新失败: {e}")
+            await notification_manager.send_notification(
+                user_id=current_user.id,
+                notification_type="resource_generation",
+                title="🧭 路径检查完成",
+                content="开始生成下一阶段学习资源...",
+                data={"step": "path_update", "step_name": "路径规划 Agent · 优化学习路径", "progress": 40, "status": "running"},
+            )
 
-            # 预生成下一阶段资源
+            # ── 阶段3：预生成下一阶段资源（进度映射到 40-100%） ──
             try:
-                from app.core.websocket_manager import notification_manager
-                await notification_manager.send_notification(
-                    user_id=current_user.id,
-                    notification_type="resource_generation",
-                    title="📚 正在准备下一阶段",
-                    content="系统正在自动生成下一阶段的学习资源，请稍候...",
-                    data={"step": "auto_generate", "status": "started"},
-                )
                 async with AsyncSessionLocal() as gen_db:
                     from sqlalchemy import select as sa_select
                     from app.models import StudentProfile as SP
@@ -1886,7 +2023,7 @@ async def complete_stage(
                         for s in fresh_path.stages:
                             if s.get("stage_id") not in done:
                                 log.info(f"预生成阶段 {s.get('stage_id')} 资源")
-                                await _generate_one_stage(current_user.id, s)
+                                await _generate_one_stage(current_user.id, s, progress_base=40, progress_range=60)
                                 break
                 # 生成完成通知
                 await notification_manager.send_notification(
@@ -1894,7 +2031,7 @@ async def complete_stage(
                     notification_type="resource_generation",
                     title="✅ 下一阶段资源已就绪",
                     content="学习资源已生成完毕，可以开始学习了。",
-                    data={"step": "auto_generate", "status": "completed"},
+                    data={"step": "auto_generate", "progress": 100, "status": "completed"},
                 )
             except Exception as e:
                 log.error(f"后台资源预生成失败: {e}")
@@ -2487,3 +2624,38 @@ async def recognize_speech(
     except Exception as e:
         log.error(f"语音识别失败: {e}")
         raise HTTPException(status_code=500, detail=f"语音识别失败: {str(e)}")
+
+
+# ==================== 图片文字识别（OCR） ====================
+
+@router.post("/ocr/recognize")
+async def recognize_image(
+    file: UploadFile = File(..., description="图片文件（JPG/PNG）"),
+    current_user: User = Depends(get_current_user),
+):
+    """图片文字识别：将图片中的题目文字转为文本
+
+    用于辅导场景，学生上传题目图片 → OCR 识别为文字 → 传给智能辅导 Agent。
+    TutorAgent 使用的大模型不一定支持多模态，因此图片需先经 OCR 转为纯文本。
+    """
+    log.info(f"学生 {current_user.id} 请求图片文字识别")
+
+    image_data = await file.read()
+    if len(image_data) < 100:
+        raise HTTPException(status_code=400, detail="图片数据过小")
+
+    # 限制图片大小（5MB）
+    if len(image_data) > 5 * 1024 * 1024:
+        raise HTTPException(status_code=400, detail="图片不能超过 5MB")
+
+    try:
+        from app.multimodal.ocr_client import xunfei_ocr
+        text = await xunfei_ocr.recognize(image_data)
+        if not text:
+            raise HTTPException(status_code=422, detail="未识别出文字内容")
+        return {"text": text}
+    except HTTPException:
+        raise
+    except Exception as e:
+        log.error(f"图片文字识别失败: {e}")
+        raise HTTPException(status_code=500, detail=f"图片识别失败: {str(e)}")

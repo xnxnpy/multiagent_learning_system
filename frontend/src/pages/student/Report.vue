@@ -66,15 +66,27 @@
       </template>
       <el-table :data="report.knowledge_points" stripe style="width: 100%">
         <el-table-column prop="topic" label="知识点" min-width="160" />
-        <el-table-column prop="score" label="得分" width="80" align="center" />
-        <el-table-column prop="total" label="满分" width="80" align="center" />
+        <el-table-column label="得分" width="80" align="center">
+          <template #default="{ row }">
+            <span v-if="row.total > 0">{{ row.score }}</span>
+            <span v-else class="text-muted">-</span>
+          </template>
+        </el-table-column>
+        <el-table-column label="满分" width="80" align="center">
+          <template #default="{ row }">
+            <span v-if="row.total > 0">{{ row.total }}</span>
+            <span v-else class="text-muted">-</span>
+          </template>
+        </el-table-column>
         <el-table-column label="掌握度" width="200">
           <template #default="{ row }">
             <el-progress
+              v-if="row.total > 0"
               :percentage="Math.round(row.mastery * 100)"
               :status="progressStatus(row.mastery)"
               :stroke-width="8"
             />
+            <span v-else class="text-muted">未评分</span>
           </template>
         </el-table-column>
         <el-table-column label="状态" width="100" align="center">
@@ -257,17 +269,19 @@ const statCards = computed(() => [
 
 /* ── Helpers ─────────────────────────────────── */
 
-function progressStatus(mastery: number): 'success' | 'warning' | 'exception' | undefined {
+function progressStatus(mastery: number): 'success' | 'warning' | 'exception' | '' {
+  if (mastery <= 0) return '' // el-progress 不支持 'info'，未评分用默认状态
   if (mastery >= 0.7) return 'success'
   if (mastery >= 0.5) return 'warning'
   return 'exception'
 }
 
-function statusTagType(status: string): '' | 'success' | 'warning' | 'danger' {
-  const map: Record<string, '' | 'success' | 'warning' | 'danger'> = {
+function statusTagType(status: string): '' | 'success' | 'warning' | 'danger' | 'info' {
+  const map: Record<string, '' | 'success' | 'warning' | 'danger' | 'info'> = {
     掌握: 'success',
     学习中: 'warning',
     薄弱: 'danger',
+    未学习: 'info',
   }
   return map[status] || ''
 }
@@ -498,6 +512,8 @@ onBeforeUnmount(() => {
 
 <style scoped>
 .report-page { max-width: 1400px; }
+
+.text-muted { color: var(--color-text-placeholder, #c0c4cc); font-size: 12px; }
 
 .page-header {
   display: flex;

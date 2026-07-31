@@ -5,7 +5,7 @@
         <text>🤖</text>
       </view>
       <view class="header-info">
-        <text class="page-title">AI 辅导助手</text>
+        <text class="page-title">智能辅导助手</text>
         <text class="page-status">随时解答您的学习疑问</text>
       </view>
     </view>
@@ -49,8 +49,8 @@
   <scroll-view scroll-y class="main-content">
     <view class="chat-area">
       <view class="section-header">
-        <text class="section-title">AI 学习助手</text>
-        <text class="section-subtitle">随时解答您的学习疑问</text>
+        <text class="section-title">智能学习辅导</text>
+        <text class="section-subtitle">支持文字、语音、图片多种输入方式</text>
       </view>
 
       <scroll-view scroll-y class="chat-box" scroll-into-view="msg-{{chatHistory.length}}" scroll-with-animation>
@@ -61,8 +61,43 @@
             </view>
             <view wx:elif="{{item.role === 'ai'}}" class="avatar-placeholder"></view>
             <view class="msg-content">
-              <rich-text wx:if="{{item.renderedHtml}}" nodes="{{item.renderedHtml}}"></rich-text>
-              <text wx:else>{{item.content}}</text>
+              <image
+                wx:if="{{item.imageUrl}}"
+                class="msg-thumb"
+                src="{{item.imageUrl}}"
+                mode="widthFix"
+                bindtap="previewImage"
+                data-url="{{item.imageUrl}}"
+              ></image>
+              <!-- AI消息：用token渲染 -->
+              <block wx:if="{{item.role === 'ai'}}">
+                <block wx:for="{{item.tokens}}" wx:for-item="tk" wx:key="index">
+                  <text wx:if="{{tk.type === 'heading'}}" class="tk-heading tk-h{{tk.level}}">{{tk.text}}</text>
+                  <text wx:elif="{{tk.type === 'paragraph'}}" class="tk-paragraph">{{tk.text}}</text>
+                  <view wx:elif="{{tk.type === 'list_item'}}" class="tk-list-item" style="padding-left:{{tk.indent * 24 + 16}}rpx">
+                    <text class="tk-list-bullet">{{tk.ordered ? (tk.number + '.') : '•'}}</text>
+                    <text class="tk-list-text">{{tk.text}}</text>
+                  </view>
+                  <view wx:elif="{{tk.type === 'quote'}}" class="tk-quote">
+                    <text>{{tk.text}}</text>
+                  </view>
+                  <view wx:elif="{{tk.type === 'code'}}" class="tk-code-block">
+                    <view class="tk-code-header">
+                      <text class="tk-code-lang">{{tk.lang || 'code'}}</text>
+                    </view>
+                    <text class="tk-code-body">{{tk.content}}</text>
+                  </view>
+                  <view wx:elif="{{tk.type === 'hr'}}" class="tk-hr"></view>
+                </block>
+                <!-- 兜底：tokens为空时显示content（已被markdownToPlainText处理过不会有大量空行） -->
+                <block wx:if="{{!item.tokens || item.tokens.length === 0}}">
+                  <text class="tk-paragraph">{{item.content}}</text>
+                </block>
+              </block>
+              <!-- 用户消息 -->
+              <block wx:else>
+                <text wx:if="{{item.content && item.content !== '[图片]'}}" class="msg-text">{{item.content}}</text>
+              </block>
             </view>
             <view wx:if="{{item.role === 'user'}}" class="avatar user-avatar">
               <text>👤</text>
@@ -92,29 +127,60 @@
     </view>
 
     <view class="input-area">
-      <view class="voice-wrap">
-        <view wx:if="{{!isRecording && !isVoiceLoading}}" class="voice-btn" bindtap="startVoiceInput">
-          <text>🎤</text>
+      <view wx:if="{{pendingImage}}" class="pending-chip">
+        <image class="pending-thumb" src="{{pendingImage}}" mode="aspectFill"></image>
+        <view class="pending-info">
+          <text class="pending-name">{{pendingImageName || '图片.png'}}</text>
+          <text class="pending-size">{{pendingImageSizeText}}</text>
         </view>
-        <view wx:elif="{{isRecording}}" class="voice-recording-group">
-          <view class="voice-btn cancel" bindtap="cancelVoiceInput">
-            <text>✕</text>
-          </view>
-          <view class="voice-btn recording" bindtap="stopVoiceInput">
-            <text>🎤</text>
-            <text class="recording-time">{{recordingTime}}s</text>
-          </view>
-        </view>
-        <view wx:elif="{{isVoiceLoading}}" class="voice-btn loading">
-          <text>⏳</text>
+        <view class="pending-remove" bindtap="removePendingImage">
+          <text>×</text>
         </view>
       </view>
-      <view wx:if="{{!isRecording}}" class="input-row">
-        <input class="input" placeholder="输入您的问题..." value="{{inputValue}}" bindinput="onInput" confirm-type="send" bindconfirm="sendQuestion"/>
-        <button class="send-btn" bindtap="sendQuestion">发送</button>
-      </view>
-      <view wx:else class="recording-hint">
-        <text>正在录音，点击🎤停止并识别，点击✕取消</text>
+
+      <view class="toolbar-row">
+        <view class="toolbar-left">
+          <view wx:if="{{!isRecording && !isVoiceLoading}}" class="voice-wrap">
+            <view class="voice-btn" bindtap="startVoiceInput">
+              <text>🎤</text>
+            </view>
+          </view>
+          <view wx:elif="{{isRecording}}" class="voice-recording-group">
+            <view class="voice-btn cancel" bindtap="cancelVoiceInput">
+              <text>✕</text>
+            </view>
+            <view class="voice-btn recording" bindtap="stopVoiceInput">
+              <text>🎤</text>
+              <text class="recording-time">{{recordingTime}}s</text>
+            </view>
+          </view>
+          <view wx:elif="{{isVoiceLoading}}" class="voice-btn loading">
+            <text>⏳</text>
+          </view>
+          <view wx:if="{{!isRecording}}" class="image-btn" bindtap="chooseImage">
+            <text>🖼️</text>
+          </view>
+        </view>
+
+        <view wx:if="{{!isRecording}}" class="input-row">
+          <textarea
+            class="input"
+            placeholder="输入您的问题..."
+            value="{{inputValue}}"
+            bindinput="onInput"
+            confirm-type="send"
+            bindconfirm="sendQuestion"
+            auto-height
+            adjust-position="{{true}}"
+            show-confirm-bar="{{false}}"
+          />
+          <view class="toolbar-right">
+            <button class="send-btn" bindtap="sendQuestion" disabled="{{isTyping}}">发送</button>
+          </view>
+        </view>
+        <view wx:else class="recording-hint">
+          <text>正在录音，点击🎤停止并识别，点击✕取消</text>
+        </view>
       </view>
     </view>
   </scroll-view>

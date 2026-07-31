@@ -1,6 +1,6 @@
 .container {
   min-height: 100vh;
-  background: #f5f5f5;
+  background: var(--color-bg-page);
   display: flex;
   flex-direction: column;
 }
@@ -10,28 +10,29 @@
   align-items: center;
   gap: 16rpx;
   padding: 30rpx 20rpx;
-  background: #fff;
+  background: var(--color-bg-card);
+  border-bottom: 1rpx solid var(--color-border-light);
 }
 
 .page-title {
   font-size: 36rpx;
   font-weight: bold;
-  color: #333;
+  color: var(--color-text-ink);
 }
 
 .page-tag {
   font-size: 24rpx;
-  color: #52c41a;
-  background: #f6ffed;
+  color: var(--color-success);
+  background: var(--color-success-soft);
   padding: 8rpx 16rpx;
-  border-radius: 8rpx;
+  border-radius: 12rpx;
 }
 
 .tabs {
   display: flex;
-  background: #fff;
+  background: var(--color-bg-card);
   padding: 0 10rpx;
-  box-shadow: 0 2rpx 10rpx rgba(0, 0, 0, 0.05);
+  border-bottom: 1rpx solid var(--color-border-light);
   overflow-x: auto;
   white-space: nowrap;
 }
@@ -41,12 +42,12 @@
   text-align: center;
   padding: 24rpx 20rpx;
   font-size: 26rpx;
-  color: #666;
+  color: var(--color-text-muted);
   position: relative;
 }
 
 .tab.active {
-  color: #1677ff;
+  color: var(--color-primary);
   font-weight: bold;
 }
 
@@ -58,7 +59,7 @@
   transform: translateX(-50%);
   width: 60rpx;
   height: 6rpx;
-  background: #1677ff;
+  background: var(--color-student);
   border-radius: 3rpx;
 }
 
@@ -73,9 +74,10 @@
 }
 
 .profile-card {
-  background: #fff;
-  border-radius: 16rpx;
+  background: var(--color-bg-card);
+  border-radius: 24rpx;
   padding: 24rpx;
+  border: 1rpx solid var(--color-border-light);
 }
 
 .card-header {
@@ -88,15 +90,15 @@
 .card-title {
   font-size: 30rpx;
   font-weight: bold;
-  color: #333;
+  color: var(--color-text-ink);
 }
 
 .card-tag {
   font-size: 22rpx;
-  color: #1677ff;
-  background: #e6f7ff;
+  color: var(--color-primary);
+  background: var(--color-primary-pale);
   padding: 6rpx 12rpx;
-  border-radius: 6rpx;
+  border-radius: 8rpx;
 }
 
 .profile-grid {
@@ -116,13 +118,13 @@
 .profile-label {
   display: block;
   font-size: 24rpx;
-  color: #999;
+  color: var(--color-text-muted);
   margin-bottom: 8rpx;
 }
 
 .profile-value {
   font-size: 28rpx;
-  color: #333;
+  color: var(--color-text-body);
 }
 
 .profile-tags {
@@ -132,14 +134,14 @@
 }
 
 .profile-tags.warning .tag-item {
-  background: #fff7e6;
-  color: #fa8c16;
+  background: var(--color-warning-soft);
+  color: var(--color-warning);
 }
 
 .tag-item {
   font-size: 24rpx;
-  color: #1677ff;
-  background: #e6f7ff;
+  color: var(--color-primary);
+  background: var(--color-primary-pale);
   padding: 8rpx 16rpx;
   border-radius: 20rpx;
 }
@@ -157,29 +159,30 @@
 
 .empty-text {
   font-size: 28rpx;
-  color: #999;
+  color: var(--color-text-muted);
   display: block;
   margin-bottom: 20rpx;
 }
 
 .empty-btn {
-  background: #1677ff;
-  color: #fff;
+  background: var(--color-student);
+  color: var(--color-text-inverse);
   border-radius: 32rpx;
   font-size: 28rpx;
 }
 
 .path-content {
-  background: #fff;
-  border-radius: 16rpx;
+  background: var(--color-bg-card);
+  border-radius: 24rpx;
   padding: 24rpx;
+  border: 1rpx solid var(--color-border-light);
 }
 
 .path-title {
   display: block;
   font-size: 32rpx;
   font-weight: bold;
-  color: #333;
+  color: var(--color-text-ink);
   margin-bottom: 24rpx;
 }
 
@@ -201,7 +204,7 @@
   top: 50rpx;
   width: 4rpx;
   height: calc(100% - 30rpx);
-  background: #e8e8e8;
+  background: var(--color-border-light);
 }
 
 .path-step:last-child::before {
@@ -211,20 +214,20 @@
 .step-number {
   width: 40rpx;
   height: 40rpx;
-  background: #f0f0f0;
+  background: var(--color-bg-page-2);
   border-radius: 50%;
   display: flex;
   align-items: center;
   justify-content: center;
   font-size: 24rpx;
-  color: #999;
+  color: var(--color-text-muted);
   margin-right: 20rpx;
   flex-shrink: 0;
 }
 
 .path-step.done .step-number {
-  background: #52c41a;
-  color: #fff;
+  background: var(--color-success);
+  color: var(--color-text-inverse);
 }
 
 .step-content {
@@ -235,13 +238,13 @@
   display: block;
   font-size: 28rpx;
   font-weight: bold;
-  color: #333;
+  color: var(--color-text-ink);
   margin-bottom: 4rpx;
 }
 
 .step-desc {
   font-size: 24rpx;
-  color: #666;
+  color: var(--color-text-body);
   display: -webkit-box;
   -webkit-line-clamp: 2;
   -webkit-box-orient: vertical;
@@ -250,7 +253,7 @@
 
 .step-status {
   font-size: 28rpx;
-  color: #999;
+  color: var(--color-text-muted);
 }
 
 .resource-tabs {
@@ -258,29 +261,31 @@
   flex-wrap: wrap;
   gap: 12rpx;
   margin-bottom: 20rpx;
-  background: #fff;
+  background: var(--color-bg-card);
   padding: 16rpx;
-  border-radius: 16rpx;
+  border-radius: 24rpx;
+  border: 1rpx solid var(--color-border-light);
 }
 
 .resource-tab {
   font-size: 24rpx;
-  color: #666;
-  background: #f5f5f5;
+  color: var(--color-text-muted);
+  background: var(--color-bg-card-soft);
   padding: 12rpx 24rpx;
   border-radius: 24rpx;
 }
 
 .resource-tab.active {
-  color: #fff;
-  background: #1677ff;
+  color: var(--color-text-inverse);
+  background: var(--color-primary);
 }
 
 .resource-content {
-  background: #fff;
-  border-radius: 16rpx;
+  background: var(--color-bg-card);
+  border-radius: 24rpx;
   padding: 24rpx;
   min-height: 400rpx;
+  border: 1rpx solid var(--color-border-light);
 }
 
 .resource-item {
@@ -293,7 +298,7 @@
 
 .resource-text {
   font-size: 28rpx;
-  color: #333;
+  color: var(--color-text-body);
   line-height: 1.8;
   white-space: pre-wrap;
 }
@@ -306,8 +311,9 @@
 
 .question-item {
   padding: 20rpx;
-  background: #fafbfc;
-  border-radius: 12rpx;
+  background: var(--color-bg-card-soft);
+  border-radius: 20rpx;
+  border: 1rpx solid var(--color-border-light);
 }
 
 .question-header {
@@ -318,17 +324,17 @@
 
 .question-tag {
   font-size: 22rpx;
-  color: #1677ff;
-  background: #e6f7ff;
+  color: var(--color-primary);
+  background: var(--color-primary-pale);
   padding: 4rpx 12rpx;
-  border-radius: 6rpx;
+  border-radius: 8rpx;
 }
 
 .question-text {
   display: block;
   font-size: 28rpx;
   font-weight: bold;
-  color: #333;
+  color: var(--color-text-ink);
   margin-bottom: 12rpx;
   line-height: 1.6;
 }
@@ -341,30 +347,30 @@
 .option-item {
   display: block;
   font-size: 26rpx;
-  color: #666;
+  color: var(--color-text-body);
   margin-bottom: 8rpx;
 }
 
 .question-answer {
   display: block;
   font-size: 26rpx;
-  color: #333;
+  color: var(--color-text-body);
   margin-bottom: 8rpx;
 }
 
 .question-answer::before {
   content: '答案：';
   font-weight: bold;
-  color: #52c41a;
+  color: var(--color-success);
 }
 
 .question-explain {
   display: block;
   font-size: 24rpx;
-  color: #666;
+  color: var(--color-text-body);
   padding: 12rpx;
-  background: #f0f9ff;
-  border-radius: 8rpx;
+  background: var(--color-primary-pale);
+  border-radius: 12rpx;
 }
 
 .code-preview {
@@ -381,33 +387,33 @@
 .code-title {
   font-size: 28rpx;
   font-weight: bold;
-  color: #333;
+  color: var(--color-text-ink);
 }
 
 .code-tag {
   font-size: 22rpx;
-  color: #fa8c16;
-  background: #fff7e6;
+  color: var(--color-warning);
+  background: var(--color-warning-soft);
   padding: 4rpx 12rpx;
-  border-radius: 6rpx;
+  border-radius: 8rpx;
 }
 
 .code-desc {
   display: block;
   font-size: 26rpx;
-  color: #666;
+  color: var(--color-text-body);
   margin-bottom: 12rpx;
 }
 
 .code-block {
-  background: #1e1e2e;
+  background: var(--color-primary-deep);
   padding: 20rpx;
-  border-radius: 12rpx;
+  border-radius: 16rpx;
 }
 
 .code-text {
   font-size: 24rpx;
-  color: #cdd6f4;
+  color: var(--color-primary-pale);
   font-family: monospace;
   white-space: pre-wrap;
   line-height: 1.6;
@@ -421,7 +427,7 @@
   display: block;
   font-size: 30rpx;
   font-weight: bold;
-  color: #333;
+  color: var(--color-text-ink);
   margin-bottom: 20rpx;
 }
 
@@ -433,22 +439,22 @@
 
 .scene-item {
   padding: 16rpx;
-  background: #fafbfc;
-  border-radius: 12rpx;
-  border-left: 6rpx solid #1677ff;
+  background: var(--color-bg-card-soft);
+  border-radius: 16rpx;
+  border-left: 6rpx solid var(--color-student);
 }
 
 .scene-title {
   display: block;
   font-size: 26rpx;
   font-weight: bold;
-  color: #333;
+  color: var(--color-text-ink);
   margin-bottom: 8rpx;
 }
 
 .scene-desc {
   font-size: 24rpx;
-  color: #666;
+  color: var(--color-text-body);
 }
 
 .glossary-grid {
@@ -458,29 +464,30 @@
 }
 
 .glossary-card {
-  background: #fafbfc;
+  background: var(--color-bg-card-soft);
   padding: 20rpx;
-  border-radius: 12rpx;
+  border-radius: 20rpx;
+  border: 1rpx solid var(--color-border-light);
 }
 
 .term-name {
   display: block;
   font-size: 28rpx;
   font-weight: bold;
-  color: #1677ff;
+  color: var(--color-student);
   margin-bottom: 8rpx;
 }
 
 .term-def {
   display: block;
   font-size: 24rpx;
-  color: #333;
+  color: var(--color-text-body);
   margin-bottom: 8rpx;
 }
 
 .term-example {
   font-size: 22rpx;
-  color: #666;
+  color: var(--color-text-muted);
 }
 
 .knowledge-link {
@@ -490,7 +497,7 @@
 .link-stats {
   display: block;
   font-size: 26rpx;
-  color: #666;
+  color: var(--color-text-muted);
   margin-bottom: 20rpx;
 }
 
@@ -502,8 +509,8 @@
 
 .node-tag {
   font-size: 24rpx;
-  color: #333;
-  background: #e6f7ff;
+  color: var(--color-text-body);
+  background: var(--color-primary-pale);
   padding: 10rpx 16rpx;
   border-radius: 20rpx;
 }
@@ -515,15 +522,16 @@
 }
 
 .session-item {
-  background: #fff;
-  border-radius: 16rpx;
+  background: var(--color-bg-card);
+  border-radius: 24rpx;
   padding: 24rpx;
+  border: 1rpx solid var(--color-border-light);
 }
 
 .session-title {
   display: block;
   font-size: 26rpx;
-  color: #999;
+  color: var(--color-text-muted);
   margin-bottom: 16rpx;
 }
 
@@ -535,17 +543,17 @@
 
 .chat-msg {
   padding: 16rpx;
-  border-radius: 12rpx;
+  border-radius: 16rpx;
   max-width: 85%;
 }
 
 .msg-user {
-  background: #e6f7ff;
+  background: var(--color-student-pale);
   align-self: flex-end;
 }
 
 .msg-assistant {
-  background: #f6ffed;
+  background: var(--color-primary-pale);
   align-self: flex-start;
 }
 
@@ -553,20 +561,21 @@
   display: block;
   font-size: 22rpx;
   font-weight: bold;
-  color: #999;
+  color: var(--color-text-muted);
   margin-bottom: 8rpx;
 }
 
 .msg-content {
   font-size: 28rpx;
-  color: #333;
+  color: var(--color-text-body);
   line-height: 1.6;
 }
 
 .eval-content {
-  background: #fff;
-  border-radius: 16rpx;
+  background: var(--color-bg-card);
+  border-radius: 24rpx;
   padding: 24rpx;
+  border: 1rpx solid var(--color-border-light);
 }
 
 .eval-stats {
@@ -578,21 +587,22 @@
 .eval-stat {
   flex: 1;
   text-align: center;
-  background: #fafbfc;
+  background: var(--color-bg-card-soft);
   padding: 24rpx;
-  border-radius: 12rpx;
+  border-radius: 20rpx;
+  border: 1rpx solid var(--color-border-light);
 }
 
 .eval-value {
   display: block;
   font-size: 40rpx;
   font-weight: bold;
-  color: #1677ff;
+  color: var(--color-primary);
 }
 
 .eval-label {
   font-size: 24rpx;
-  color: #999;
+  color: var(--color-text-muted);
 }
 
 .eval-grade {
@@ -600,28 +610,28 @@
   font-size: 28rpx;
   font-weight: bold;
   padding: 12rpx 24rpx;
-  border-radius: 8rpx;
+  border-radius: 12rpx;
   margin-bottom: 24rpx;
 }
 
 .eval-grade.grade-A {
-  background: #f6ffed;
-  color: #52c41a;
+  background: var(--color-success-soft);
+  color: var(--color-success);
 }
 
 .eval-grade.grade-B {
-  background: #e6f7ff;
-  color: #1677ff;
+  background: var(--color-info-soft);
+  color: var(--color-info);
 }
 
 .eval-grade.grade-C {
-  background: #fff7e6;
-  color: #fa8c16;
+  background: var(--color-warning-soft);
+  color: var(--color-warning);
 }
 
 .eval-grade.grade-D, .eval-grade.grade-N {
-  background: #fff2f0;
-  color: #ff4d4f;
+  background: var(--color-error-soft);
+  color: var(--color-error);
 }
 
 .eval-analysis {
@@ -636,7 +646,7 @@
   display: block;
   font-size: 26rpx;
   font-weight: bold;
-  color: #555;
+  color: var(--color-text-body);
   margin-bottom: 12rpx;
 }
 
@@ -647,13 +657,13 @@
 }
 
 .analysis-tags.success .analysis-tag {
-  background: #f6ffed;
-  color: #52c41a;
+  background: var(--color-success-soft);
+  color: var(--color-success);
 }
 
 .analysis-tags.danger .analysis-tag {
-  background: #fff2f0;
-  color: #ff4d4f;
+  background: var(--color-error-soft);
+  color: var(--color-error);
 }
 
 .analysis-tag {
@@ -670,7 +680,7 @@
 
 .suggestion-item {
   font-size: 26rpx;
-  color: #666;
+  color: var(--color-text-body);
   padding-left: 16rpx;
-  border-left: 4rpx solid #ddd;
+  border-left: 4rpx solid var(--color-student);
 }

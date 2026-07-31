@@ -116,6 +116,10 @@
           <text class="profile-name-text">{{currentProfileName}}</text>
           <text class="dropdown-arrow">▼</text>
         </view>
+        <view class="edit-profile-btn" bindtap="openEditDialog">
+          <text class="edit-icon">✎</text>
+          <text class="edit-text">编辑画像</text>
+        </view>
       </view>
       
       <view class="profile-card">
@@ -240,6 +244,70 @@
       </view>
       <view class="dropdown-item" bindtap="handleProfileCommand" data-action="manage">
         <text class="dropdown-item-name">管理画像</text>
+      </view>
+    </view>
+  </view>
+
+  <!-- 编辑画像弹窗 -->
+  <view wx:if="{{showEditDialog}}" class="modal-overlay" bindtap="cancelProfileEdit">
+    <view class="modal-content edit-modal" catchtap="">
+      <view class="modal-header">
+        <text class="modal-title">编辑画像</text>
+        <view class="modal-close" bindtap="cancelProfileEdit">✕</view>
+      </view>
+      <scroll-view scroll-y class="modal-body edit-body">
+
+        <view class="edit-field">
+          <text class="edit-label">专业</text>
+          <input class="edit-input-box" placeholder="请输入专业" value="{{editData.major}}" data-field="major" bindinput="onEditInput" />
+        </view>
+
+        <view class="edit-field">
+          <text class="edit-label">年级</text>
+          <input class="edit-input-box" placeholder="请输入年级" value="{{editData.grade}}" data-field="grade" bindinput="onEditInput" />
+        </view>
+
+        <view class="edit-field">
+          <text class="edit-label">学习目标</text>
+          <input class="edit-input-box" placeholder="请输入学习目标" value="{{editData.goal}}" data-field="goal" bindinput="onEditInput" />
+        </view>
+
+        <view class="edit-field">
+          <text class="edit-label">知识水平</text>
+          <input class="edit-input-box" placeholder="如：入门/初级/中级/高级" value="{{editData.level}}" data-field="level" bindinput="onEditInput" />
+        </view>
+
+        <view class="edit-field">
+          <text class="edit-label">学习风格</text>
+          <input class="edit-input-box" placeholder="如：视觉型/听觉型/动手型" value="{{editData.style}}" data-field="style" bindinput="onEditInput" />
+        </view>
+
+        <view class="edit-field">
+          <text class="edit-label">编程能力</text>
+          <input class="edit-input-box" placeholder="如：无基础/Python/C++等" value="{{editData.coding}}" data-field="coding" bindinput="onEditInput" />
+        </view>
+
+        <view class="edit-field">
+          <text class="edit-label">兴趣方向</text>
+          <view class="tag-editor">
+            <view class="tag-list">
+              <view class="editable-tag" wx:for="{{editData.interests}}" wx:key="index">
+                <text class="tag-text">{{item}}</text>
+                <text class="tag-remove" catchtap="removeTag" data-type="interests" data-index="{{index}}">✕</text>
+              </view>
+              <text wx:if="{{!editData.interests || editData.interests.length === 0}}" class="empty-hint">暂无标签，点击下方添加</text>
+            </view>
+            <view class="tag-input-row">
+              <input class="tag-input" placeholder="输入新标签" value="{{newInterestTag}}" bindinput="onNewInterestInput" />
+              <view class="tag-add-btn" bindtap="addTag" data-type="interests">添加</view>
+            </view>
+          </view>
+        </view>
+
+      </scroll-view>
+      <view class="modal-footer">
+        <button class="modal-btn cancel" bindtap="cancelProfileEdit">取消</button>
+        <button class="modal-btn confirm" bindtap="saveProfileEdit">保存</button>
       </view>
     </view>
   </view>

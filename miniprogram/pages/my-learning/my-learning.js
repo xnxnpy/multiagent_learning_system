@@ -34,7 +34,7 @@ Page({
         request({ url: API.STUDENT.LEARNING_PATH, method: 'GET' }),
         request({ url: API.STUDENT.RESOURCES, method: 'GET' }),
         request({ url: API.STUDENT.EVALUATION_REPORT, method: 'GET' }),
-        request({ url: API.STUDENT.TUTOR_CHATS, method: 'GET' })
+        request({ url: API.TUTOR.SESSIONS, method: 'GET' })
       ])
 
       if (profileRes.status === 'fulfilled') {
@@ -52,18 +52,26 @@ Page({
         this.formatEvaluation(evalRes.value)
       }
       if (tutorRes.status === 'fulfilled') {
-        const sessionsData = tutorRes.value?.sessions || {}
-        const sessions = Object.keys(sessionsData).map((key, idx) => {
-          const msgs = sessionsData[key]
-          const lastMsg = msgs.length > 0 ? msgs[msgs.length - 1] : null
-          return {
-            key: key,
+        const sessionsData = tutorRes.value?.sessions || []
+        // 逐个拉取每个会话的真实聊天历史
+        const historyRequests = sessionsData.map(s =>
+          request({
+            url: '/tutor/history/' + s.session_id,
+            method: 'GET'
+          }).then(res => ({ session_id: s.session_id, messages: res?.messages || [] }))
+            .catch(() => ({ session_id: s.session_id, messages: [] }))
+        )
+        const histories = await Promise.all(historyRequests)
+        const sessions = histories
+          .filter(h => h.messages.length > 0)
+          .map((h, idx) => ({
+            key: h.session_id,
             id: idx + 1,
-            messages: msgs,
-            preview: lastMsg?.content?.substring(0, 30) + '...' || '暂无消息',
-            time: lastMsg?.time || ''
-          }
-        })
+            messages: h.messages.map(m => ({
+              role: m.role || 'ai',
+              content: m.display_content || m.content || ''
+            }))
+          }))
         this.setData({ tutorSessions: sessions })
       }
     } catch (err) {

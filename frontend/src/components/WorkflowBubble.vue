@@ -137,11 +137,11 @@ const steps = computed(() => {
   position: absolute;
   inset: 0;
   border-radius: 50%;
-  background: linear-gradient(135deg, #2563EB, #3B82F6);
+  background: linear-gradient(135deg, var(--color-primary), var(--color-primary-soft));
   display: flex;
   align-items: center;
   justify-content: center;
-  box-shadow: 0 4px 14px rgba(37,99,235,0.4);
+  box-shadow: 0 4px 14px rgba(43, 45, 66, 0.4);
 }
 
 .wf-fab-ring {
@@ -224,15 +224,15 @@ const steps = computed(() => {
   color: #fff;
 }
 .wf-dot.running {
-  background: #2563EB;
+  background: var(--color-student);
   color: #fff;
-  box-shadow: 0 0 0 3px rgba(37,99,235,0.15);
+  box-shadow: 0 0 0 3px rgba(176, 81, 44, 0.15);
   animation: wf-pulse 1.5s ease infinite;
 }
 
 @keyframes wf-pulse {
-  0%, 100% { box-shadow: 0 0 0 3px rgba(37,99,235,0.15); }
-  50% { box-shadow: 0 0 0 6px rgba(37,99,235,0.05); }
+  0%, 100% { box-shadow: 0 0 0 3px rgba(176, 81, 44, 0.15); }
+  50% { box-shadow: 0 0 0 6px rgba(176, 81, 44, 0.05); }
 }
 
 .wf-line {
@@ -256,7 +256,7 @@ const steps = computed(() => {
   transition: color var(--transition-normal);
 }
 .wf-step-name.completed { color: var(--color-success); font-weight: 500; }
-.wf-step-name.running { color: #2563EB; font-weight: 600; }
+.wf-step-name.running { color: var(--color-primary); font-weight: 600; }
 
 .wf-step-sub {
   display: block;

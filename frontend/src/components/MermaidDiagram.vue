@@ -22,9 +22,9 @@
 </template>
 
 <script setup lang="ts">
-import { ref, onMounted, watch, nextTick } from 'vue'
+import { ref, onMounted, onUnmounted, watch, nextTick } from 'vue'
 
-const props = defineProps<{ code: string }>()
+const props = defineProps<{ code: string; forceKey?: string | number }>()
 
 const containerRef = ref<HTMLElement | null>(null)
 const svgContent = ref('')
@@ -32,32 +32,98 @@ const error = ref(false)
 const showSource = ref(false)
 
 let mermaidId = 0
+let mermaidModule: any = null
+let mermaidInitialized = false
+
+let resizeObserver: ResizeObserver | null = null
+let retryTimer: ReturnType<typeof setTimeout> | null = null
+let renderSeq = 0
+let lastWidth = 0
+
+async function ensureMermaid() {
+  if (mermaidModule) return mermaidModule
+  mermaidModule = (await import('mermaid')).default
+  return mermaidModule
+}
 
 async function renderDiagram() {
   if (!props.code) return
   error.value = false
-  svgContent.value = ''
+
+  const seq = ++renderSeq
+
+  const container = containerRef.value
+  if (!container) {
+    scheduleRetry(seq)
+    return
+  }
+
+  if (container.offsetWidth === 0) {
+    scheduleRetry(seq)
+    return
+  }
 
   try {
-    const mermaid = (await import('mermaid')).default
-    mermaid.initialize({
-      startOnLoad: false,
-      theme: 'default',
-      securityLevel: 'loose',
-      fontFamily: 'inherit',
-    })
+    const mermaid = await ensureMermaid()
+    if (!mermaidInitialized) {
+      mermaid.initialize({
+        startOnLoad: false,
+        theme: 'default',
+        securityLevel: 'loose',
+        fontFamily: 'inherit',
+      })
+      mermaidInitialized = true
+    }
 
-    const id = `mermaid-${++mermaidId}`
+    const id = `mermaid-${++mermaidId}-${Date.now()}`
     const { svg } = await mermaid.render(id, props.code)
+
+    if (seq !== renderSeq) return
+
     svgContent.value = svg
+    error.value = false
   } catch (e) {
+    if (seq !== renderSeq) return
     console.error('Mermaid render error:', e)
     error.value = true
   }
 }
 
+function scheduleRetry(seq: number) {
+  if (retryTimer) return
+  retryTimer = setTimeout(() => {
+    retryTimer = null
+    if (seq !== renderSeq) return
+    nextTick(() => {
+      const container = containerRef.value
+      if (container && container.offsetWidth > 0) {
+        renderDiagram()
+      } else {
+        scheduleRetry(seq)
+      }
+    })
+  }, 150)
+}
+
+function setupResizeObserver() {
+  if (!containerRef.value) return
+  lastWidth = containerRef.value.offsetWidth
+  resizeObserver = new ResizeObserver(() => {
+    const currentWidth = containerRef.value?.offsetWidth || 0
+    // 仅在容器从隐藏(0)变为可见(>0)时重渲染，避免 SVG 插入引发的高度变化触发反馈循环
+    if (lastWidth === 0 && currentWidth > 0 && !showSource.value) {
+      nextTick(() => renderDiagram())
+    }
+    lastWidth = currentWidth
+  })
+  resizeObserver.observe(containerRef.value)
+}
+
 function toggleSource() {
   showSource.value = !showSource.value
+  if (!showSource.value) {
+    nextTick(() => renderDiagram())
+  }
 }
 
 function downloadSvg() {
@@ -65,10 +131,8 @@ function downloadSvg() {
   const svgEl = containerRef.value.querySelector('svg')
   if (!svgEl) return
 
-  // Serialize SVG
   const serializer = new XMLSerializer()
   let svgStr = serializer.serializeToString(svgEl)
-  // Add XML declaration and UTF-8 encoding for Chinese support
   svgStr = '<?xml version="1.0" encoding="UTF-8"?>\n' + svgStr
 
   const blob = new Blob([svgStr], { type: 'image/svg+xml;charset=utf-8' })
@@ -82,8 +146,39 @@ function downloadSvg() {
   URL.revokeObjectURL(url)
 }
 
-onMounted(() => { renderDiagram() })
-watch(() => props.code, () => { renderDiagram() })
+onMounted(async () => {
+  await nextTick()
+  renderDiagram()
+
+  if (containerRef.value) {
+    setupResizeObserver()
+  }
+})
+
+onUnmounted(() => {
+  if (resizeObserver) {
+    resizeObserver.disconnect()
+    resizeObserver = null
+  }
+  if (retryTimer) {
+    clearTimeout(retryTimer)
+    retryTimer = null
+  }
+})
+
+watch(() => props.code, () => {
+  nextTick(() => renderDiagram())
+})
+
+watch(() => props.forceKey, () => {
+  nextTick(() => renderDiagram())
+})
+
+watch(showSource, (val) => {
+  if (!val) {
+    nextTick(() => renderDiagram())
+  }
+})
 </script>
 
 <style scoped>
@@ -139,11 +234,13 @@ watch(() => props.code, () => { renderDiagram() })
   display: flex;
   justify-content: center;
   overflow-x: auto;
+  min-height: 60px;
 }
 
 .mermaid-render :deep(svg) {
   max-width: 100%;
   height: auto;
+  display: block;
 }
 
 .mermaid-source {

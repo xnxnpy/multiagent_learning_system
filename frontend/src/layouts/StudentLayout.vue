@@ -1,10 +1,10 @@
 <template>
   <AppLayout
     :menu-items="menuItems"
-    portal-title="学生端"
+    portal-title="学生学习中心"
     portal-type="student"
-    portal-color="#1E88E5"
-    avatar-color="#1E88E5"
+    portal-color="#B0512C"
+    avatar-color="#B0512C"
     :enable-notifications="true"
   >
     <router-view />

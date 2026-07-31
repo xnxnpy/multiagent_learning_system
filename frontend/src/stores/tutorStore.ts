@@ -16,6 +16,10 @@ export const useTutorStore = defineStore('tutor', () => {
     { role: 'assistant', content: WELCOME_MSG, time: now() },
   ])
   const inputText = ref('')
+  const pendingImage = ref<string | null>(null)  // 待发送的图片 base64
+  const pendingImageName = ref<string>('')      // 待发送的图片文件名
+  const pendingImageSize = ref<number>(0)       // 待发送的图片大小（字节）
+  const pendingOcrText = ref<string>('')        // 待发送图片的 OCR 识别文本
   const loading = ref(false)
   const streaming = ref(false)
   const sessionId = ref<string | null>(null)
@@ -44,8 +48,21 @@ export const useTutorStore = defineStore('tutor', () => {
   }
 
   async function resumeLastSession() {
-    // 加载会话列表，如果有历史会话则恢复最近一个
+    // 加载会话列表
     await loadSessions()
+
+    // 检查 localStorage 是否有未发送消息的"新会话"标记
+    const savedSessionId = localStorage.getItem('tutor_active_session')
+    const isNewSession = localStorage.getItem('tutor_session_is_new') === 'true'
+
+    if (savedSessionId && isNewSession) {
+      // 用户之前点击了"新对话"但没发消息，保持空会话状态
+      sessionId.value = savedSessionId
+      messages.value = [{ role: 'assistant', content: WELCOME_MSG, time: now() }]
+      return
+    }
+
+    // 否则恢复最近一个有消息的会话
     if (sessions.value.length > 0 && !sessionId.value) {
       const latest = sessions.value[0]
       await switchSession(latest.id)
@@ -53,10 +70,15 @@ export const useTutorStore = defineStore('tutor', () => {
   }
 
   function createNewSession() {
-    sessionId.value = null
+    // 生成新的 sessionId（带 new_ 前缀表示未发送消息的新会话）
+    const newSessionId = `new_${Date.now()}`
+    sessionId.value = newSessionId
     messages.value = [{ role: 'assistant', content: WELCOME_MSG, time: now() }]
     wsClient?.close()
     wsClient = null
+    // 持久化到 localStorage，下次进入页面时保持这个空会话
+    localStorage.setItem('tutor_active_session', newSessionId)
+    localStorage.setItem('tutor_session_is_new', 'true')
   }
 
   async function switchSession(id: string) {
@@ -71,8 +93,11 @@ export const useTutorStore = defineStore('tutor', () => {
       if (msgs?.length) {
         messages.value = msgs.map((m: any) => ({
           role: m.role as 'user' | 'assistant',
-          content: m.content,
+          content: m.display_content || m.content,  // 优先使用 display_content（用户原始输入），回退到 content
           time: '',
+          image_base64: m.image_base64 || undefined,
+          image_name: m.image_name || undefined,
+          image_size: m.image_size || undefined,
         }))
       }
     } catch { /* ignore */ }
@@ -101,17 +126,61 @@ export const useTutorStore = defineStore('tutor', () => {
   }
 
   function sendMessage(text?: string) {
-    const msg = (text || inputText.value).trim()
-    if (!msg || loading.value) return
+    const imgB64 = pendingImage.value
+    const imgName = pendingImageName.value
+    const imgSize = pendingImageSize.value
+    const ocrText = pendingOcrText.value
+    const userText = (text || inputText.value).trim()
 
-    messages.value.push({ role: 'user', content: msg, time: now() })
+    // 前端显示的内容：用户原始输入（不包含 OCR 文本）
+    const displayContent = userText || (imgB64 ? '（图片）' : '')
+
+    // 后端查询内容：用户文本 + OCR 识别文本（拼接后发给大模型）
+    let queryText = userText
+    if (ocrText) {
+      queryText = userText ? `${userText}\n\n${ocrText}` : ocrText
+    }
+
+    if (!queryText && !imgB64) return
+    if (loading.value) return
+
+    // 清空待发送状态
+    pendingImage.value = null
+    pendingImageName.value = ''
+    pendingImageSize.value = 0
+    pendingOcrText.value = ''
+
+    // 前端显示：只显示用户原始输入 + 图片附件（不显示 OCR 文本）
+    messages.value.push({
+      role: 'user', content: displayContent, time: now(),
+      image_base64: imgB64 || undefined,
+      image_name: imgName || undefined,
+      image_size: imgSize || undefined,
+    })
     inputText.value = ''
     loading.value = true
     streaming.value = true
 
     messages.value.push({ role: 'assistant', content: '', streaming: true, time: now() } as ChatMsg)
 
-    const queryMsg = { type: 'query', question: msg, session_id: sessionId.value }
+    // 发送给后端：display_content（用户原始输入，用于保存）+ question（拼接 OCR 后给大模型）
+    const queryMsg: Record<string, any> = {
+      type: 'query',
+      question: queryText || '图片',           // 拼接 OCR 后的完整查询（给大模型）
+      display_content: displayContent,         // 用户原始输入（用于前端显示和保存）
+      session_id: sessionId.value,
+    }
+    if (imgB64) {
+      queryMsg.image_base64 = imgB64
+      queryMsg.image_name = imgName
+      queryMsg.image_size = imgSize
+    }
+
+    // 标记会话已不再是"新会话"（已发送消息）
+    localStorage.removeItem('tutor_session_is_new')
+    if (sessionId.value) {
+      localStorage.setItem('tutor_active_session', sessionId.value)
+    }
 
     if (wsClient) {
       wsClient.send(queryMsg)
@@ -162,8 +231,13 @@ export const useTutorStore = defineStore('tutor', () => {
           messages.value[lastIdx] = { ...lastMsg, streaming: false }
           streaming.value = false
           loading.value = false
-          if (data.session_id && !sessionId.value) {
+          // 关键修复：后端返回了真正的 session_id 时，更新前端状态
+          // 条件：sessionId 为空，或者是带有 new_ 前缀的临时ID（新会话）
+          if (data.session_id && (!sessionId.value || sessionId.value.startsWith('new_'))) {
             sessionId.value = data.session_id
+            // 同步持久化到 localStorage
+            localStorage.setItem('tutor_active_session', data.session_id)
+            localStorage.removeItem('tutor_session_is_new')
             loadSessions()
           }
           if (!isFloatingOpen.value) unreadCount.value++
@@ -230,6 +304,10 @@ export const useTutorStore = defineStore('tutor', () => {
   return {
     messages,
     inputText,
+    pendingImage,
+    pendingImageName,
+    pendingImageSize,
+    pendingOcrText,
     loading,
     streaming,
     sessionId,

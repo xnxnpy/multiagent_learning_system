@@ -3,17 +3,18 @@
 
   <view class="login-card">
     <view class="card-header">
+      <view class="app-logo">智</view>
       <text class="card-title">账号登录</text>
-      <text class="card-subtitle">欢迎使用AI学习系统</text>
+      <text class="card-subtitle">智学优培 · 个性化学习陪伴</text>
     </view>
 
     <view class="form-content">
       <view class="input-group">
-        <text class="input-icon">👤</text>
+        <text class="input-label">用户名</text>
         <input class="input" placeholder="请输入账号" value="{{username}}" bindinput="onUsernameInput"/>
       </view>
       <view class="input-group">
-        <text class="input-icon">🔒</text>
+        <text class="input-label">密 码</text>
         <input class="input" type="password" placeholder="请输入密码" value="{{password}}" bindinput="onPasswordInput"/>
       </view>
 
@@ -35,6 +36,6 @@
   </view>
 
   <view class="footer">
-    <text>© 2024 AI Learning System</text>
+    <text>© 智学优培</text>
   </view>
 </view>

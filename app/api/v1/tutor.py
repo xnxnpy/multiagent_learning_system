@@ -24,23 +24,37 @@ class TutorWebSocket(WebSocketEndpoint):
         self.dispatcher.register(MessageType.STOP, self.handle_stop)
 
     async def handle_query(self, ws, user_id, message):
-        question = message.get("question", "")
+        question = message.get("question", "")              # 拼接 OCR 后的完整查询（给大模型）
+        display_content = message.get("display_content", question)  # 用户原始输入（用于保存和前端显示）
         session_id = message.get("session_id")
+        image_base64 = message.get("image_base64")  # 用户上传的题目图片 base64（可选）
+        image_name = message.get("image_name")      # 图片文件名
+        image_size = message.get("image_size")      # 图片文件大小（字节）
 
         if not question:
             await ws.send_json({"type": MessageType.ERROR, "message": "问题不能为空"})
             return
 
-        # 确保 session_id 存在
-        if not session_id:
+        # 确保 session_id 存在（过滤掉前端 new_ 前缀的临时 ID）
+        if not session_id or session_id.startswith("new_"):
             session_id = f"session_{user_id}_{uuid.uuid4().hex[:8]}"
+
+        # 记录请求日志
+        has_image = bool(image_base64)
+        log.info(
+            f"辅导查询: user_id={user_id}, session_id={session_id}, "
+            f"display_len={len(display_content)}, question_len={len(question)}, "
+            f"has_image={has_image}, image_name={image_name}, image_size={image_size}"
+        )
+        if has_image:
+            log.info(f"  图片OCR文本(前200字): {question[:200]}...")
 
         # 1. 从 ContextManager 获取历史
         history = await tutor_context_manager.get_history_as_messages(session_id, user_id)
 
         await ws.send_json({"type": MessageType.STATUS, "message": "正在检索相关资料..."})
 
-        # 2. 流式生成（TutorAgent 只负责 RAG）
+        # 2. 流式生成（TutorAgent 接收拼接 OCR 后的 question）
         full_response = ""
         try:
             await ws.send_json({"type": MessageType.STATUS, "message": "已找到相关资料，正在生成回答..."})
@@ -51,10 +65,24 @@ class TutorWebSocket(WebSocketEndpoint):
                 full_response += chunk
                 await ws.send_json({"type": MessageType.CHUNK, "data": chunk})
 
-            # 3. 保存到 ContextManager
+            # 3. 保存到 ContextManager（content=question 给大模型用，display_content=display_content 给用户看）
             now = datetime.now()
-            await tutor_context_manager.add_message(session_id, user_id, TutorMessage(role="user", content=question, timestamp=now))
-            await tutor_context_manager.add_message(session_id, user_id, TutorMessage(role="assistant", content=full_response, timestamp=now))
+            await tutor_context_manager.add_message(
+                session_id, user_id,
+                TutorMessage(
+                    role="user",
+                    content=question,              # 包含 OCR 文本的完整内容（给大模型用）
+                    display_content=display_content,  # 用户原始输入（给用户看）
+                    timestamp=now,
+                    image_base64=image_base64,
+                    image_name=image_name,
+                    image_size=image_size,
+                )
+            )
+            await tutor_context_manager.add_message(
+                session_id, user_id,
+                TutorMessage(role="assistant", content=full_response, timestamp=now)
+            )
             await tutor_context_manager.update_session_list(user_id, session_id)
 
             await ws.send_json({"type": MessageType.END, "data": full_response, "session_id": session_id})

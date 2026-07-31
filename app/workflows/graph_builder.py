@@ -417,12 +417,22 @@ class WorkflowBuilder:
         """从学习路径阶段中提取主题（资源 topic 必须来自阶段，不能用画像目标）"""
         kps = self._get_stage_kp_names(state)
         if kps:
-            return "、".join(kps)
+            # 限制知识点数量，避免过多导致 topic 过长
+            limited_kps = kps[:5]
+            # 每个知识点名称截断到20字以内
+            safe_kps = [kp[:20] if len(kp) > 20 else kp for kp in limited_kps]
+            topic = "、".join(safe_kps)
+            # 最终限制 topic 总长度
+            if len(topic) > 80:
+                topic = "、".join(safe_kps[:3])
+                if len(topic) > 80:
+                    topic = safe_kps[0][:40] if safe_kps else "学习基础"
+            return topic
         # 知识节点为空时用阶段标题
         if state.learning_path and state.learning_path.get("stages"):
             stage_title = state.learning_path["stages"][0].get("title", "")
             if stage_title.strip():
-                return stage_title
+                return stage_title[:40]
         return "学习基础"
 
     def _get_stage_kp_names(self, state: AgentState) -> list:

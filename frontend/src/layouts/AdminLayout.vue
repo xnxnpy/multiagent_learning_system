@@ -1,10 +1,10 @@
 <template>
   <AppLayout
     :menu-items="menuItems"
-    portal-title="管理端"
+    portal-title="管理控制台"
     portal-type="admin"
-    portal-color="#DC2626"
-    avatar-color="#DC2626"
+    portal-color="#70293C"
+    avatar-color="#70293C"
   >
     <router-view />
   </AppLayout>

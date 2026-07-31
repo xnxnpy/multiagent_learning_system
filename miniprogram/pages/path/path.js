@@ -1,5 +1,6 @@
 const { request, BASE_URL } = require('../../utils/request')
 const { API } = require('../../utils/api')
+const { VoiceInput } = require('../../utils/voice')
 const { markdownToHtml } = require('../../utils/markdown')
 
 Page({
@@ -22,6 +23,14 @@ Page({
     floatChatHistory: [],
     floatInputValue: '',
     floatTyping: false,
+    floatPendingImage: '',
+    floatPendingImageBase64: '',
+    floatPendingImageName: '',
+    floatPendingImageSize: 0,
+    floatPendingImageOCR: '',
+    floatIsRecording: false,
+    floatIsVoiceLoading: false,
+    floatRecordingTime: 0,
     progressTagClass: '',
     progressTagText: ''
   },
@@ -45,9 +54,11 @@ Page({
         const stagesData = result.stages || []
         const completedStages = result.completed_stages || []
         
+        const resourceTypeMap = { document: '文档', video: '视频', code: '代码', mindmap: '思维导图', question: '练习题' }
         const stages = stagesData.map(stage => {
           const status = completedStages.includes(stage.stage_id) ? 'completed' : 
                         stagesData.indexOf(stage) === 0 && !completedStages.includes(stagesData[0]?.stage_id) ? 'current' : 'pending'
+          const rawTypes = stage.recommended_resource_types || []
           return {
             id: stage.stage_id || stage.id,
             title: stage.title || '',
@@ -62,7 +73,8 @@ Page({
             tagClass: status === 'completed' ? 'success' : status === 'current' ? 'primary' : 'info',
             tagText: status === 'completed' ? '已完成' : status === 'current' ? '进行中' : '未开始',
             knowledge_points: (stage.knowledge_points || []).map(kp => typeof kp === 'string' ? { name: kp } : kp),
-            recommended_resource_types: stage.recommended_resource_types || []
+            recommended_resource_types: rawTypes,
+            resource_type_texts: rawTypes.map(t => resourceTypeMap[t] || t)
           }
         })
 
@@ -348,27 +360,152 @@ Page({
       if (this.data.floatChatHistory.length === 0) {
         this.setData({
           floatChatHistory: [{
-            id: 1, role: 'ai', content: '您好！我是您的AI辅导助手，请问有什么学习问题？',
-            renderedHtml: markdownToHtml('您好！我是您的AI辅导助手，请问有什么学习问题？')
+            id: 1, role: 'ai', content: '您好！我是您的AI辅导助手，支持文字、语音、图片提问。请问有什么学习问题？',
+            renderedHtml: markdownToHtml('您好！我是您的AI辅导助手，支持文字、语音、图片提问。请问有什么学习问题？')
           }]
         })
       }
+      this.initFloatVoice()
       this.connectFloatWs()
     } else {
       this.setData({ showFloatChat: false })
       this.closeFloatWs()
+      if (this.floatVoiceInput) this.floatVoiceInput.destroy()
     }
   },
 
   closeFloatChat() {
     this.setData({ showFloatChat: false })
     this.closeFloatWs()
+    if (this.floatVoiceInput) this.floatVoiceInput.destroy()
   },
+
+  /* ===================== 浮动语音输入 ===================== */
+
+  initFloatVoice() {
+    this.floatVoiceInput = new VoiceInput({
+      maxDuration: 60,
+      onStart: () => {
+        this.setData({ floatIsRecording: true, floatIsVoiceLoading: false, floatRecordingTime: 0 })
+      },
+      onRecording: (time) => {
+        this.setData({ floatRecordingTime: time })
+      },
+      onLoading: (loading) => {
+        this.setData({ floatIsVoiceLoading: loading })
+      },
+      onResult: (text) => {
+        this.setData({
+          floatIsRecording: false, floatIsVoiceLoading: false, floatRecordingTime: 0,
+          floatInputValue: text
+        })
+      },
+      onError: (msg) => {
+        this.setData({ floatIsRecording: false, floatIsVoiceLoading: false, floatRecordingTime: 0 })
+        console.error('浮动语音错误:', msg)
+      },
+      onCancel: () => {
+        this.setData({ floatIsRecording: false, floatIsVoiceLoading: false, floatRecordingTime: 0 })
+      }
+    })
+    this.floatVoiceInput.init()
+  },
+
+  startFloatVoice() {
+    if (this.floatVoiceInput) this.floatVoiceInput.start()
+  },
+
+  stopFloatVoice() {
+    if (this.floatVoiceInput) this.floatVoiceInput.stop()
+  },
+
+  /* ===================== 浮动图片上传 ===================== */
+
+  chooseFloatImage() {
+    const that = this
+    wx.chooseMedia({
+      count: 1,
+      mediaType: ['image'],
+      sizeType: ['compressed'],
+      sourceType: ['album', 'camera'],
+      success: (res) => {
+        const file = res.tempFiles[0]
+        that.setData({
+          floatPendingImage: file.tempFilePath,
+          floatPendingImageName: file.tempFilePath.split('/').pop() || 'image.jpg',
+          floatPendingImageSize: file.size || 0
+        })
+        that.uploadFloatImageAndOCR(file.tempFilePath)
+      },
+      fail: (err) => {
+        if (err.errMsg && !err.errMsg.includes('cancel')) {
+          wx.showToast({ title: '选择图片失败', icon: 'none' })
+        }
+      }
+    })
+  },
+
+  uploadFloatImageAndOCR(tempFilePath) {
+    const that = this
+    wx.showLoading({ title: '识别中...', mask: true })
+
+    wx.getFileSystemManager().readFile({
+      filePath: tempFilePath,
+      encoding: 'base64',
+      success: (res) => {
+        that.setData({ floatPendingImageBase64: res.data })
+      }
+    })
+
+    const token = wx.getStorageSync('access_token') || ''
+    wx.uploadFile({
+      url: `${BASE_URL}/student/ocr/recognize`,
+      filePath: tempFilePath,
+      name: 'file',
+      header: { 'Authorization': `Bearer ${token}` },
+      success: (resp) => {
+        wx.hideLoading()
+        try {
+          const data = JSON.parse(resp.data)
+          if (resp.statusCode === 200 && data && data.text) {
+            that.setData({ floatPendingImageOCR: data.text })
+          } else {
+            that.setData({ floatPendingImageOCR: '' })
+          }
+        } catch (e) {
+          that.setData({ floatPendingImageOCR: '' })
+        }
+        wx.showToast({ title: '图片添加成功', icon: 'success', duration: 1500 })
+      },
+      fail: () => {
+        wx.hideLoading()
+        that.setData({ floatPendingImageOCR: '' })
+        wx.showToast({ title: '图片添加成功', icon: 'success', duration: 1500 })
+      }
+    })
+  },
+
+  removeFloatImage() {
+    this.setData({
+      floatPendingImage: '',
+      floatPendingImageBase64: '',
+      floatPendingImageName: '',
+      floatPendingImageSize: 0,
+      floatPendingImageOCR: ''
+    })
+  },
+
+  previewFloatImage(e) {
+    const url = e.currentTarget.dataset.url
+    if (url) wx.previewImage({ urls: [url], current: url })
+  },
+
+  /* ===================== 浮动 WebSocket ===================== */
 
   connectFloatWs() {
     if (this._floatWs) return
     const token = wx.getStorageSync('access_token') || ''
-    const wsUrl = BASE_URL.replace('http', 'ws') + '/tutor/ws/chat?token=' + token
+    const wsUrl = BASE_URL.replace('http', 'ws') + API.TUTOR.WS_CHAT + '?token=' + token
     this._floatWs = wx.connectSocket({ url: wsUrl })
     this._floatWs.onOpen(() => { this._floatConnected = true })
     this._floatWs.onMessage((res) => {
@@ -401,19 +538,90 @@ Page({
   onFloatInput(e) { this.setData({ floatInputValue: e.detail.value }) },
 
   sendFloatQuestion() {
-    const { floatInputValue, floatChatHistory } = this.data
-    if (!floatInputValue.trim()) return
-    const userMsg = { id: Date.now(), role: 'user', content: floatInputValue }
-    const aiMsg = { id: Date.now() + 1, role: 'ai', content: '', _streaming: true }
-    this.setData({ floatChatHistory: [...floatChatHistory, userMsg, aiMsg], floatInputValue: '', floatTyping: true })
-    const send = () => {
-      if (this._floatWs && this._floatConnected) {
-        this._floatWs.send({ data: JSON.stringify({ type: 'query', question: floatInputValue, session_id: this._floatSessionId || '' }) })
+    const { floatInputValue, floatChatHistory, floatPendingImage,
+      floatPendingImageBase64, floatPendingImageName, floatPendingImageSize,
+      floatPendingImageOCR } = this.data
+
+    const displayContent = floatInputValue.trim()
+    const hasText = displayContent.length > 0
+    const hasImage = floatPendingImageBase64 && floatPendingImageBase64.length > 0
+
+    if (!hasText && !hasImage) return
+
+    // 构造发给大模型的完整查询（含OCR）
+    let question = displayContent
+    if (floatPendingImageOCR && floatPendingImageOCR.trim().length > 0) {
+      if (displayContent) {
+        question = `${displayContent}\n\n[图片OCR内容]:\n${floatPendingImageOCR}`
+      } else {
+        question = `[图片OCR内容]:\n${floatPendingImageOCR}`
       }
     }
-    if (this._floatWs && this._floatConnected) { send() } else {
+
+    // 用户消息：显示原始输入（图片+文字），不含OCR
+    const userMsg = {
+      id: Date.now(), role: 'user',
+      content: displayContent || (hasImage ? '[图片]' : ''),
+      imageUrl: floatPendingImage || undefined
+    }
+
+    const aiMsg = { id: Date.now() + 1, role: 'ai', content: '', _streaming: true }
+
+    this.setData({
+      floatChatHistory: [...floatChatHistory, userMsg, aiMsg],
+      floatInputValue: '', floatTyping: true,
+      floatPendingImage: '', floatPendingImageBase64: '',
+      floatPendingImageName: '', floatPendingImageSize: 0,
+      floatPendingImageOCR: ''
+    })
+
+    const send = () => {
+      if (this._floatWs && this._floatConnected) {
+        const msg = {
+          type: 'query',
+          question: question,
+          display_content: displayContent,
+          session_id: this._floatSessionId || ''
+        }
+        if (hasImage) {
+          msg.image_base64 = floatPendingImageBase64
+          msg.image_name = floatPendingImageName
+          msg.image_size = floatPendingImageSize
+        }
+        this._floatWs.send({ data: JSON.stringify(msg) })
+      }
+    }
+
+    if (this._floatWs && this._floatConnected) {
+      // 立即发送（使用已缓存的变量）
+      const msg = {
+        type: 'query',
+        question: question,
+        display_content: displayContent,
+        session_id: this._floatSessionId || ''
+      }
+      if (hasImage) {
+        msg.image_base64 = floatPendingImageBase64
+        msg.image_name = floatPendingImageName
+        msg.image_size = floatPendingImageSize
+      }
+      this._floatWs.send({ data: JSON.stringify(msg) })
+    } else {
       this.connectFloatWs()
-      setTimeout(send, 500)
+      const msg = {
+        type: 'query',
+        question: question,
+        display_content: displayContent,
+        session_id: this._floatSessionId || ''
+      }
+      if (hasImage) {
+        msg.image_base64 = floatPendingImageBase64
+        msg.image_name = floatPendingImageName
+        msg.image_size = floatPendingImageSize
+      }
+      setTimeout(() => {
+        if (this._floatWs) this._floatWs.send({ data: JSON.stringify(msg) })
+      }, 500)
     }
   },
 

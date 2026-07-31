@@ -24,15 +24,17 @@
     "pages/mermaid/mermaid"
   ],
   "window": {
-    "backgroundTextStyle": "light",
-    "navigationBarBackgroundColor": "#1677ff",
-    "navigationBarTitleText": "AI 学习系统",
-    "navigationBarTextStyle": "white"
+    "backgroundTextStyle": "dark",
+    "navigationBarBackgroundColor": "#2B2D42",
+    "navigationBarTitleText": "智学优培",
+    "navigationBarTextStyle": "white",
+    "backgroundColor": "#F7F5F0"
   },
   "tabBar": {
-    "color": "#999999",
-    "selectedColor": "#1677ff",
-    "backgroundColor": "#ffffff",
+    "color": "#7A7E94",
+    "selectedColor": "#B0512C",
+    "backgroundColor": "#FFFFFF",
+    "borderStyle": "white",
     "list": [
       { "pagePath": "pages/profile/profile", "text": "学习画像", "iconPath": "images/profile.png", "selectedIconPath": "images/profile-active.png" },
       { "pagePath": "pages/path/path", "text": "学习路径", "iconPath": "images/path.png", "selectedIconPath": "images/path-active.png" },

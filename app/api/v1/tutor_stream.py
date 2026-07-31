@@ -31,6 +31,7 @@ class TutorStreamWebSocket(WebSocketEndpoint):
     async def handle_query(self, ws: WebSocket, user_id: int, message: Dict[str, Any]):
         question = message.get("question", "")
         session_id = message.get("session_id")
+        image_base64 = message.get("image_base64")  # 用户上传的题目图片 base64（可选）
 
         if not question:
             await ws.send_json({"type": MessageType.ERROR, "message": "问题不能为空"})
@@ -44,7 +45,7 @@ class TutorStreamWebSocket(WebSocketEndpoint):
 
         await ws.send_json({"type": MessageType.STATUS, "message": "正在检索相关资料..."})
 
-        # 2. 流式生成
+        # 2. 流式生成（Agent 只接收 OCR 文本，不接收图片）
         full_response = ""
         try:
             await ws.send_json({"type": MessageType.STATUS, "message": "已找到相关资料，正在生成回答..."})
@@ -53,9 +54,9 @@ class TutorStreamWebSocket(WebSocketEndpoint):
                 full_response += chunk
                 await ws.send_json({"type": MessageType.CHUNK, "data": chunk})
 
-            # 3. 保存
+            # 3. 保存（用户消息携带图片 base64，AI 回复不带）
             now = datetime.now()
-            await tutor_context_manager.add_message(session_id, user_id, TutorMessage(role="user", content=question, timestamp=now))
+            await tutor_context_manager.add_message(session_id, user_id, TutorMessage(role="user", content=question, timestamp=now, image_base64=image_base64))
             await tutor_context_manager.add_message(session_id, user_id, TutorMessage(role="assistant", content=full_response, timestamp=now))
             await tutor_context_manager.update_session_list(user_id, session_id)
 

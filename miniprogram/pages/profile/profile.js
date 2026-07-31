@@ -1,5 +1,5 @@
 const { request, BASE_URL } = require('../../utils/request')
-const { API } = require('../../utils/api')
+const { API, replaceParams } = require('../../utils/api')
 const { VoiceInput } = require('../../utils/voice')
 
 Page({
@@ -41,14 +41,24 @@ Page({
     currentAgentName: '准备中',
     isRecording: false,
     isVoiceLoading: false,
-    recordingTime: 0
+    recordingTime: 0,
+    showEditDialog: false,
+    editData: {
+      major: '',
+      grade: '',
+      goal: '',
+      level: '',
+      style: '',
+      coding: '',
+      interests: []
+    },
+    newInterestTag: ''
   },
 
   onLoad() {
     const userInfo = wx.getStorageSync('user_info')
     const username = userInfo?.username || userInfo?.real_name || '同学'
     this.setData({ userName: username })
-    this.loadChatHistory()
     this.loadProfile()
     this.loadUnreadCount()
     this.fetchProfiles()
@@ -131,9 +141,12 @@ Page({
 
   async loadChatHistory() {
     try {
-      let url = API.STUDENT.PROFILE_CHAT_HISTORY
+      let url
       if (this.data.activeProfileId) {
-        url = `/student/profiles/${this.data.activeProfileId}/chat-history`
+        url = replaceParams(API.STUDENT.PROFILE_CHAT_HISTORY, { profile_id: this.data.activeProfileId })
+      } else {
+          // 回退到旧路径（后端也能工作：student.py:453 的 /chat/history（GET）
+        url = '/student/chat/history'
       }
       const result = await request({
         url: url,
@@ -251,7 +264,7 @@ Page({
     const chatHistory = messages.slice(-10).map(m => ({ role: m.role, content: m.content }))
     
     const token = wx.getStorageSync('access_token') || ''
-    const wsUrl = BASE_URL.replace('http', 'ws') + '/v1/profile-chat/ws/chat' + `?token=${token}`
+    const wsUrl = BASE_URL.replace('http', 'ws') + '/profile-chat/ws/chat' + `?token=${token}`
     
     const ws = wx.connectSocket({ url: wsUrl })
     let currentAssistantMsg = null
@@ -317,7 +330,8 @@ Page({
           case 'end':
             finished = true
             clearTimeout(sendTimeout)
-            ws.close()
+            // 不立即关闭 WebSocket，因为后台可能还要发送 profile_update / check_workflow
+            // 等 check_workflow 处理完成后再由工作流 WebSocket 接管，或页面卸载时关闭
             if (currentAssistantMsg) {
               currentAssistantMsg.streaming = false
               const idx = this.data.messages.findIndex(m => m.id === currentAssistantMsg.id)
@@ -622,6 +636,8 @@ Page({
         activeProfiles,
         activeProfileId: active?.id || null,
         currentProfileName: currentProfileName
+      }, () => {
+        this.loadChatHistory()
       })
     } catch (err) {
       console.error('获取画像列表失败:', err)
@@ -760,5 +776,92 @@ Page({
 
   closeNewProfileDialog() {
     this.setData({ showNewProfileDialog: false, newProfileName: '' })
+  },
+
+  openEditDialog() {
+    const { profileData } = this.data
+    this.setData({
+      showEditDialog: true,
+      editData: {
+        major: profileData.major || '',
+        grade: profileData.grade || '',
+        goal: profileData.goal || '',
+        level: profileData.level || '',
+        style: profileData.style || '',
+        coding: profileData.coding || '',
+        interests: [...(profileData.interests || [])]
+      },
+      newInterestTag: ''
+    })
+  },
+
+  cancelProfileEdit() {
+    this.setData({ showEditDialog: false })
+  },
+
+  onEditInput(e) {
+    const field = e.currentTarget.dataset.field
+    this.setData({
+      [`editData.${field}`]: e.detail.value
+    })
+  },
+
+  onNewInterestInput(e) {
+    this.setData({ newInterestTag: e.detail.value })
+  },
+
+  addTag(e) {
+    const type = e.currentTarget.dataset.type
+    const { editData, newInterestTag } = this.data
+    const tagValue = newInterestTag
+    const trimmed = (tagValue || '').trim()
+    if (!trimmed) {
+      wx.showToast({ title: '请输入标签内容', icon: 'none' })
+      return
+    }
+    const list = [...(editData[type] || [])]
+    if (list.includes(trimmed)) {
+      wx.showToast({ title: '标签已存在', icon: 'none' })
+      return
+    }
+    list.push(trimmed)
+    this.setData({
+      [`editData.${type}`]: list,
+      newInterestTag: ''
+    })
+  },
+
+  removeTag(e) {
+    const { type, index } = e.currentTarget.dataset
+    const list = [...(this.data.editData[type] || [])]
+    list.splice(index, 1)
+    this.setData({ [`editData.${type}`]: list })
+  },
+
+  async saveProfileEdit() {
+    const { editData, activeProfileId } = this.data
+    const data = {
+      major: (editData.major || '').trim(),
+      grade: (editData.grade || '').trim(),
+      goal: (editData.goal || '').trim(),
+      learning_style: (editData.style || '').trim(),
+      coding_ability: (editData.coding || '').trim(),
+      interests: editData.interests || []
+    }
+    try {
+      const url = activeProfileId
+        ? `${API.STUDENT.PROFILES}/${activeProfileId}`
+        : API.STUDENT.PROFILE
+      await request({
+        url: url,
+        method: 'PUT',
+        data
+      })
+      this.setData({ showEditDialog: false })
+      await this.loadProfile()
+      wx.showToast({ title: '画像已更新', icon: 'success' })
+    } catch (err) {
+      wx.showToast({ title: '更新失败', icon: 'none' })
+    }
   }
 })

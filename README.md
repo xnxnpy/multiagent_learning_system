@@ -156,7 +156,7 @@ npm run dev
 5. 修改 `miniprogram/utils/request.js` 中的 `BASE_URL` 为后端地址
 
 ### 5. 访问
-- Web 前端: http://localhost:5173
+- Web 前端: http://localhost:3000
 - 后端 API: http://localhost:8000
 - API 文档 (Swagger): http://localhost:8000/docs
 - 健康检查: http://localhost:8000/health
@@ -175,7 +175,7 @@ ai-resgen-learning-multiagent-system/
 ├── requirements.txt                 # Python 依赖
 ├── app/
 │   ├── __init__.py
-│   ├── agents/                      # 15 个 AI Agent
+│   ├── agents/                      # 14 个 AI Agent
 │   │   ├── base.py                  # Agent 基类
 │   │   ├── profile_agent.py         # 画像对话 Agent
 │   │   ├── learning_path_agent.py   # 学习路径 Agent
@@ -209,6 +209,8 @@ ai-resgen-learning-multiagent-system/
 │   │   ├── config.py                # 应用配置 (pydantic-settings)
 │   │   ├── security.py              # JWT + 密码哈希
 │   │   ├── model_manager.py         # 统一模型管理器
+│   │   ├── llm_client.py            # 大模型客户端封装
+│   │   ├── celery_app.py            # Celery 任务队列配置
 │   │   ├── websocket_manager.py     # WebSocket 连接管理
 │   │   ├── websocket_heartbeat.py   # WebSocket 心跳
 │   │   ├── websocket_dispatcher.py  # WebSocket 消息分发
@@ -273,12 +275,20 @@ ai-resgen-learning-multiagent-system/
 │   ├── workflows/                   # LangGraph 工作流
 │   │   └── graph_builder.py         # 工作流定义 + 管理器
 │   └── multimodal/                  # 多模态处理
+│       ├── ocr_client.py            # OCR 图片识别 (讯飞)
+│       ├── oss_uploader.py          # 阿里云 OSS 上传
+│       ├── generators.py            # 图片生成器
+│       ├── asr_client.py            # 语音识别 (讯飞 ASR)
+│       ├── tts_client.py            # 语音合成 (讯飞 TTS)
+│       ├── ppt_video_generator.py   # PPT 视频生成
+│       ├── ppt_templates.py         # PPT 模板
+│       └── subtitle_generator.py    # 字幕生成
 ├── frontend/                        # Vue 3 Web 前端
 │   ├── package.json
 │   └── src/
 │       ├── pages/
-│       │   ├── auth/                # 登录/注册/个人信息
-│       │   ├── student/             # 学生端 8 个页面
+│       │   ├── auth/                # 登录/注册/落地页/个人信息
+│       │   ├── student/             # 学生端 7 个页面
 │       │   ├── teacher/             # 教师端 5 个页面
 │       │   └── admin/               # 管理员端 9 个页面
 │       ├── api/                     # API 封装
@@ -329,7 +339,22 @@ ai-resgen-learning-multiagent-system/
 ├── scripts/                         # 脚本
 │   ├── create_admin.py              # 创建管理员
 │   └── data.sql                     # SQL 初始化
-├── prompts/                         # Agent Prompt 模板
+├── prompts/                         # Agent Prompt 模板 (15 个)
+│   ├── profile_chat_prompt.txt      # 画像对话
+│   ├── profile_extract_prompt.txt   # 画像提取
+│   ├── learning_path_prompt.txt     # 学习路径
+│   ├── document_prompt.txt          # 文档生成
+│   ├── question_prompt.txt          # 题目生成
+│   ├── code_prompt.txt              # 代码生成
+│   ├── mindmap_prompt.txt           # 思维导图
+│   ├── ppt_video_prompt.txt         # PPT 视频
+│   ├── reading_material_prompt.txt  # 拓展阅读
+│   ├── glossary_prompt.txt          # 术语词汇
+│   ├── knowledge_graph_prompt.txt   # 知识图谱
+│   ├── summary_prompt.txt           # 学习总结
+│   ├── evaluation_prompt.txt        # 学习评估
+│   ├── resource_quality_prompt.txt  # 资源质量评估
+│   └── tutor_prompt.txt             # 智能辅导
 ├── tests/                           # 测试
 └── run.bat                         # Windows 一键启动脚本
 ```

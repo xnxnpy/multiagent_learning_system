@@ -710,7 +710,17 @@ async def get_all_student_resources(
         resources = []
         for stage_id in sorted(stages_map.keys()):
             for res_type, r in stages_map[stage_id].items():
-                content = r.content if isinstance(r.content, dict) else {}
+                # 统一 content 为 dict：兼容历史保存的 JSON 字符串
+                content = r.content
+                if isinstance(content, str):
+                    try:
+                        import json as _json
+                        _parsed = _json.loads(content)
+                        content = _parsed if isinstance(_parsed, (dict, list)) else {"content": content}
+                    except Exception:
+                        content = {"content": content}
+                elif not isinstance(content, dict):
+                    content = {}
                 quality = content.get("quality_score") or content.get("quality") or {}
                 resources.append({
                     "resource_type": res_type,

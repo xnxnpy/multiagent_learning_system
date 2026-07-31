@@ -402,7 +402,7 @@ onMounted(fetchStudentResources)
 .no-score { padding: 8px 16px; color: var(--color-text-muted); font-size: 12px; }
 .res-actions { display: flex; gap: 8px; padding-top: 10px; border-top: 1px solid #e5e7eb; margin-top: 10px; }
 .code-preview {
-  background: #1e1e2e; color: #cdd6f4; padding: 12px; border-radius: 8px;
+  background: #fff; color: var(--color-text-primary); padding: 12px; border-radius: 8px;
   font-size: 12px; overflow-x: auto; margin: 0; white-space: pre-wrap;
 }
 .raw-preview pre {
@@ -431,7 +431,7 @@ onMounted(fetchStudentResources)
 .code-header { display: flex; align-items: center; gap: 8px; margin-bottom: 6px; }
 .code-title { font-weight: 600; font-size: 14px; }
 .code-desc { color: var(--color-text-secondary); margin: 0 0 10px; font-size: 12px; }
-.code-block { background: #1e1e2e; color: #cdd6f4; padding: 14px; border-radius: 8px; font-size: 12px; overflow-x: auto; margin: 0; line-height: 1.6; }
+.code-block { background: #fff; padding: 14px; border-radius: 8px; font-size: 12px; overflow-x: auto; margin: 0; line-height: 1.6; }
 .glossary-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)); gap: 10px; }
 .term-card { border-radius: 8px; }
 .term-name { font-weight: 700; font-size: 18px; color: var(--color-primary); margin-bottom: 4px; }

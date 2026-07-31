@@ -100,8 +100,11 @@ export const useResourceStore = defineStore('resource', () => {
       stageId = stages[stageIndex].stage_id
       const kps = stages[stageIndex].knowledge_points
       if (kps && kps.length > 0) {
-        const kp = kps[0]
-        currentTopic.value = typeof kp === 'string' ? kp : (kp.name || kp)
+        // 拼接所有知识点作为 topic（后端会从题目数据中提取具体 knowledge_point）
+        currentTopic.value = kps
+          .map(kp => typeof kp === 'string' ? kp : (kp.name || kp))
+          .filter(name => name)
+          .join('、')
       }
     }
 

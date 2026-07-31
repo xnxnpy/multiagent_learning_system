@@ -11,7 +11,7 @@
 ## 学生画像
 {student_profile}
 
-## 当前阶段知识点
+## 所有已完成阶段知识点
 {stage_knowledge_points}
 
 ## 学习记录统计
@@ -59,3 +59,9 @@
   "summary": "面向学生的通俗评估总结（1-3句话，包含趋势对比和建议）",
   "should_update_path": 是否需要更新学习路径(true/false)
 }}
+
+## ⚠️ 重要规则
+- knowledge_points 字段由系统根据答题记录自动计算，LLM 无需生成该字段
+- LLM 重点关注：overall_grade、mastery_level、analysis（强弱项分析）、summary（通俗总结）
+- 不要编造超出答题数据的分数
+- status 取值规则：mastery >= 0.8 为"掌握"，0.3 <= mastery < 0.8 为"学习中"，mastery < 0.3 为"薄弱"，无答题记录为"未考查"

@@ -74,6 +74,13 @@ class QuestionAgent(BaseAgent):
         if q_count < 3:
             log.warning(f"生成题目数量不足（{q_count}道），建议至少3道")
 
+        # 确保每道题都有 knowledge_point 字段
+        for q in result.get("questions", []):
+            if "knowledge_point" not in q or not q["knowledge_point"]:
+                # 如果LLM遗漏，用topic的第一个知识点兜底
+                kp_list = topic.split("、") if topic else []
+                q["knowledge_point"] = kp_list[0] if kp_list else topic or "通用"
+
         log.info(f"QuestionAgent 完成，生成了 {len(result.get('questions', []))} 道题目")
         return result
 
@@ -154,12 +161,14 @@ class QuestionAgent(BaseAgent):
     def _get_mock_questions(self, topic: str, profile: Dict = None) -> Dict[str, Any]:
         """LLM 失败时直接构造 mock 题目数据（包含案例分析题）"""
         major = profile.get("major", "计算机科学") if profile else "计算机科学"
+        kp = topic.split("、")[0] if topic else "基础语法"
         return {
             "questions": [
                 {
                     "question_id": 1,
                     "type": "choice",
                     "difficulty": "easy",
+                    "knowledge_point": kp,
                     "question": f"以下哪个是 Python 中定义函数的关键字？",
                     "options": ["function", "def", "func", "define"],
                     "answer": "def",
@@ -169,6 +178,7 @@ class QuestionAgent(BaseAgent):
                     "question_id": 2,
                     "type": "choice",
                     "difficulty": "easy",
+                    "knowledge_point": kp,
                     "question": f"Python 中用于输出内容到控制台的函数是？",
                     "options": ["echo()", "console.log()", "print()", "output()"],
                     "answer": "print()",
@@ -178,6 +188,7 @@ class QuestionAgent(BaseAgent):
                     "question_id": 3,
                     "type": "blank",
                     "difficulty": "medium",
+                    "knowledge_point": kp,
                     "question": f"Python 中使用 ______ 关键字定义一个匿名函数",
                     "answer": "lambda",
                     "score": 10
@@ -186,6 +197,7 @@ class QuestionAgent(BaseAgent):
                     "question_id": 4,
                     "type": "case_analysis",
                     "difficulty": "medium",
+                    "knowledge_point": kp,
                     "question": f"【案例分析】在{major}领域，假设你需要处理一个学生信息管理系统。请分析以下需求，并回答问题：\n\n需求：系统需要存储学生姓名、年龄、成绩，并能计算平均分。\n\n问题：\n1. 应该使用什么数据结构存储学生信息？\n2. 如何实现计算平均分的函数？\n3. 如何处理异常输入（如成绩为负数）？",
                     "answer": "1. 使用字典或类存储\n2. 定义calc_avg(scores)函数\n3. 使用try-except和条件判断",
                     "rubric": {
@@ -202,8 +214,9 @@ class QuestionAgent(BaseAgent):
                     "question_id": 5,
                     "type": "code",
                     "difficulty": "hard",
+                    "knowledge_point": kp,
                     "question": f"编写一个 Python 函数，判断一个字符串是否是回文串",
-                    "answer": "def is_palindrome(s):\n    return s == s::-1]",
+                    "answer": "def is_palindrome(s):\n    return s == s[::-1]",
                     "test_cases": [
                         {"input": "racecar", "expected": "True"},
                         {"input": "hello", "expected": "False"}

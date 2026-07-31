@@ -58,30 +58,21 @@ class EvaluationAgent(BaseAgent):
             log.error(f"LLM 响应不是有效 JSON: {evaluation_result}")
             result = self._generate_fallback_result(learning_stats)
 
-        # 补全 LLM 遗漏的知识点，按正确率均匀分配分数
-        if stage_kps:
-            existing_kps = {kp.get("topic", "") for kp in result.get("knowledge_points", [])}
-            total_kps = len(stage_kps)
-            total_score = result.get("total_score", 0)
-            total_attempts = result.get("total_attempts", 0)
-            avg_score_per_kp = total_score // max(total_kps, 1) if total_kps else 0
-            avg_attempts_per_kp = total_attempts // max(total_kps, 1) if total_kps else 0
+        # 用真实答题数据按知识点分组计算掌握度，覆盖 LLM 虚构的知识点分数
+        kp_stats = self._calculate_kp_stats(learning_records, stage_kps)
+        result["knowledge_points"] = kp_stats
 
-            for kp_name in stage_kps:
-                if kp_name not in existing_kps:
-                    result.setdefault("knowledge_points", []).append({
-                        "topic": kp_name,
-                        "score": avg_score_per_kp,
-                        "total": avg_attempts_per_kp * 10,
-                        "mastery": learning_stats.get("accuracy_rate", 0),
-                        "status": "学习中"
-                    })
+        # 修正知识点分数：确保总和不超过实际总分
+        result = self._fix_kp_scores(result, learning_stats)
 
         # 确保 summary 字段存在（LLM 可能漏掉）
         if "summary" not in result or not result["summary"]:
             result["summary"] = self._build_auto_summary(result, stage_trend)
 
         await self._update_student_profile(user_id, result)
+
+        # 记录当前已完成阶段数，供后续判断是否需要重新评估
+        result["_completed_stages_count"] = await self._get_completed_stages_count(user_id)
 
         # 保存评估报告到数据库
         await self._save_report_to_db(user_id, result)
@@ -200,8 +191,108 @@ class EvaluationAgent(BaseAgent):
             "coding_ability": profile.coding_ability or "",
         }
 
+    async def _get_completed_stages_count(self, user_id: int) -> int:
+        """获取当前已完成阶段数"""
+        from app.models import LearningPath
+        try:
+            result = await self.db.execute(
+                select(LearningPath).where(LearningPath.user_id == user_id)
+                .order_by(LearningPath.created_at.desc()).limit(1)
+            )
+            path = result.scalar_one_or_none()
+            return len(path.completed_stages) if path and path.completed_stages else 0
+        except Exception:
+            return 0
+
+    def _calculate_kp_stats(self, records: List[LearningRecord], stage_kps: List[str] = None) -> List[Dict]:
+        """按知识点分组计算掌握度，直接从答题记录中提取，不依赖 LLM"""
+        # 按 knowledge_point 分组统计
+        kp_data: Dict[str, Dict] = {}
+
+        for r in records:
+            behavior = r.behavior_data if isinstance(r.behavior_data, dict) else {}
+            kp = behavior.get("knowledge_point") or behavior.get("topic") or "通用"
+
+            if kp not in kp_data:
+                kp_data[kp] = {"total": 0, "correct": 0, "score": 0, "max_score": 0}
+
+            kp_data[kp]["total"] += 1
+            kp_data[kp]["max_score"] += 10  # 每题满分10分
+            if r.correct:
+                kp_data[kp]["correct"] += 1
+            if r.score is not None:
+                kp_data[kp]["score"] += r.score
+
+        # 构建知识点评估列表
+        result_kps = []
+        for kp_name, data in kp_data.items():
+            mastery = data["correct"] / data["total"] if data["total"] > 0 else 0.0
+            score = data["score"]
+            total = data["max_score"]
+
+            if mastery >= 0.8:
+                status = "掌握"
+            elif mastery >= 0.3:
+                status = "学习中"
+            else:
+                status = "薄弱"
+
+            result_kps.append({
+                "topic": kp_name,
+                "score": score,
+                "total": total,
+                "mastery": round(mastery, 2),
+                "status": status,
+            })
+
+        # 补充未考查的知识点（标记为"未考查"而非"未学习"）
+        if stage_kps:
+            existing = {kp["topic"] for kp in result_kps}
+            for kp_name in stage_kps:
+                if kp_name not in existing:
+                    result_kps.append({
+                        "topic": kp_name,
+                        "score": 0,
+                        "total": 10,
+                        "mastery": 0.0,
+                        "status": "未考查",
+                    })
+
+        return result_kps
+
+    def _fix_kp_scores(self, result: Dict, stats: Dict) -> Dict:
+        """修正知识点分数：确保单项不超过满分，总和不超过实际总分"""
+        kps = result.get("knowledge_points", [])
+        if not kps:
+            return result
+
+        actual_total_score = stats.get("total_score", 0)
+
+        # 确保每个知识点的 score 不超过 total
+        for kp in kps:
+            if kp.get("score", 0) > kp.get("total", 10):
+                kp["score"] = kp.get("total", 10)
+
+        # 确保所有知识点分数总和不超过实际总分
+        final_total = sum(kp.get("score", 0) for kp in kps)
+        if final_total > actual_total_score and actual_total_score >= 0:
+            diff = final_total - actual_total_score
+            # 从最高分知识点开始扣减
+            sorted_indices = sorted(range(len(kps)), key=lambda i: kps[i].get("score", 0), reverse=True)
+            for idx in sorted_indices:
+                if diff <= 0:
+                    break
+                deduct = min(diff, kps[idx].get("score", 0))
+                kps[idx]["score"] = kps[idx].get("score", 0) - deduct
+                diff -= deduct
+
+        # 更新 result 中的 total_score 为实际值
+        result["total_score"] = actual_total_score
+
+        return result
+
     async def _get_stage_knowledge_points(self, user_id: int) -> List[str]:
-        """从学习路径获取当前阶段的知识点名称列表"""
+        """从学习路径获取所有已完成阶段 + 当前阶段的知识点名称列表"""
         from app.models import LearningPath
         try:
             result = await self.db.execute(
@@ -211,13 +302,45 @@ class EvaluationAgent(BaseAgent):
             path = result.scalar_one_or_none()
             if not path or not path.stages:
                 return []
-            stage = path.stages[0]
-            kps = stage.get("knowledge_points", [])
-            if not kps:
-                return []
-            if isinstance(kps[0], dict):
-                return [kp.get("name", "") for kp in kps if kp.get("name")]
-            return [str(kp) for kp in kps if kp]
+
+            completed_ids = path.completed_stages or []
+            kps_set = set()
+
+            # 收集所有已完成阶段的知识点
+            if completed_ids:
+                for stage in path.stages:
+                    if stage.get("stage_id") in completed_ids:
+                        for kp in stage.get("knowledge_points", []):
+                            if isinstance(kp, dict):
+                                name = kp.get("name", "")
+                                if name:
+                                    kps_set.add(name)
+                            elif kp:
+                                kps_set.add(str(kp))
+
+            # 也收集当前（最近完成或第一个）阶段的知识点
+            if not completed_ids:
+                target_stage = path.stages[0]
+            else:
+                last_completed_id = completed_ids[-1]
+                target_stage = None
+                for stage in path.stages:
+                    if stage.get("stage_id") == last_completed_id:
+                        target_stage = stage
+                        break
+                if target_stage is None:
+                    target_stage = path.stages[0]
+
+            if target_stage:
+                for kp in target_stage.get("knowledge_points", []):
+                    if isinstance(kp, dict):
+                        name = kp.get("name", "")
+                        if name:
+                            kps_set.add(name)
+                    elif kp:
+                        kps_set.add(str(kp))
+
+            return list(kps_set)
         except Exception:
             return []
 

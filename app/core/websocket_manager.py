@@ -173,8 +173,9 @@ class ConnectionManager(EnhancedConnectionManager):
 class NotificationManager:
     """通知管理器"""
 
-    def __init__(self):
-        self.manager = ConnectionManager()
+    def __init__(self, manager: EnhancedConnectionManager = None):
+        # 复用传入的全局 manager，确保与 WebSocket 端点共用同一连接池
+        self.manager = manager or ConnectionManager()
         self.notification_handlers: Dict[str, List[Callable]] = {
             "learning_progress": [],
             "evaluation_result": [],
@@ -324,5 +325,5 @@ class StreamManager:
 
 
 manager = ConnectionManager()
-notification_manager = NotificationManager()
+notification_manager = NotificationManager(manager=manager)
 stream_manager = StreamManager()

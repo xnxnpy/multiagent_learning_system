@@ -22,9 +22,13 @@ REDIS_TTL_SECONDS = 86400  # 24 小时
 class TutorMessage:
     """对话消息数据结构"""
     role: str  # "user" or "assistant"
-    content: str
+    content: str  # 给大模型用的完整内容（含 OCR 文本）
     timestamp: datetime
     metadata: Optional[Dict[str, Any]] = None
+    image_base64: Optional[str] = None  # 用户上传的题目图片 base64（仅 role=user 时有值）
+    image_name: Optional[str] = None    # 图片文件名
+    image_size: Optional[int] = None    # 图片文件大小（字节）
+    display_content: Optional[str] = None  # 给用户显示的原始输入（不含 OCR 文本）
 
     def to_dict(self) -> Dict[str, Any]:
         return {
@@ -32,6 +36,10 @@ class TutorMessage:
             "content": self.content,
             "timestamp": self.timestamp.isoformat(),
             "metadata": self.metadata,
+            "image_base64": self.image_base64,
+            "image_name": self.image_name,
+            "image_size": self.image_size,
+            "display_content": self.display_content,
         }
 
     @classmethod
@@ -41,6 +49,10 @@ class TutorMessage:
             content=data["content"],
             timestamp=datetime.fromisoformat(data["timestamp"]) if isinstance(data.get("timestamp"), str) else data.get("timestamp", datetime.now()),
             metadata=data.get("metadata"),
+            image_base64=data.get("image_base64"),
+            image_name=data.get("image_name"),
+            image_size=data.get("image_size"),
+            display_content=data.get("display_content"),
         )
 
 
@@ -270,7 +282,7 @@ class TutorContextManager:
                     .limit(MAX_CONTEXT_MESSAGES)
                 )
                 rows = result.scalars().all()
-                return [TutorMessage(role=r.role, content=r.content, timestamp=r.created_at) for r in rows]
+                return [TutorMessage(role=r.role, content=r.content, timestamp=r.created_at, image_base64=r.image_base64, image_name=getattr(r, 'image_name', None), image_size=getattr(r, 'image_size', None), display_content=getattr(r, 'display_content', None)) for r in rows]
         except Exception as e:
             log.error(f"从 MySQL 加载消息失败: {e}")
             return []
@@ -288,7 +300,7 @@ class TutorContextManager:
                     .limit(MAX_CONTEXT_MESSAGES)
                 )
                 rows = result.scalars().all()
-                return [{"role": r.role, "content": r.content} for r in rows]
+                return [{"role": r.role, "content": r.content, "display_content": getattr(r, 'display_content', None), "image_base64": r.image_base64, "image_name": getattr(r, 'image_name', None), "image_size": getattr(r, 'image_size', None)} for r in rows]
         except Exception as e:
             log.error(f"从 MySQL 加载历史失败: {e}")
             return []
@@ -303,6 +315,10 @@ class TutorContextManager:
                     session_id=session_id,
                     role=message.role,
                     content=message.content,
+                    display_content=message.display_content,
+                    image_base64=message.image_base64,
+                    image_name=message.image_name,
+                    image_size=message.image_size,
                 ))
                 await db.commit()
         except Exception as e:

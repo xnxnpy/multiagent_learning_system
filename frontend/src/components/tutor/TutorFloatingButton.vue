@@ -105,17 +105,17 @@ function stopDrag() {
   width: 52px;
   height: 52px;
   border-radius: 50%;
-  background: linear-gradient(135deg, #2563EB, #3B82F6);
+  background: linear-gradient(135deg, var(--color-student), #D17A52);
   display: flex;
   align-items: center;
   justify-content: center;
-  box-shadow: 0 4px 16px rgba(37,99,235,0.4);
+  box-shadow: 0 4px 16px rgba(176, 81, 44, 0.35);
   transition: all var(--transition-normal);
 }
 
 .float-btn-inner:hover {
   transform: scale(1.08);
-  box-shadow: 0 6px 24px rgba(37,99,235,0.5);
+  box-shadow: 0 6px 24px rgba(176, 81, 44, 0.45);
 }
 
 /* ── Chat panel ─────────────────────────── */
@@ -125,7 +125,7 @@ function stopDrag() {
   height: 500px;
   background: var(--color-bg-card);
   border-radius: var(--radius-xl);
-  box-shadow: var(--shadow-lg);
+  box-shadow: var(--shadow-pop);
   display: flex;
   flex-direction: column;
   overflow: hidden;
@@ -137,8 +137,8 @@ function stopDrag() {
   align-items: center;
   justify-content: space-between;
   padding: 10px 14px;
-  background: linear-gradient(135deg, #2563EB, #3B82F6);
-  color: #fff;
+  background: linear-gradient(135deg, var(--color-primary), var(--color-primary-soft));
+  color: var(--color-text-inverse);
   cursor: move;
   user-select: none;
   flex-shrink: 0;

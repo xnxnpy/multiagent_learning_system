@@ -3,7 +3,9 @@ import { createRouter, createWebHistory, type RouteRecordRaw } from 'vue-router'
 const routes: RouteRecordRaw[] = [
   {
     path: '/',
-    redirect: '/login'
+    name: 'Landing',
+    component: () => import('@/pages/auth/Landing.vue'),
+    meta: { requiresAuth: false }
   },
   {
     path: '/login',
@@ -192,7 +194,7 @@ router.beforeEach((to, from, next) => {
     return
   }
 
-  if ((to.path === '/login' || to.path === '/register') && token && userRole) {
+  if ((to.path === '/' || to.path === '/login' || to.path === '/register') && token && userRole) {
     const roleRoutes: Record<string, string> = {
       student: '/student',
       teacher: '/teacher',

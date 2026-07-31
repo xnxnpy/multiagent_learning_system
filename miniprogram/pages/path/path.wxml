@@ -40,12 +40,12 @@
       <view wx:if="{{currentStageData}}" class="stage-card">
         <view class="card-header">
           <text class="card-title">当前阶段：{{currentStageData.title}}</text>
-          <view class="stage-actions">
-            <view class="action-btn primary" bindtap="startStage" data-stage="{{currentStageData.id}}">▶ 开始学习</view>
-            <view class="action-btn warning" wx:if="{{currentStageData.status !== 'completed'}}" bindtap="handleGenerateStageResources">✨ 生成资源</view>
-            <view class="action-btn success" wx:if="{{currentStageData.status !== 'completed' && completedStages < totalStages}}" bindtap="handleCompleteStage">✓ 完成</view>
-            <view class="status-tag completed" wx:if="{{currentStageData.status === 'completed'}}">已完成</view>
-          </view>
+          <view class="status-tag completed" wx:if="{{currentStageData.status === 'completed'}}">已完成</view>
+        </view>
+        <view class="stage-actions">
+          <view class="action-btn primary" bindtap="startStage" data-stage="{{currentStageData.id}}">▶ 开始学习</view>
+          <view class="action-btn warning" wx:if="{{currentStageData.status !== 'completed'}}" bindtap="handleGenerateStageResources">✨ 生成资源</view>
+          <view class="action-btn success" wx:if="{{currentStageData.status !== 'completed' && completedStages < totalStages}}" bindtap="handleCompleteStage">✓ 完成</view>
         </view>
         <view class="stage-descriptions">
           <view class="desc-row">
@@ -63,10 +63,10 @@
             <text class="kp-tag" wx:for="{{currentStageData.knowledge_points}}" wx:key="index">{{item.name || item}}</text>
           </view>
         </view>
-        <view wx:if="{{currentStageData.recommended_resource_types && currentStageData.recommended_resource_types.length > 0}}" class="rt-section">
+        <view wx:if="{{currentStageData.resource_type_texts && currentStageData.resource_type_texts.length > 0}}" class="rt-section">
           <text class="section-label">推荐资源类型：</text>
           <view class="rt-tags">
-            <text class="rt-tag" wx:for="{{currentStageData.recommended_resource_types}}" wx:key="index">{{resourceText(item)}}</text>
+            <text class="rt-tag" wx:for="{{currentStageData.resource_type_texts}}" wx:key="index">{{item}}</text>
           </view>
         </view>
         <view wx:if="{{stageGenerating}}" class="stage-generating">
@@ -175,16 +175,43 @@
           <view id="fmsg-{{index}}" class="float-msg {{item.role === 'user' ? 'right' : 'left'}}">
             <view wx:if="{{item.role === 'ai'}}" class="float-avatar">🤖</view>
             <view class="float-bubble {{item.role}}">
+              <image wx:if="{{item.imageUrl}}" src="{{item.imageUrl}}" mode="widthFix" class="float-msg-image" bindtap="previewFloatImage" data-url="{{item.imageUrl}}"></image>
               <rich-text wx:if="{{item.renderedHtml}}" nodes="{{item.renderedHtml}}"></rich-text>
-              <text wx:else>{{item.content}}</text>
+              <text wx:if="{{item.content && !item.imageUrl}}">{{item.content}}</text>
+              <text wx:if="{{item.content && item.imageUrl && item.content !== '[图片]'}}">{{item.content}}</text>
             </view>
             <view wx:if="{{item.role === 'user'}}" class="float-avatar user">👤</view>
           </view>
         </block>
       </scroll-view>
-      <view class="float-input-row">
-        <input class="float-input" placeholder="输入问题..." value="{{floatInputValue}}" bindinput="onFloatInput" />
-        <view class="float-send" catchtap="sendFloatQuestion">发送</view>
+
+      <view wx:if="{{floatPendingImage}}" class="float-pending-row">
+        <view class="float-pending-preview">
+          <image src="{{floatPendingImage}}" mode="aspectFill"></image>
+          <view class="float-pending-remove" bindtap="removeFloatImage">✕</view>
+        </view>
+      </view>
+
+      <view class="float-input-area">
+        <view class="float-tool-row">
+          <view wx:if="{{!floatIsRecording && !floatIsVoiceLoading}}" class="float-tool-btn" bindtap="startFloatVoice">
+            <text>🎤</text>
+          </view>
+          <view wx:elif="{{floatIsRecording}}" class="float-tool-btn recording" bindtap="stopFloatVoice">
+            <text>🎤</text>
+            <text class="float-recording-time">{{floatRecordingTime}}s</text>
+          </view>
+          <view wx:elif="{{floatIsVoiceLoading}}" class="float-tool-btn loading">
+            <text>⏳</text>
+          </view>
+          <view wx:if="{{!floatIsRecording}}" class="float-tool-btn" bindtap="chooseFloatImage">
+            <text>🖼️</text>
+          </view>
+        </view>
+        <view class="float-input-row">
+          <input class="float-input" placeholder="输入问题..." value="{{floatInputValue}}" bindinput="onFloatInput" confirm-type="send" bindconfirm="sendFloatQuestion" />
+          <view class="float-send" bindtap="sendFloatQuestion">发送</view>
+        </view>
       </view>
     </view>
   </view>

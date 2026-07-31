@@ -1,169 +1,296 @@
-// 统一的 markdown → HTML 渲染函数
+// Markdown → 纯文本渲染（不使用 rich-text，避免默认 margin 问题）
+// 输出带格式的纯文本，用 <text> 组件渲染
+
+// Markdown → HTML 字符串（用于 rich-text 组件渲染）
 function markdownToHtml(text) {
   if (!text || typeof text !== 'string') return ''
   
   let md = text.trim()
-  
-  // 剥离外层 ```markdown 包装（后端返回的文档内容常带此包装）
   md = md.replace(/^```markdown\s*\n?/i, '').replace(/\n?```\s*$/i, '').trim()
   
-  // 1. 先提取代码块，防止被其他规则干扰
-  const codeBlocks = []
-  const diagramLangs = ['mermaid', 'plantuml', 'uml', 'dot', 'graphviz']
-  md = md.replace(/```(\w*)\n([\s\S]*?)```/g, (_, lang, code) => {
-    const i = codeBlocks.length
-    const l = (lang || '').toLowerCase()
-    codeBlocks.push({ lang: l, code: code.trimEnd(), isDiagram: diagramLangs.includes(l) })
-    return `\x00CB${i}\x00`
-  })
+  // 压缩多余空行
+  md = md.replace(/\n{3,}/g, '\n\n')
   
-  // 2. 提取行内代码
-  const inlineCodes = []
-  md = md.replace(/`([^`\n]+)`/g, (_, code) => {
-    const i = inlineCodes.length
-    inlineCodes.push(code)
-    return `\x00IC${i}\x00`
-  })
+  let lines = md.split('\n')
+  let html = ''
+  let inCodeBlock = false
+  let codeLines = []
+  let codeLang = ''
+  let inList = false
+  let listItems = []
+  let listType = ''
+  let listIndent = 0
   
-  // 3. 处理标题（必须在列表之前）
-  md = md.replace(/^####\s+(.+)$/gm, '<h4>$1</h4>')
-  md = md.replace(/^###\s+(.+)$/gm, '<h3>$1</h3>')
-  md = md.replace(/^##\s+(.+)$/gm, '<h2>$1</h2>')
-  md = md.replace(/^#\s+(.+)$/gm, '<h1>$1</h1>')
-  
-  // 4. 加粗和斜体
-  md = md.replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>')
-  md = md.replace(/\*(.+?)\*/g, '<em>$1</em>')
-  
-  // 5. 无序列表
-  md = md.replace(/^[\s]*[-*+]\s+(.+)$/gm, '<li>$1</li>')
-  
-  // 6. 有序列表
-  md = md.replace(/^[\s]*(\d+)\.\s+(.+)$/gm, '<li><b>$1.</b> $2</li>')
-  
-  // 7. 连续 li 包裹为 ul
-  md = md.replace(/((?:<li>.*?<\/li>\n?)+)/g, '<ul>$1</ul>')
-  
-  // 8. 引用
-  md = md.replace(/^>\s*(.+)$/gm, '<blockquote>$1</blockquote>')
-  
-  // 9. 分割线
-  md = md.replace(/^---+$/gm, '<hr/>')
-  
-  // 10. 图片
-  md = md.replace(/!\[([^\]]*)\]\(([^)]+)\)/g, '<img src="$2" alt="$1" style="max-width:100%;border-radius:8rpx;margin:12rpx 0"/>')
-  
-  // 11. 链接
-  md = md.replace(/\[([^\]]+)\]\(([^)]+)\)/g, '<a href="$2" style="color:#2563eb">$1</a>')
-  
-  // 12. 段落处理：双换行分段，单换行换行
-  md = md.replace(/\n{2,}/g, '\x00P\x00')
-  md = md.replace(/\n/g, '<br/>')
-  md = md.replace(/\x00P\x00/g, '</p><p>')
-  
-  // 13. 还原行内代码
-  inlineCodes.forEach((code, i) => {
-    md = md.replace(`\x00IC${i}\x00`, `<code>${escapeHtml(code)}</code>`)
-  })
-  
-  // 14. 还原代码块（mermaid 用图片内联渲染）
-  codeBlocks.forEach((block, i) => {
-    let cb
-    if (block.isDiagram) {
-      const base64 = wx.arrayBufferToBase64(
-        new Uint8Array(unescape(encodeURIComponent(block.code)).split('').map(c => c.charCodeAt(0)))
-      )
-      const imgUrl = `https://mermaid.ink/img/${base64}?bgColor=white&width=2400&scale=4`
-      cb = `<div style="margin:16rpx 0;padding:16rpx;background:#f8fafc;border-radius:12rpx;border:1rpx solid #e2e8f0">`
-        + `<div style="font-size:20rpx;color:#64748b;font-family:monospace;text-transform:uppercase;margin-bottom:8rpx">${block.lang}</div>`
-        + `<img src="${imgUrl}" style="width:100%;display:block" />`
-        + `</div>`
-    } else {
-      cb = renderCodeBlock(block.code, block.lang)
+  const flushList = () => {
+    if (listItems.length > 0) {
+      const tag = listType === 'ordered' ? 'ol' : 'ul'
+      html += '<' + tag + ' style="margin:8rpx 0;padding-left:32rpx;">'
+      for (const item of listItems) {
+        html += '<li style="margin:4rpx 0;">' + item + '</li>'
+      }
+      html += '</' + tag + '>'
+      listItems = []
+      inList = false
     }
-    md = md.replace(`\x00CB${i}\x00`, cb)
-  })
-  
-  // 15. 包裹段落
-  if (md && !md.match(/^<(h[1-6]|ul|ol|li|div|table|pre|blockquote|hr|img)/)) {
-    md = '<p>' + md + '</p>'
   }
   
-  // 16. 清理空标签
-  md = md.replace(/<p>\s*<\/p>/g, '')
-  md = md.replace(/<p>\s*<br\/>/g, '<p>')
-  md = md.replace(/<\/p>\s*<\/p>/g, '</p>')
+  for (let i = 0; i < lines.length; i++) {
+    let line = lines[i]
+    
+    // 代码块处理
+    const codeMatch = line.match(/^```(\w*)/)
+    if (codeMatch) {
+      flushList()
+      if (inCodeBlock) {
+        if (codeLines.length > 0) {
+          html += '<pre style="background:#fff;padding:16rpx;border-radius:12rpx;border:1rpx solid #e2e8f0;font-size:24rpx;overflow-x:auto;"><code class="language-' + (codeLang || 'text') + '">' + escapeHtml(codeLines.join('\n')) + '</code></pre>'
+        }
+        inCodeBlock = false
+        codeLines = []
+        codeLang = ''
+      } else {
+        inCodeBlock = true
+        codeLang = codeMatch[1] || ''
+      }
+      continue
+    }
+    
+    if (inCodeBlock) {
+      codeLines.push(line)
+      continue
+    }
+    
+    // 空行
+    if (/^\s*$/.test(line)) {
+      flushList()
+      continue
+    }
+    
+    // 标题
+    const hMatch = line.match(/^(#{1,4})\s+(.+)/)
+    if (hMatch) {
+      flushList()
+      const level = hMatch[1].length
+      const hSizes = ['36rpx', '32rpx', '28rpx', '26rpx']
+      html += '<h' + level + ' style="font-size:' + hSizes[level-1] + ';font-weight:700;margin:12rpx 0;color:#2B2D42;">' + cleanInline(hMatch[2]) + '</h' + level + '>'
+      continue
+    }
+    
+    // 分割线
+    if (/^---+\s*$/.test(line)) {
+      flushList()
+      html += '<hr style="border:none;border-top:1rpx solid #e2e8f0;margin:16rpx 0;">'
+      continue
+    }
+    
+    // 引用
+    const quoteMatch = line.match(/^>\s*(.+)/)
+    if (quoteMatch) {
+      flushList()
+      html += '<blockquote style="border-left:4rpx solid #B0512C;background:rgba(176,81,44,0.08);padding:8rpx 16rpx;margin:8rpx 0;border-radius:0 12rpx 12rpx 0;font-size:26rpx;">' + cleanInline(quoteMatch[1]) + '</blockquote>'
+      continue
+    }
+    
+    // 无序列表
+    const ulMatch = line.match(/^(\s*)[-*+]\s+(.+)/)
+    if (ulMatch) {
+      const indent = Math.floor(ulMatch[1].length / 2)
+      if (!inList || listType !== 'unordered' || listIndent !== indent) {
+        flushList()
+        inList = true
+        listType = 'unordered'
+        listIndent = indent
+      }
+      listItems.push(cleanInline(ulMatch[2]))
+      continue
+    }
+    
+    // 有序列表
+    const olMatch = line.match(/^(\s*)(\d+)\.\s+(.+)/)
+    if (olMatch) {
+      const indent = Math.floor(olMatch[1].length / 2)
+      if (!inList || listType !== 'ordered' || listIndent !== indent) {
+        flushList()
+        inList = true
+        listType = 'ordered'
+        listIndent = indent
+      }
+      listItems.push(cleanInline(olMatch[3]))
+      continue
+    }
+    
+    // 普通段落
+    flushList()
+    html += '<p style="margin:8rpx 0;line-height:1.6;font-size:28rpx;color:#4a4e69;">' + cleanInline(line) + '</p>'
+  }
   
-  return md
+  // 处理剩余列表
+  flushList()
+  
+  // 处理最后一个代码块
+  if (inCodeBlock && codeLines.length > 0) {
+    html += '<pre style="background:#fff;padding:16rpx;border-radius:12rpx;border:1rpx solid #e2e8f0;font-size:24rpx;overflow-x:auto;"><code class="language-' + (codeLang || 'text') + '">' + escapeHtml(codeLines.join('\n')) + '</code></pre>'
+  }
+  
+  return html
 }
 
-// 代码块渲染
-function renderCodeBlock(code, lang) {
-  if (!code) return ''
-  lang = (lang || '').toLowerCase()
+function markdownToPlainText(text) {
+  if (!text || typeof text !== 'string') return []
   
-  const isMermaid = ['mermaid', 'plantuml', 'uml', 'dot', 'graphviz'].includes(lang)
+  let md = text.trim()
   
-  if (isMermaid) {
-    return `<div style="margin:16rpx 0;border-radius:12rpx;overflow:hidden;border:1rpx solid #e5e7eb;background:#f8fafc">`
-      + `<div style="padding:8rpx 16rpx;background:#f1f5f9;border-bottom:1rpx solid #e5e7eb">`
-      + `<span style="color:#64748b;font-family:monospace;font-size:20rpx">${lang}</span></div>`
-      + `<pre style="margin:0;padding:16rpx;font-size:22rpx;line-height:1.5;white-space:pre-wrap;font-family:monospace;color:#475569">${escapeHtml(code)}</pre></div>`
+  // 剥离外层 ```markdown 包装
+  md = md.replace(/^```markdown\s*\n?/i, '').replace(/\n?```\s*$/i, '').trim()
+  
+  // 先把连续多个空行压缩为单个换行符，然后去掉开头和结尾的空行
+  md = md.replace(/\n{3,}/g, '\n\n')  // 3+空行 → 2空行
+         .replace(/^\n+/, '')          // 开头空行
+         .replace(/\n+$/, '')          // 结尾空行
+  
+  let lines = md.split('\n')
+  const output = []
+  let inCodeBlock = false
+  let codeLines = []
+  let codeLang = ''
+  
+  for (let i = 0; i < lines.length; i++) {
+    let line = lines[i]
+    
+    // 代码块处理
+    const codeMatch = line.match(/^```(\w*)/)
+    if (codeMatch) {
+      if (inCodeBlock) {
+        if (codeLines.length > 0) {
+          output.push({ type: 'code', lang: codeLang, content: codeLines.join('\n') })
+        }
+        inCodeBlock = false
+        codeLines = []
+        codeLang = ''
+      } else {
+        inCodeBlock = true
+        codeLang = codeMatch[1] || ''
+      }
+      continue
+    }
+    
+    if (inCodeBlock) {
+      codeLines.push(line)
+      continue
+    }
+    
+    // 跳过空行（压缩空行后，只会有最多1个连续空行）
+    // 不再生成 blank token，直接跳过
+    if (/^\s*$/.test(line)) {
+      continue
+    }
+    
+    // 标题
+    const hMatch = line.match(/^(#{1,4})\s+(.+)/)
+    if (hMatch) {
+      const level = hMatch[1].length
+      const text = cleanInline(hMatch[2])
+      output.push({ type: 'heading', level, text })
+      continue
+    }
+    
+    // 分割线
+    if (/^---+\s*$/.test(line)) {
+      output.push({ type: 'hr' })
+      continue
+    }
+    
+    // 引用
+    const quoteMatch = line.match(/^>\s*(.+)/)
+    if (quoteMatch) {
+      output.push({ type: 'quote', text: cleanInline(quoteMatch[1]) })
+      continue
+    }
+    
+    // 无序列表
+    const ulMatch = line.match(/^(\s*)[-*+]\s+(.+)/)
+    if (ulMatch) {
+      output.push({ type: 'list_item', ordered: false, indent: Math.floor(ulMatch[1].length / 2), text: cleanInline(ulMatch[2]) })
+      continue
+    }
+    
+    // 有序列表
+    const olMatch = line.match(/^(\s*)(\d+)\.\s+(.+)/)
+    if (olMatch) {
+      output.push({ type: 'list_item', ordered: true, number: parseInt(olMatch[2]), indent: Math.floor(olMatch[1].length / 2), text: cleanInline(olMatch[3]) })
+      continue
+    }
+    
+    // 普通段落
+    const cleanedText = cleanInline(line)
+    if (cleanedText && cleanedText.trim()) {
+      output.push({ type: 'paragraph', text: cleanedText })
+    }
   }
   
-  const highlighted = highlightCode(code, lang)
-  return `<div style="margin:16rpx 0;border-radius:12rpx;overflow:hidden;border:1rpx solid #e5e7eb">`
-    + `<div style="display:flex;align-items:center;justify-content:space-between;padding:6rpx 16rpx;background:#f8fafc;border-bottom:1rpx solid #e5e7eb">`
-    + `<span style="color:#64748b;font-family:monospace;font-size:20rpx">${lang || 'code'}</span></div>`
-    + `<pre style="margin:0;padding:16rpx;background:#fff;overflow-x:auto;font-size:24rpx;line-height:1.6;font-family:'Courier New',Consolas,monospace;color:#1e293b">${highlighted}</pre></div>`
+  // 处理最后一个代码块
+  if (inCodeBlock && codeLines.length > 0) {
+    output.push({ type: 'code', lang: codeLang, content: codeLines.join('\n') })
+  }
+  
+  return output
 }
 
-// 语法高亮
-function highlightCode(code, lang) {
-  if (!code) return ''
+// 清理行内格式（去掉 **加粗**、*斜体*、`code` 等标记）
+function cleanInline(text) {
+  return text
+    .replace(/`([^`]+)`/g, '$1')
+    .replace(/\*\*([^*]+)\*\*/g, '$1')
+    .replace(/\*([^*]+)\*/g, '$1')
+    .replace(/\[([^\]]+)\]\([^)]+\)/g, '$1')
+    .replace(/!\[([^\]]*)\]\([^)]+\)/g, '$1')
+    .trim()
+}
+
+// 将 markdown 转为纯文本字符串（用于仅显示文本的场景）
+function markdownToSimpleText(text) {
+  if (!text || typeof text !== 'string') return ''
   
-  const tokens = []
-  let tIdx = 0
-  function tok(match, color) {
-    const ph = `\x01T${tIdx++}\x01`
-    tokens.push({ ph, html: `<span style="color:${color}">${escapeHtml(match)}</span>` })
-    return ph
+  let md = text.trim()
+  md = md.replace(/^```markdown\s*\n?/i, '').replace(/\n?```\s*$/i, '').trim()
+  
+  let lines = md.split('\n')
+  const result = []
+  let inCode = false
+  let codeBuf = []
+  
+  for (let line of lines) {
+    if (line.match(/^```/)) {
+      if (inCode) {
+        result.push('```\n' + codeBuf.join('\n') + '\n```')
+        codeBuf = []
+        inCode = false
+      } else {
+        inCode = true
+      }
+      continue
+    }
+    if (inCode) {
+      codeBuf.push(line)
+      continue
+    }
+    
+    // 标题转为纯文本
+    line = line.replace(/^#{1,4}\s+/, '')
+    // 列表转为纯文本
+    line = line.replace(/^[-*+]\s+/, '• ')
+    line = line.replace(/^\s*\d+\.\s+/, '')
+    // 清理行内格式
+    line = cleanInline(line)
+    
+    result.push(line)
   }
   
-  let r = code
+  if (inCode && codeBuf.length > 0) {
+    result.push('```\n' + codeBuf.join('\n') + '\n```')
+  }
   
-  // 字符串（必须在注释和关键字之前）
-  r = r.replace(/'(?:[^'\\]|\\.)*'/g, m => tok(m, '#ce9178'))
-  r = r.replace(/"(?:[^"\\]|\\.)*"/g, m => tok(m, '#ce9178'))
-  
-  // 注释
-  r = r.replace(/#.*$/gm, m => tok(m, '#6a9955'))
-  r = r.replace(/\/\/.*$/gm, m => tok(m, '#6a9955'))
-  r = r.replace(/\/\*[\s\S]*?\*\//g, m => tok(m, '#6a9955'))
-  
-  // 关键字
-  const kw = 'True|False|None|def|class|import|from|return|if|elif|else|for|while|in|and|or|not|as|with|try|except|finally|raise|yield|lambda|pass|break|continue|self|print|async|await|const|let|var|function|new|this|typeof|instanceof|switch|case|default|do|void|delete|export|super'
-  r = r.replace(new RegExp(`\\b(${kw})\\b`, 'g'), m => tok(m, '#c678dd'))
-  
-  // 内置函数/类型
-  const builtins = 'print|len|range|int|float|str|list|dict|set|tuple|bool|type|input|open|map|filter|zip|enumerate|sorted|reversed|sum|min|max|abs|round|isinstance|hasattr|getattr|setattr|super|property|staticmethod|classmethod'
-  r = r.replace(new RegExp(`\\b(${builtins})\\b`, 'g'), m => tok(m, '#e5c07b'))
-  
-  // 数字
-  r = r.replace(/\b(\d+\.?\d*(?:e[+-]?\d+)?)\b/gi, m => tok(m, '#d19a66'))
-  
-  // 函数调用
-  r = r.replace(/\b([a-zA-Z_]\w*)\s*(?=\()/g, m => tok(m, '#61afef'))
-  
-  // 转义 HTML
-  r = escapeHtml(r)
-  
-  // 还原 token
-  tokens.forEach(t => {
-    r = r.replace(t.ph, t.html)
-  })
-  
-  return r
+  return result.join('\n')
 }
 
 function escapeHtml(text) {
@@ -174,4 +301,17 @@ function escapeHtml(text) {
     .replace(/>/g, '&gt;')
 }
 
-module.exports = { markdownToHtml, escapeHtml, highlightCode, renderCodeBlock }
+// 单独渲染代码块为 HTML（用于资源页中的单独代码内容）
+function renderCodeBlock(code, language) {
+  if (!code) return ''
+  const lang = (language || 'text').toLowerCase()
+  const escaped = escapeHtml(code)
+  return (
+    '<pre style="background:#fff;padding:16rpx;border-radius:12rpx;border:1rpx solid #e2e8f0;font-size:24rpx;overflow-x:auto;margin:8rpx 0;">' +
+    '<div style="padding:4rpx 12rpx;background:#f8fafc;border-bottom:1rpx solid #e2e8f0;font-size:20rpx;color:#64748b;font-family:monospace;text-transform:uppercase;letter-spacing:0.05em;">' + lang + '</div>' +
+    '<code class="language-' + lang + '" style="display:block;padding:12rpx 14rpx;font-size:24rpx;line-height:1.5;color:#24292e;font-family:monospace;white-space:pre-wrap;word-break:break-all;">' + escaped + '</code>' +
+    '</pre>'
+  )
+}
+
+module.exports = { markdownToHtml, markdownToPlainText, markdownToSimpleText, escapeHtml, renderCodeBlock }

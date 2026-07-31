@@ -46,6 +46,9 @@ class LearningPathAgent(BaseAgent):
             log.warning(f"LearningPathAgent JSON 提取失败，使用 mock 数据兜底")
             path_data = self._get_mock_path(profile)
 
+        # 清理和规范知识点名称，确保简洁
+        path_data = self._clean_path_data(path_data)
+
         await self._save_path(user_id, path_data)
 
         log.info(f"LearningPathAgent 完成，用户 {user_id} 的学习路径已保存")
@@ -81,6 +84,58 @@ class LearningPathAgent(BaseAgent):
         """加载并格式化 Prompt"""
         template = self._load_prompt(self.PROMPT_PATH)
         return self._format_prompt(template, profile_json=profile_json)
+
+    def _clean_path_data(self, path_data: Dict) -> Dict:
+        """清理学习路径数据：截断过长的知识点名称，移除括号注释"""
+        import re
+
+        stages = path_data.get("stages", [])
+        for stage in stages:
+            # 清理阶段标题
+            title = stage.get("title", "")
+            if len(title) > 12:
+                stage["title"] = title[:12]
+
+            # 清理知识点名称
+            kps = stage.get("knowledge_points", [])
+            cleaned_kps = []
+            for kp in kps:
+                if isinstance(kp, dict):
+                    # 如果是字典格式，提取 name 字段
+                    name = kp.get("name", "")
+                    cleaned_name = self._trim_kp_name(name)
+                    kp["name"] = cleaned_name
+                    cleaned_kps.append(kp)
+                elif isinstance(kp, str):
+                    cleaned_kps.append(self._trim_kp_name(kp))
+                else:
+                    cleaned_kps.append(str(kp))
+            stage["knowledge_points"] = cleaned_kps
+
+            # 清理阶段描述
+            desc = stage.get("description", "")
+            if len(desc) > 100:
+                stage["description"] = desc[:100] + "..."
+
+        return path_data
+
+    @staticmethod
+    def _trim_kp_name(name: str) -> str:
+        """截断知识点名称：去除括号内容，限制5-12字"""
+        import re
+        if not name:
+            return ""
+        # 去除括号内容（中英文括号）
+        cleaned = re.sub(r'[（(].*?[)）]', '', name).strip()
+        # 去除冒号和冒号后的说明
+        cleaned = re.sub(r'[：:].*', '', cleaned).strip()
+        # 去除多余空格和标点
+        cleaned = re.sub(r'[\s]+', ' ', cleaned)
+        # 限制长度：最长12字
+        if len(cleaned) > 12:
+            cleaned = cleaned[:12]
+        # 最短3字，不足则保持原样
+        return cleaned
 
 
     def _get_mock_path(self, profile: Dict) -> Dict[str, Any]:

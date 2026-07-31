@@ -94,7 +94,7 @@
             <!-- Markdown 文档内容 -->
             <template v-for="(seg, i) in docSegments" :key="i">
               <div v-if="seg.type === 'markdown'" class="markdown-body" v-html="renderMd(seg.content)"></div>
-              <MermaidDiagram v-else :code="seg.content" />
+              <MermaidDiagram v-else :code="seg.content" :forceKey="mermaidRenderKey" />
             </template>
           </div>
           <el-empty v-else description="暂无文档，请先生成" />
@@ -242,7 +242,9 @@
                     <!-- Choice -->
                     <div v-if="questions[selectedQuestionIdx].type === 'choice' && questions[selectedQuestionIdx].options" class="question-options">
                       <el-radio-group v-model="answers[questions[selectedQuestionIdx].question_id]">
-                        <el-radio v-for="opt in questions[selectedQuestionIdx].options" :key="opt" :value="opt" class="option-radio">{{ opt }}</el-radio>
+                        <el-radio v-for="(opt, optIdx) in questions[selectedQuestionIdx].options" :key="opt" :value="opt" class="option-radio">
+                          <span class="option-label">{{ String.fromCharCode(65 + optIdx) }}.</span> {{ opt }}
+                        </el-radio>
                       </el-radio-group>
                     </div>
                     <!-- Judge -->
@@ -307,7 +309,9 @@
                   <div class="question-body">
                     <div v-if="q.type === 'choice' && q.options" class="question-options">
                       <el-radio-group v-model="answers[q.question_id]">
-                        <el-radio v-for="opt in q.options" :key="opt" :value="opt" class="option-radio">{{ opt }}</el-radio>
+                        <el-radio v-for="(opt, optIdx) in q.options" :key="opt" :value="opt" class="option-radio">
+                          <span class="option-label">{{ String.fromCharCode(65 + optIdx) }}.</span> {{ opt }}
+                        </el-radio>
                       </el-radio-group>
                     </div>
                     <div v-else-if="q.type === 'judge'" class="question-options">
@@ -449,7 +453,7 @@
           <div v-if="store.resources.reading_material">
             <template v-for="(seg, i) in readingSegments" :key="i">
               <div v-if="seg.type === 'markdown'" class="markdown-body" v-html="renderMd(seg.content)"></div>
-              <MermaidDiagram v-else :code="seg.content" />
+              <MermaidDiagram v-else :code="seg.content" :forceKey="mermaidRenderKey" />
             </template>
           </div>
           <el-empty v-else description="暂无拓展阅读材料，请先生成" />
@@ -534,7 +538,7 @@
           <div v-if="store.resources.summary">
             <template v-for="(seg, i) in summarySegments" :key="i">
               <div v-if="seg.type === 'markdown'" class="markdown-body" v-html="renderMd(seg.content)"></div>
-              <MermaidDiagram v-else :code="seg.content" />
+              <MermaidDiagram v-else :code="seg.content" :forceKey="mermaidRenderKey" />
             </template>
           </div>
           <el-empty v-else description="暂无学习总结，请先生成" />
@@ -754,6 +758,7 @@ const { trackEvent } = useLearningTracker({ resourceType: 'resource_page', stage
 // ── Local state ────────────────────────────────────
 
 const activeTab = ref('document')
+const mermaidRenderKey = ref(0)
 const openQuestions = ref<number[]>([])
 const answers = reactive<Record<number, string>>({})
 const submittedAnswers = ref<Record<number, { answer: string; correct: boolean; score: number }>>({})
@@ -862,6 +867,7 @@ watch(() => store.resources.mindmap_markdown, (val) => {
 
 watch(activeTab, (tab) => {
   if (tab === 'mindmap') nextTick(renderMindmap)
+  mermaidRenderKey.value++
   trackEvent('resource_view', { tab, stage_id: stageId.value })
 })
 
@@ -1023,6 +1029,12 @@ async function handleGenerateAll() {
 }
 
 async function handleRegenerate() {
+  // 清除答题记录
+  submittedAnswers.value = {}
+  Object.keys(answers).forEach(k => delete answers[k])
+  Object.keys(codeResults.value).forEach(k => delete codeResults.value[k])
+  selectedQuestionIdx.value = 0
+
   // 优先使用阶段级重新生成
   if (store.currentStageIndex !== null && pathStore.learningPath?.stages) {
     const stageId = pathStore.learningPath.stages[store.currentStageIndex]?.stage_id
@@ -1201,6 +1213,11 @@ onMounted(async () => {
   if (stageParam !== undefined) {
     const stageIndex = parseInt(String(stageParam), 10)
     if (!pathStore.learningPath) await pathStore.fetchPath()
+    // 切换阶段前先清除答题状态
+    submittedAnswers.value = {}
+    Object.keys(answers).forEach(k => delete answers[k])
+    Object.keys(codeResults.value).forEach(k => delete codeResults.value[k])
+    selectedQuestionIdx.value = 0
     await store.loadForStage(stageIndex, pathStore.learningPath?.stages)
     await loadPreviousAnswers()
     return
@@ -1209,6 +1226,11 @@ onMounted(async () => {
   // 无 stage 参数时，自动加载当前阶段的资源
   if (!pathStore.learningPath) await pathStore.fetchPath()
   const stageIdx = pathStore.currentStage ?? 0
+  // 切换阶段前先清除答题状态
+  submittedAnswers.value = {}
+  Object.keys(answers).forEach(k => delete answers[k])
+  Object.keys(codeResults.value).forEach(k => delete codeResults.value[k])
+  selectedQuestionIdx.value = 0
   if (pathStore.learningPath?.stages?.length) {
     await store.loadForStage(stageIdx, pathStore.learningPath.stages)
   } else {
@@ -1224,6 +1246,12 @@ onUnmounted(() => {
 
 // 监听后台资源生成完成通知，自动刷新
 function _onResourceGenerated() {
+  // 清除旧答题记录
+  submittedAnswers.value = {}
+  Object.keys(answers).forEach(k => delete answers[k])
+  Object.keys(codeResults.value).forEach(k => delete codeResults.value[k])
+  selectedQuestionIdx.value = 0
+
   if (pathStore.learningPath?.stages) {
     store.loadForStage(pathStore.currentStageIndex ?? 0, pathStore.learningPath.stages)
   }
@@ -1435,8 +1463,7 @@ onMounted(() => {
 }
 
 .markdown-body :deep(pre) {
-  background: #1e1e2e;
-  color: #cdd6f4;
+  background: #fff;
   padding: 16px;
   border-radius: var(--radius-md);
   overflow-x: auto;
@@ -1633,6 +1660,7 @@ onMounted(() => {
 .question-card {
   background: var(--color-bg-card);
   border: 1px solid var(--color-border);
+  border-left: 3px solid var(--color-primary);
   border-radius: var(--radius-lg);
   padding: 20px 24px;
   margin-bottom: 12px;
@@ -1691,6 +1719,11 @@ onMounted(() => {
   font-size: var(--text-base);
   color: var(--color-text-primary);
   padding-left: 4px;
+}
+.option-label {
+  font-weight: 600;
+  color: var(--color-primary);
+  margin-right: 4px;
 }
 .option-radio:deep(.el-radio__input.is-checked + .el-radio__label) {
   color: var(--color-primary);
@@ -1773,6 +1806,7 @@ onMounted(() => {
   border-radius: var(--radius-md);
   overflow: hidden;
   border: 1px solid var(--color-border);
+  border-left: 3px solid var(--color-student);
 }
 
 /* marked rendered code blocks (inline in document) */
@@ -1826,7 +1860,7 @@ onMounted(() => {
 .code-block pre {
   margin: 0;
   padding: 16px;
-  background: #1e1e2e;
+  background: #fff;
   overflow-x: auto;
   font-size: 13px;
   line-height: 1.6;
@@ -1834,7 +1868,6 @@ onMounted(() => {
 
 .code-block code {
   font-family: var(--font-mono);
-  color: #cdd6f4;
 }
 
 .run-result {

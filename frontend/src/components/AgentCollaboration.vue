@@ -129,18 +129,18 @@ function statusText(status: string) {
 }
 
 .agent-item.running {
-  background: var(--color-primary-lightest);
-  border-color: var(--color-primary-lighter);
+  background: var(--color-primary-faint);
+  border-color: var(--color-primary-pale);
 }
 
 .agent-item.completed {
-  background: #f0fdf4;
-  border-color: #86efac;
+  background: var(--color-success-soft);
+  border-color: var(--color-success);
 }
 
 .agent-item.failed {
-  background: #fef2f2;
-  border-color: #fca5a5;
+  background: var(--color-error-soft);
+  border-color: var(--color-error);
 }
 
 .agent-icon {
@@ -179,5 +179,8 @@ function statusText(status: string) {
 
 .progress-bar {
   margin-top: 16px;
+}
+.progress-bar :deep(.el-progress-bar__inner) {
+  background: linear-gradient(90deg, var(--color-student), #D17A52);
 }
 </style>

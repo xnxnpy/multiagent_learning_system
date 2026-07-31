@@ -225,42 +225,72 @@ class ProfileAgent(BaseAgent):
                 extracted["goal"] = val
                 break
 
-        # 知识水平
-        level_keywords = {
-            "零基础": "零基础", "没接触": "没怎么接触过", "没学过": "没学过",
-            "入门": "入门", "基础": "有一定基础", "学过": "有基础",
-            "熟悉": "比较熟悉", "精通": "精通",
-        }
-        for kw, val in level_keywords.items():
+        # 知识水平：只匹配用户明确回答"知识水平/学习基础"类问题的表述
+        # 注意：不包含单独的"基础"二字，避免"有编程基础"被误判为知识水平
+        level_keywords = [
+            ("零基础", "零基础"),
+            ("没怎么接触过", "没怎么接触过"), ("没接触过", "没怎么接触过"),
+            ("没学过", "没学过"), ("不熟悉", "不熟悉"),
+            ("入门", "入门"),
+            ("学过相关课程", "学过相关课程"), ("相关课程", "学过相关课程"),
+            ("有编程语言基础", "有编程语言基础"), ("有语言基础", "有编程语言基础"),
+            ("有基础", "有一定基础"), ("有一定基础", "有一定基础"),
+            ("比较熟悉", "比较熟悉"), ("熟悉", "比较熟悉"),
+            ("精通", "精通"),
+        ]
+        for kw, val in level_keywords:
             if kw in text:
                 extracted["knowledge_level"] = val
                 break
 
-        # 兴趣方向
-        interest_keywords = {
-            "机器学习": "机器学习", "深度学习": "深度学习", "AI": "人工智能",
-            "人工智能": "人工智能", "web": "Web开发", "前端": "前端开发",
-            "后端": "后端开发", "数据分析": "数据分析", "大数据": "大数据",
-            "网络安全": "网络安全", "游戏": "游戏开发", "自然语言处理": "NLP",
-            "nlp": "NLP", "计算机视觉": "计算机视觉", "cv": "计算机视觉",
-        }
+        # 兴趣方向：只提取用户明确提到的方向，不要过度推断
+        # 例如用户说"AI"，只添加"人工智能"，不要同时添加"机器学习"等
+        interest_keywords = [
+            ("自然语言处理", "NLP"), ("计算机视觉", "计算机视觉"),
+            ("深度学习", "深度学习"), ("机器学习", "机器学习"),
+            ("人工智能", "人工智能"), ("AI", "人工智能"),
+            ("Web开发", "Web开发"), ("web开发", "Web开发"), ("web", "Web开发"),
+            ("前端开发", "前端开发"), ("前端", "前端开发"),
+            ("后端开发", "后端开发"), ("后端", "后端开发"),
+            ("数据分析", "数据分析"), ("大数据", "大数据"),
+            ("网络安全", "网络安全"), ("游戏开发", "游戏开发"), ("游戏", "游戏开发"),
+            ("NLP", "NLP"), ("nlp", "NLP"), ("CV", "计算机视觉"), ("cv", "计算机视觉"),
+        ]
         found_interests = list(existing.get("interests") or [])
-        for kw, val in interest_keywords.items():
+        for kw, val in interest_keywords:
             if kw in text and val not in found_interests:
                 found_interests.append(val)
+                break  # 只匹配最具体的一个，避免过度推断
         if found_interests != (existing.get("interests") or []):
             extracted["interests"] = found_interests
 
-        # 薄弱点
-        weakness_keywords = {
-            "数学": "数学基础", "算法": "算法", "英语": "英语",
-            "编程": "编程基础", "逻辑": "逻辑思维", "基础差": "基础薄弱",
-            "没学过": "未接触过", "没接触": "未接触过",
-        }
+        # 薄弱点：提取用户明确表达的薄弱点
+        # 规则：
+        # 1. 如果用户明确提到"薄弱/差/弱/不擅长"等负面上下文，提取对应薄弱点
+        # 2. 如果用户只回答一个常见薄弱点词（算法/数学/英语），且输入很短（<=6字），视为回答薄弱点问题
+        # 3. 避免"有编程基础"、"学过编程"等中性/正面描述被误判为薄弱点
+        weakness_keywords = [
+            ("数学", "数学基础"), ("数学基础", "数学基础"), ("数学不好", "数学基础"), ("数学差", "数学基础"),
+            ("算法", "算法"), ("算法薄弱", "算法"), ("算法不好", "算法"), ("算法差", "算法"), ("算法弱", "算法"),
+            ("英语", "英语"), ("英语不好", "英语"), ("英语差", "英语"), ("英语文献", "英语"),
+            ("编程基础差", "编程基础"), ("编程不好", "编程基础"), ("编程薄弱", "编程基础"),
+            ("逻辑思维差", "逻辑思维"), ("逻辑不好", "逻辑思维"), ("逻辑", "逻辑思维"),
+            ("基础薄弱", "基础薄弱"), ("基础差", "基础薄弱"),
+        ]
+        short_weakness_keywords = ["算法", "数学", "英语", "编程", "逻辑"]
+        negative_context = any(k in text for k in ["薄弱", "弱点", "不足", "不擅长", "差", "弱", "困难", "不好"])
+        is_short_answer = len(text.strip()) <= 6
+        has_weakness_keyword = any(k in text for k in short_weakness_keywords)
+        # 排除明显的正面/中性描述
+        positive_context = any(k in text for k in ["有", "会", "学过", "基础", "擅长", "好"])
+        should_extract_weakness = negative_context or (is_short_answer and has_weakness_keyword and not positive_context)
+
         found_weakness = list(existing.get("weakness") or [])
-        for kw, val in weakness_keywords.items():
-            if kw in text and val not in found_weakness:
-                found_weakness.append(val)
+        if should_extract_weakness:
+            for kw, val in weakness_keywords:
+                if kw in text and val not in found_weakness:
+                    found_weakness.append(val)
+                    break
         if found_weakness != (existing.get("weakness") or []):
             extracted["weakness"] = found_weakness
 
@@ -275,16 +305,22 @@ class ProfileAgent(BaseAgent):
                 extracted["learning_style"] = val
                 break
 
-        # 编程能力
-        ability_keywords = {
-            "零基础": "零基础", "没学过编程": "零基础", "不会编程": "零基础",
-            "入门": "入门", "基础": "会基础语法", "python基础": "会基础语法",
-            "中级": "中级", "熟练": "熟练", "精通": "精通",
-        }
-        for kw, val in ability_keywords.items():
-            if kw in text:
-                extracted["coding_ability"] = val
-                break
+        # 编程能力：必须由用户明确回答编程能力问题时才提取
+        # 单独的"基础"、"有基础"不会触发，必须是"编程能力/水平"相关表述
+        ability_keywords = [
+            ("不会编程", "零基础"), ("没学过编程", "零基础"), ("零基础", "零基础"),
+            ("编程入门", "入门"), ("入门", "入门"),
+            ("会基础语法", "会基础语法"), ("基础语法", "会基础语法"),
+            ("能写简单脚本", "入门"), ("写过项目", "中级"),
+            ("中级", "中级"), ("熟练", "熟练"), ("精通", "精通"),
+        ]
+        # 只有当对话中明确出现"编程"相关词，或用户回答的是最后一个编程能力问题时，才提取
+        has_programming_context = any(k in text for k in ["编程", "代码", "程序", "开发"])
+        if has_programming_context:
+            for kw, val in ability_keywords:
+                if kw in text:
+                    extracted["coding_ability"] = val
+                    break
 
         return extracted
 
