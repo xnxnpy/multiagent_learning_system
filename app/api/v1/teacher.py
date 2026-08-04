@@ -528,12 +528,29 @@ async def generate_knowledge_graph(
         raise HTTPException(status_code=400, detail="知识库文档内容为空")
 
     from app.agents.knowledge_graph_agent import KnowledgeGraphAgent
-    agent = KnowledgeGraphAgent(db)
-    graph_data = await agent.run(topic="上传文档知识图谱", content=content, user_id=current_user.id)
+    from app.api.v1.student import send_agent_progress
+    await send_agent_progress(
+        current_user.id, step="knowledge_graph",
+        step_name="知识图谱 Agent · 从文档构建知识图谱中", progress=10, status="running",
+    )
+    try:
+        agent = KnowledgeGraphAgent(db)
+        graph_data = await agent.run(topic="上传文档知识图谱", content=content, user_id=current_user.id)
+    except Exception:
+        await send_agent_progress(
+            current_user.id, step="knowledge_graph", step_name="知识图谱 Agent · 运行失败",
+            progress=10, status="failed",
+        )
+        raise
 
     # 补全缺失字段
     graph_data.setdefault("title", "上传文档知识图谱")
     graph_data.setdefault("knowledge_point_count", len(graph_data.get("nodes", [])))
+
+    await send_agent_progress(
+        current_user.id, step="knowledge_graph", step_name="完成",
+        progress=100, status="completed",
+    )
 
     return KnowledgeGraphResponse(**graph_data)
 
@@ -721,6 +738,10 @@ async def get_all_student_resources(
                         content = {"content": content}
                 elif not isinstance(content, dict):
                     content = {}
+                # 规范化资源内容
+                if isinstance(content, dict):
+                    from app.agents.utils import normalize_resource_content
+                    content = normalize_resource_content(content, res_type)
                 quality = content.get("quality_score") or content.get("quality") or {}
                 resources.append({
                     "resource_type": res_type,
@@ -818,7 +839,7 @@ async def teacher_regenerate_resource(
     try:
         content, quality = await _generate_and_evaluate(
             db, student_id, request.stage_id, stage_topic, resource_type,
-            profile_id=profile_id,
+            profile_id=profile_id, trigger_user_id=current_user.id,
         )
         return {"success": True, "content": content, "quality_score": quality}
     except Exception as e:
@@ -850,10 +871,21 @@ async def teacher_reevaluate_resource(
         raise HTTPException(status_code=404, detail="资源不存在")
 
     content = record.content if isinstance(record.content, dict) else {"content": str(record.content)}
+    # 规范化资源内容
+    if isinstance(content, dict):
+        from app.agents.utils import normalize_resource_content
+        content = normalize_resource_content(content, resource_type)
     topic = record.topic or ""
 
     try:
+        from app.api.v1.student import send_agent_progress, _RESOURCE_AGENT_NAMES
         from app.agents.resource_quality_agent import ResourceQualityAgent
+        agent_name = _RESOURCE_AGENT_NAMES.get(resource_type, f"{resource_type} Agent")
+        await send_agent_progress(
+            current_user.id, step=resource_type,
+            step_name=f"{agent_name.split(' · ')[0]} · 资源质量评估中",
+            progress=30, status="running", stage_id=request.stage_id,
+        )
         quality_agent = ResourceQualityAgent(db)
         quality = await quality_agent.run(
             topic=topic, resource_type=resource_type,
@@ -865,9 +897,19 @@ async def teacher_reevaluate_resource(
         record.content = updated
         await db.commit()
 
+        await send_agent_progress(
+            current_user.id, step=resource_type, step_name="完成",
+            progress=100, status="completed", stage_id=request.stage_id,
+        )
+
         return {"success": True, "quality_score": quality}
     except Exception as e:
         log.error(f"教师重新评估失败: {e}", exc_info=True)
+        from app.api.v1.student import send_agent_progress as _sap
+        await _sap(
+            current_user.id, step=resource_type, step_name="资源质量评估失败",
+            progress=30, status="failed", stage_id=request.stage_id,
+        )
         raise HTTPException(status_code=500, detail=f"重新评估失败: {str(e)}")
 
 

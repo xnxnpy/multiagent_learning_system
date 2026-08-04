@@ -2,7 +2,7 @@ from typing import Dict, Any, Optional, List
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select
 from app.agents.base import BaseAgent
-from app.agents.utils import extract_json
+from app.agents.utils import extract_json, normalize_resource_content
 from app.core.logger import log
 
 MAX_CONTENT_LENGTH = 8000
@@ -91,7 +91,10 @@ class KnowledgeGraphAgent(BaseAgent):
             record = result.scalar_one_or_none()
             if record:
                 log.info(f"MySQL 命中缓存，主题: {topic}")
-                return record.content
+                content = record.content
+                if isinstance(content, dict):
+                    content = normalize_resource_content(content, "knowledge_link")
+                return content
 
         # 获取学生画像
         profile_context = ""
@@ -124,6 +127,7 @@ class KnowledgeGraphAgent(BaseAgent):
             log.warning("知识点关联图 JSON 提取失败，使用 mock 兜底")
             result = self._get_mock_stage_graph(topic)
 
+        result = normalize_resource_content(result, "knowledge_link")
         log.info(f"KnowledgeGraphAgent [stage] 完成，节点: {len(result.get('nodes', []))}, 边: {len(result.get('edges', []))}")
         return result
 

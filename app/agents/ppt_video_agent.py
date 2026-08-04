@@ -6,7 +6,7 @@ from typing import Dict, Any, Optional
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select
 from app.agents.base import BaseAgent
-from app.agents.utils import extract_json
+from app.agents.utils import extract_json, normalize_resource_content
 from app.core.config import settings
 from app.core.logger import log
 from app.core.ppt_video_config import MIN_PAGES, MAX_PAGES
@@ -359,7 +359,10 @@ class PptVideoAgent(BaseAgent):
             result = await self.db.execute(query.order_by(LearningResource.created_at.desc()).limit(1))
             record = result.scalar_one_or_none()
             if record and record.content:
-                return record.content
+                content = record.content
+                if isinstance(content, dict):
+                    content = normalize_resource_content(content, "ppt_video")
+                return content
         except Exception as e:
             log.warning(f"查询 PPT 视频缓存失败: {e}")
         return None

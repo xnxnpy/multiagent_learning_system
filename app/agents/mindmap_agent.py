@@ -3,7 +3,7 @@ from typing import Dict, Any, Optional
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select
 from app.agents.base import BaseAgent
-from app.agents.utils import extract_json
+from app.agents.utils import extract_json, normalize_resource_content
 from app.core.logger import log
 
 
@@ -45,6 +45,7 @@ class MindmapAgent(BaseAgent):
             result = self._get_mock(topic)
 
         if "mindmap_markdown" in result and result["mindmap_markdown"]:
+            result = normalize_resource_content(result, "mindmap")
             result["mindmap_markdown"] = self._ensure_markdown_format(result["mindmap_markdown"])
         else:
             result["mindmap_markdown"] = ""
@@ -67,7 +68,12 @@ class MindmapAgent(BaseAgent):
             ).order_by(LearningResource.created_at.desc()).limit(1)
         )
         record = result.scalar_one_or_none()
-        return record.content if record else None
+        if record:
+            content = record.content
+            if isinstance(content, dict):
+                content = normalize_resource_content(content, "mindmap")
+            return content
+        return None
 
     async def _get_profile(self, user_id: int) -> Optional[Dict[str, Any]]:
         from app.models import StudentProfile

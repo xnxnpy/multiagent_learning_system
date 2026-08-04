@@ -113,19 +113,17 @@
 
     <!-- 资源生成进度浮窗（编辑风：柔和阴影，顶部色条） -->
     <transition name="gen-slide">
-      <div v-if="genProgress" class="gen-progress-panel" :class="`gen-progress-${portalType}`">
+      <div v-if="genProgress" class="gen-progress-panel" :class="[`gen-progress-${portalType}`, { 'gen-progress-failed': genProgress.status === 'failed' }]">
         <div class="gen-progress__accent"></div>
         <div class="gen-progress-header">
-          <span class="gen-icon">{{ genProgress.status === 'completed' ? '✓' : '⏳' }}</span>
+          <span class="gen-icon">{{ genProgress.status === 'completed' ? '✓' : genProgress.status === 'failed' ? '✕' : '⏳' }}</span>
           <div>
-            <div class="gen-title">
-              {{ genProgress.status === 'completed' ? '生成完成' : '资源生成中' }}
-            </div>
+            <div class="gen-title">{{ genProgressTitle }}</div>
             <div class="gen-subtitle">{{ genProgress.stepName }}</div>
           </div>
         </div>
         <el-progress :percentage="genProgress.progress" :stroke-width="5"
-                     :status="genProgress.status === 'completed' ? 'success' : undefined"
+                     :status="genProgress.status === 'completed' ? 'success' : genProgress.status === 'failed' ? 'exception' : undefined"
                      :show-text="false" />
       </div>
     </transition>
@@ -194,6 +192,26 @@ const portalAccentColor = computed(() => props.portalColor)
 
 const genProgress = ref<{ stepName: string; progress: number; status: string } | null>(null)
 let genTimer: ReturnType<typeof setTimeout> | null = null
+
+const genProgressTitle = computed(() => {
+  const s = genProgress.value?.status
+  if (s === 'completed') return '已完成'
+  if (s === 'failed') return '运行失败'
+  return 'Agent 运行中'
+})
+
+const applyGenProgress = (d: any) => {
+  const status = d?.status || 'running'
+  genProgress.value = {
+    stepName: d?.step_name || '运行中',
+    progress: Number(d?.progress) || 0,
+    status,
+  }
+  if (status === 'completed' || status === 'failed') {
+    if (genTimer) clearTimeout(genTimer)
+    genTimer = setTimeout(() => { genProgress.value = null }, 3000)
+  }
+}
 
 const activeMenu = computed(() => {
   const parts = route.path.split('/')
@@ -280,18 +298,13 @@ const initNotifications = async () => {
         }
         if (data.notification_type === 'resource_generation') {
           const d = data.data || {}
+          applyGenProgress(d)
           if (d.status === 'completed') {
-            genProgress.value = { stepName: '完成', progress: 100, status: 'completed' }
-            if (genTimer) clearTimeout(genTimer)
-            genTimer = setTimeout(() => { genProgress.value = null }, 3000)
             window.dispatchEvent(new CustomEvent('resource-generated', { detail: d }))
-          } else {
-            genProgress.value = {
-              stepName: d.step_name || '生成中',
-              progress: d.progress || 0,
-              status: 'running',
-            }
           }
+        }
+        if (data.notification_type === 'agent_progress') {
+          applyGenProgress(data.data || {})
         }
       }
     })
@@ -700,6 +713,14 @@ onUnmounted(() => {
 .gen-progress-student .gen-progress__accent { background: var(--color-student); }
 .gen-progress-teacher .gen-progress__accent { background: var(--color-teacher); }
 .gen-progress-admin   .gen-progress__accent { background: var(--color-admin); }
+
+/* 失败态：覆盖角色色为警告红 */
+.gen-progress-failed .gen-progress__accent { background: var(--color-danger, #E5484D); }
+.gen-progress-failed .gen-icon {
+  background: rgba(229, 72, 77, 0.12);
+  color: var(--color-danger, #E5484D);
+}
+.gen-progress-failed .gen-title { color: var(--color-danger, #E5484D); }
 
 .gen-progress-header {
   display: flex;

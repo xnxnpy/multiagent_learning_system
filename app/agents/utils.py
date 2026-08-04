@@ -216,3 +216,174 @@ def extract_json(text: str) -> dict | list | None:
 
     log.warning(f"无法从 LLM 响应中提取 JSON: {text[:300]}...")
     return None
+
+
+def normalize_field(value, expected_type, field_name: str = ""):
+    """
+    规范化 LLM 返回的字段值，处理 JSON 字符串被塞入字段的问题。
+
+    Args:
+        value: 原始字段值
+        expected_type: 期望类型 (dict, list, str)
+        field_name: 字段名（仅用于日志）
+
+    Returns:
+        规范化后的值
+    """
+    if value is None:
+        return None
+
+    # 如果已经是期望类型，直接返回
+    if expected_type == dict and isinstance(value, dict):
+        return value
+    if expected_type == list and isinstance(value, list):
+        return value
+    if expected_type == str and isinstance(value, str):
+        return value
+
+    # 如果是字符串但期望 dict/list，尝试 JSON 解析
+    if isinstance(value, str) and expected_type in (dict, list):
+        stripped = value.strip()
+        if stripped.startswith(("{", "[")):
+            try:
+                parsed = json.loads(stripped)
+                if isinstance(parsed, expected_type):
+                    return parsed
+            except (json.JSONDecodeError, ValueError):
+                pass
+
+    # 如果期望 list 但收到 dict，尝试提取
+    if expected_type == list and isinstance(value, dict):
+        # 常见模式: {"items": [...]} 或 {"terms": [...]}
+        for key in ("items", "terms", "list", "data", "questions"):
+            if key in value and isinstance(value[key], list):
+                return value[key]
+        return []
+
+    # 如果期望 str 但收到 dict/list，序列化
+    if expected_type == str and isinstance(value, (dict, list)):
+        try:
+            return json.dumps(value, ensure_ascii=False)
+        except (TypeError, ValueError):
+            return str(value)
+
+    # 类型不匹配但无法修复，返回空值
+    if expected_type == dict:
+        return {}
+    if expected_type == list:
+        return []
+
+    return value
+
+
+def normalize_resource_content(content: dict, resource_type: str) -> dict:
+    """
+    根据资源类型规范化 content 中的字段类型。
+    处理 LLM 将 JSON 字符串塞入 dict/list 字段的问题。
+
+    Args:
+        content: 资源内容字典
+        resource_type: 资源类型 (code/question/mindmap/glossary/knowledge_link/ppt_video)
+
+    Returns:
+        规范化后的 content 字典
+    """
+    if not isinstance(content, dict):
+        return content
+
+    if resource_type == "code":
+        # code 字段可能被塞入 JSON 字符串
+        code_val = content.get("code", "")
+        if isinstance(code_val, str) and code_val.strip().startswith("{") and '"code"' in code_val:
+            try:
+                parsed = json.loads(code_val.strip())
+                if isinstance(parsed, dict) and "code" in parsed:
+                    inner_code = parsed.get("code", "")
+                    python_kw = ["def ", "import ", "from ", "class ", "if ", "for ", "while ", "print(", "return "]
+                    if isinstance(inner_code, str) and any(kw in inner_code for kw in python_kw):
+                        for key in ("title", "description", "input_example", "expected_output",
+                                    "test_cases", "difficulty", "tags"):
+                            if key in parsed and parsed[key]:
+                                content[key] = parsed[key]
+                        content["code"] = inner_code
+            except (json.JSONDecodeError, ValueError):
+                pass
+        content["test_cases"] = normalize_field(content.get("test_cases"), list, "test_cases")
+        content["tags"] = normalize_field(content.get("tags"), list, "tags")
+
+    elif resource_type == "question":
+        questions = content.get("questions", [])
+        if isinstance(questions, str):
+            questions = normalize_field(questions, list, "questions")
+        if not isinstance(questions, list):
+            questions = []
+        for q in questions:
+            if not isinstance(q, dict):
+                continue
+            q["options"] = normalize_field(q.get("options"), list, "options")
+            q["test_cases"] = normalize_field(q.get("test_cases"), list, "test_cases")
+            if "rubric" in q:
+                q["rubric"] = normalize_field(q.get("rubric"), dict, "rubric")
+        content["questions"] = questions
+
+    elif resource_type == "mindmap":
+        md = content.get("mindmap_markdown", "")
+        if isinstance(md, str) and md.strip().startswith("{") and '"mindmap_markdown"' in md:
+            try:
+                parsed = json.loads(md.strip())
+                if isinstance(parsed, dict) and "mindmap_markdown" in parsed:
+                    inner_md = parsed.get("mindmap_markdown", "")
+                    if isinstance(inner_md, str) and inner_md:
+                        content["mindmap_markdown"] = inner_md
+                        if "mindmap_html" in parsed:
+                            content["mindmap_html"] = parsed["mindmap_html"]
+            except (json.JSONDecodeError, ValueError):
+                pass
+
+    elif resource_type == "glossary":
+        terms = content.get("terms", [])
+        terms = normalize_field(terms, list, "terms")
+        for term in terms:
+            if not isinstance(term, dict):
+                continue
+            term["related_terms"] = normalize_field(term.get("related_terms"), list, "related_terms")
+        content["terms"] = terms
+
+    elif resource_type == "knowledge_link":
+        nodes = content.get("nodes", [])
+        nodes = normalize_field(nodes, list, "nodes")
+        for node in nodes:
+            if not isinstance(node, dict):
+                continue
+            level = node.get("level")
+            if isinstance(level, str) and level.isdigit():
+                node["level"] = int(level)
+            elif not isinstance(level, int):
+                node["level"] = 3
+        content["nodes"] = nodes
+        content["edges"] = normalize_field(content.get("edges"), list, "edges")
+
+    elif resource_type == "ppt_video":
+        pages = content.get("pages", [])
+        pages = normalize_field(pages, list, "pages")
+        for page in pages:
+            if not isinstance(page, dict):
+                continue
+            page_content = page.get("content")
+            if isinstance(page_content, dict):
+                if page.get("template") == "code_example":
+                    code_val = page_content.get("code", "")
+                    if isinstance(code_val, str) and code_val.strip().startswith("{") and '"code"' in code_val:
+                        try:
+                            parsed = json.loads(code_val.strip())
+                            if isinstance(parsed, dict) and "code" in parsed:
+                                inner_code = parsed.get("code", "")
+                                python_kw = ["def ", "import ", "from ", "class ", "if ", "for ", "while ", "print(", "return "]
+                                if isinstance(inner_code, str) and any(kw in inner_code for kw in python_kw):
+                                    page_content["code"] = inner_code
+                        except (json.JSONDecodeError, ValueError):
+                            pass
+                page_content["bullets"] = normalize_field(page_content.get("bullets"), list, "bullets")
+        content["pages"] = pages
+
+    return content

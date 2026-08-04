@@ -2,7 +2,7 @@ from typing import Dict, Any, Optional
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select
 from app.agents.base import BaseAgent
-from app.agents.utils import extract_json
+from app.agents.utils import extract_json, normalize_resource_content
 from app.core.logger import log
 
 
@@ -36,6 +36,7 @@ class GlossaryAgent(BaseAgent):
             log.warning("GlossaryAgent JSON 提取失败，使用 mock 兜底")
             result = self._get_mock_glossary(topic, profile)
 
+        result = normalize_resource_content(result, "glossary")
         log.info(f"GlossaryAgent 完成，生成 {len(result.get('terms', []))} 个术语")
         return result
 
@@ -74,7 +75,10 @@ class GlossaryAgent(BaseAgent):
         )
         record = result.scalar_one_or_none()
         if record:
-            return record.content
+            content = record.content
+            if isinstance(content, dict):
+                content = normalize_resource_content(content, "glossary")
+            return content
         return None
 
     def _load_and_format_prompt(self, topic: str, profile: Dict = None) -> str:

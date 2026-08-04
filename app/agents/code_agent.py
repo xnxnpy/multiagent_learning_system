@@ -2,7 +2,7 @@ from typing import Dict, Any, Optional
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select
 from app.agents.base import BaseAgent
-from app.agents.utils import extract_json
+from app.agents.utils import extract_json, normalize_resource_content
 from app.core.logger import log
 from app.sandbox.local_runner import LocalRunner
 
@@ -92,6 +92,10 @@ class CodeAgent(BaseAgent):
             result.setdefault("difficulty", "中等")
             result.setdefault("tags", [])
 
+        # ── 关键修复：规范化 code 字段 ──────────────────────────
+        # LLM 有时将整个 JSON 响应序列化为字符串塞入 code 字段
+        result = normalize_resource_content(result, "code")
+
         log.info(f"CodeAgent 完成，代码已生成，长度: {len(result.get('code', ''))} 字符")
         return result
 
@@ -109,9 +113,14 @@ class CodeAgent(BaseAgent):
         if record:
             content = record.content
             # 跳过无效缓存（之前 API 失败时保存的降级数据）
-            if isinstance(content, dict) and content.get("code", "").startswith("# 代码生成失败"):
+            code_val = content.get("code", "") if isinstance(content, dict) else ""
+            if isinstance(code_val, str) and code_val.startswith("# 代码生成失败"):
                 log.info(f"跳过无效代码缓存，将重新生成")
                 return None
+
+            # 规范化历史缓存中的 code 字段
+            if isinstance(content, dict):
+                content = normalize_resource_content(content, "code")
 
             return content
         return None
@@ -120,7 +129,6 @@ class CodeAgent(BaseAgent):
         """加载并格式化 Prompt"""
         template = self._load_prompt(self.PROMPT_PATH)
         return self._format_prompt(template, task_description=task_description)
-
 
     def _extract_code_from_response(self, response: str) -> Optional[str]:
         """

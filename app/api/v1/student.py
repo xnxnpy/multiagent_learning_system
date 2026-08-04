@@ -601,9 +601,21 @@ async def generate_learning_path(
 ):
     """生成学习路径"""
     log.info(f"学生 {current_user.id} 开始生成学习路径")
-    
-    path_agent = LearningPathAgent(db)
-    path_data = await path_agent.run(current_user.id)
+
+    await send_agent_progress(
+        current_user.id, step="learning_path",
+        step_name="学习路径 Agent · 规划学习路径中", progress=10, status="running",
+    )
+
+    try:
+        path_agent = LearningPathAgent(db)
+        path_data = await path_agent.run(current_user.id)
+    except Exception:
+        await send_agent_progress(
+            current_user.id, step="learning_path", step_name="学习路径 Agent · 运行失败",
+            progress=10, status="failed",
+        )
+        raise
 
     # 获取活跃画像
     gp_prof_result = await db.execute(
@@ -618,7 +630,12 @@ async def generate_learning_path(
         gp_path_query = gp_path_query.where(LearningPath.profile_id == gp_prof.id)
     result = await db.execute(gp_path_query)
     path = result.scalar_one_or_none()
-    
+
+    await send_agent_progress(
+        current_user.id, step="learning_path", step_name="完成",
+        progress=100, status="completed",
+    )
+
     return LearningPathResponse.model_validate(path)
 
 
@@ -713,6 +730,12 @@ async def get_resources(
                     raw = {"content": raw}
             elif raw is None:
                 raw = {}
+
+            # 规范化资源内容：修复 LLM 将 JSON 字符串塞入字段的问题
+            if isinstance(raw, dict):
+                from app.agents.utils import normalize_resource_content
+                raw = normalize_resource_content(raw, row.resource_type)
+
             resources[row.resource_type] = raw
 
     result = {
@@ -795,9 +818,69 @@ _RESOURCE_GENERATORS = {
     "ppt_video": "_gen_ppt_video",
 }
 
+# 资源类型 → Agent 显示名（用于进度卡片）
+_RESOURCE_AGENT_NAMES = {
+    "document": "文档生成 Agent · 生成学习文档",
+    "mindmap": "思维导图 Agent · 生成思维导图",
+    "code": "代码实操 Agent · 生成代码示例",
+    "question": "题库生成 Agent · 生成练习题目",
+    "reading_material": "拓展阅读 Agent · 生成阅读材料",
+    "glossary": "术语词汇 Agent · 生成词汇卡片",
+    "knowledge_link": "知识图谱 Agent · 生成知识点关联图",
+    "summary": "学习总结 Agent · 生成总结报告",
+    "ppt_video": "PPT 视频 Agent · 生成教学视频",
+}
 
-async def _generate_and_evaluate(db, user_id, stage_id, stage_topic, resource_type, profile_id=None):
-    """为指定用户生成单种资源并评估质量，返回 (content, quality_score)"""
+
+async def send_agent_progress(
+    user_id: int,
+    step: str,
+    step_name: str,
+    progress: int,
+    status: str = "running",
+    stage_id: Optional[int] = None,
+):
+    """通用 Agent 运行进度推送（与阶段资源生成进度卡片风格一致）。
+
+    Args:
+        user_id: 接收进度的用户 ID（通常是触发者，学生自助或教师代操作）
+        step: 步骤标识，如 "code" / "evaluation" / "learning_path" / "knowledge_graph"
+        step_name: 卡片副标题，如 "代码实操 Agent · 生成代码示例"
+        progress: 0-100 进度百分比
+        status: running / completed / failed
+        stage_id: 关联阶段 ID（可选）
+    """
+    try:
+        from app.core.websocket_manager import notification_manager
+        title = {
+            "running": "⚙️ Agent 运行中",
+            "completed": "✅ 已完成",
+            "failed": "❌ 运行失败",
+        }.get(status, "⚙️ Agent 运行中")
+        await notification_manager.send_notification(
+            user_id=user_id,
+            notification_type="agent_progress",
+            title=title,
+            content=step_name,
+            data={
+                "step": step,
+                "step_name": step_name,
+                "progress": min(max(progress, 0), 100),
+                "status": status,
+                "stage_id": stage_id,
+            },
+        )
+    except Exception:
+        pass  # 通知失败不影响主流程
+
+
+async def _generate_and_evaluate(db, user_id, stage_id, stage_topic, resource_type, profile_id=None, trigger_user_id=None):
+    """为指定用户生成单种资源并评估质量，返回 (content, quality_score)
+
+    Args:
+        trigger_user_id: 触发者用户 ID（接收进度卡片）。默认与 user_id 相同（学生自助）。
+            教师代学生重新生成时传教师 ID，进度卡片会推给教师。
+    """
     from app.models import LearningResource
     from app.models.upsert import upsert as mysql_upsert
     from app.agents.resource_quality_agent import ResourceQualityAgent
@@ -806,7 +889,24 @@ async def _generate_and_evaluate(db, user_id, stage_id, stage_topic, resource_ty
     if not gen_func:
         raise ValueError(f"不支持的资源类型: {resource_type}")
 
-    content = await globals()[gen_func](db, user_id, stage_topic, stage_id)
+    # 进度接收者：默认学生本人，教师代操作时为教师
+    progress_user_id = trigger_user_id or user_id
+    agent_name = _RESOURCE_AGENT_NAMES.get(resource_type, f"{resource_type} Agent · 生成中")
+
+    await send_agent_progress(
+        progress_user_id, step=resource_type, step_name=agent_name,
+        progress=10, status="running", stage_id=stage_id,
+    )
+
+    try:
+        content = await globals()[gen_func](db, user_id, stage_topic, stage_id)
+    except Exception as e:
+        await send_agent_progress(
+            progress_user_id, step=resource_type, step_name=agent_name,
+            progress=10, status="failed", stage_id=stage_id,
+        )
+        raise
+
     # 统一 content 为 dict：兼容 Agent 返回字符串 / DB 读取的历史 JSON 字符串
     if isinstance(content, str):
         try:
@@ -818,6 +918,11 @@ async def _generate_and_evaluate(db, user_id, stage_id, stage_topic, resource_ty
     elif content is None:
         content = {}
 
+    # 规范化资源内容：修复 LLM 将 JSON 字符串塞入字段的问题
+    if isinstance(content, dict):
+        from app.agents.utils import normalize_resource_content
+        content = normalize_resource_content(content, resource_type)
+
     resource_values = {
         "user_id": user_id, "profile_id": profile_id, "stage_id": stage_id,
         "resource_type": resource_type, "topic": stage_topic, "content": content,
@@ -825,17 +930,37 @@ async def _generate_and_evaluate(db, user_id, stage_id, stage_topic, resource_ty
     await mysql_upsert(db, LearningResource.__table__, values=resource_values)
     await db.commit()
 
-    quality_agent = ResourceQualityAgent(db)
-    quality = await quality_agent.run(
-        topic=stage_topic, resource_type=resource_type,
-        content=content, user_id=user_id,
+    # 进入质量评估阶段
+    await send_agent_progress(
+        progress_user_id, step=resource_type,
+        step_name=f"{agent_name.split(' · ')[0]} · 资源质量评估中",
+        progress=60, status="running", stage_id=stage_id,
     )
+
+    try:
+        quality_agent = ResourceQualityAgent(db)
+        quality = await quality_agent.run(
+            topic=stage_topic, resource_type=resource_type,
+            content=content, user_id=user_id,
+        )
+    except Exception as e:
+        await send_agent_progress(
+            progress_user_id, step=resource_type, step_name="资源质量评估失败",
+            progress=60, status="failed", stage_id=stage_id,
+        )
+        raise
+
     # content 已是 dict，直接拷贝并追加质量评分
     updated_content = dict(content) if isinstance(content, dict) else {"content": content}
     updated_content["quality_score"] = quality
     resource_values["content"] = updated_content
     await mysql_upsert(db, LearningResource.__table__, values=resource_values)
     await db.commit()
+
+    await send_agent_progress(
+        progress_user_id, step=resource_type, step_name="完成",
+        progress=100, status="completed", stage_id=stage_id,
+    )
 
     return updated_content, quality
 
@@ -950,7 +1075,7 @@ async def regenerate_resource(
     try:
         content, quality = await _generate_and_evaluate(
             db, current_user.id, request.stage_id, stage_topic, resource_type,
-            profile_id=profile_id,
+            profile_id=profile_id, trigger_user_id=current_user.id,
         )
         return {"success": True, "content": content, "quality_score": quality}
     except Exception as e:
@@ -1181,14 +1306,31 @@ async def _try_trigger_evaluation(user_id: int, db: AsyncSession, force: bool = 
                 trigger_reason = "正确率下降或学习时长达标"
             log.info(f"学生 {user_id} 触发评估：{trigger_reason}")
 
+            await send_agent_progress(
+                user_id, step="evaluation",
+                step_name="评估 Agent · 分析学习数据中", progress=10, status="running",
+            )
+
             # 执行评估
             from app.agents.evaluation_agent import create_evaluation_agent
             evaluation_agent = create_evaluation_agent(db)
-            eval_result = await evaluation_agent.run(user_id)
+            try:
+                eval_result = await evaluation_agent.run(user_id)
+            except Exception:
+                await send_agent_progress(
+                    user_id, step="evaluation", step_name="评估 Agent · 运行失败",
+                    progress=10, status="failed",
+                )
+                raise
 
             # 发送WebSocket通知
             from app.core.websocket_manager import notification_manager
             await notification_manager.send_evaluation_result(user_id, eval_result)
+
+            await send_agent_progress(
+                user_id, step="evaluation", step_name="完成",
+                progress=100, status="completed",
+            )
 
             # 答题触发时不做路径更新，只提示阶段完成后再优化
             if eval_result.get("should_update_path"):
@@ -1288,10 +1430,27 @@ async def run_evaluation(
 ):
     """执行学生评估"""
     log.info(f"学生 {current_user.id} 开始执行评估")
-    
-    evaluation_agent = create_evaluation_agent(db)
-    result = await evaluation_agent.run(current_user.id)
-    
+
+    await send_agent_progress(
+        current_user.id, step="evaluation",
+        step_name="评估 Agent · 分析学习数据中", progress=10, status="running",
+    )
+
+    try:
+        evaluation_agent = create_evaluation_agent(db)
+        result = await evaluation_agent.run(current_user.id)
+    except Exception as e:
+        await send_agent_progress(
+            current_user.id, step="evaluation", step_name="评估 Agent · 运行失败",
+            progress=10, status="failed",
+        )
+        raise
+
+    await send_agent_progress(
+        current_user.id, step="evaluation", step_name="完成",
+        progress=100, status="completed",
+    )
+
     return EvaluationResponse(**result)
 
 
@@ -2147,7 +2306,22 @@ async def get_stage_resources(
             select(LearningResource).where(LearningResource.id.in_(latest_ids))
         )
         for r in content_result.scalars().all():
-            typed_resources[r.resource_type] = r.content
+            content = r.content
+            if isinstance(content, str):
+                try:
+                    import json as _json
+                    parsed = _json.loads(content)
+                    if isinstance(parsed, (dict, list)):
+                        content = parsed
+                    else:
+                        content = {"content": content}
+                except Exception:
+                    content = {"content": content}
+            # 规范化资源内容
+            if isinstance(content, dict):
+                from app.agents.utils import normalize_resource_content
+                content = normalize_resource_content(content, r.resource_type)
+            typed_resources[r.resource_type] = content
 
     return {"stage_id": stage_id, "resources": typed_resources}
 
@@ -2594,12 +2768,24 @@ async def generate_knowledge_graph(
     topic = body.topic or (profile.goal if profile and profile.goal else "学习路径知识图谱")
 
     try:
+        await send_agent_progress(
+            current_user.id, step="knowledge_graph",
+            step_name="知识图谱 Agent · 构建全局知识图谱中", progress=10, status="running",
+        )
         kg_agent = KnowledgeGraphAgent(db)
         # force=True：用户主动点击"重新生成"时强制重新生成
         graph = await kg_agent.run(topic, content=content_text, user_id=current_user.id, stage_id=None, force=True)
+        await send_agent_progress(
+            current_user.id, step="knowledge_graph", step_name="完成",
+            progress=100, status="completed",
+        )
         return graph
     except Exception as e:
         log.error(f"知识图谱生成失败: {e}")
+        await send_agent_progress(
+            current_user.id, step="knowledge_graph", step_name="知识图谱 Agent · 运行失败",
+            progress=10, status="failed",
+        )
         raise HTTPException(status_code=500, detail=f"知识图谱生成失败: {str(e)}")
 
 

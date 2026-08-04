@@ -32,10 +32,12 @@ BLOCKED_PATTERNS = [
     r'\bopen\s*\([^)]*["\']\/',
 ]
 
-# 安全的环境变量（白名单）
+# 安全的环境变量（白名单，小写匹配，兼容 Windows 大小写不敏感）
 SAFE_ENV_KEYS = {
-    'PATH', 'PYTHONPATH', 'PYTHONDONTWRITEBYTECODE', 'PYTHONUNBUFFERED',
-    'HOME', 'USER', 'TEMP', 'TMP', 'LANG', 'LC_ALL', 'TZ',
+    'path', 'pythonpath', 'pythondontwritebytecode', 'pythonunbuffered',
+    'home', 'user', 'temp', 'tmp', 'lang', 'lc_all', 'tz',
+    'systemroot', 'pathext', 'userprofile', 'appdata', 'windir',  # Windows
+    'conda_default_env', 'conda_prefix', 'virtual_env',  # 虚拟环境
 }
 
 
@@ -69,8 +71,8 @@ class LocalRunner:
                 "success": False,
             }
 
-        # 构建安全的环境变量
-        safe_env = {k: v for k, v in os.environ.items() if k in SAFE_ENV_KEYS}
+        # 构建安全的环境变量（大小写不敏感匹配，兼容 Windows）
+        safe_env = {k: v for k, v in os.environ.items() if k.lower() in SAFE_ENV_KEYS}
         safe_env["PYTHONDONTWRITEBYTECODE"] = "1"
         safe_env["PYTHONUNBUFFERED"] = "1"
 

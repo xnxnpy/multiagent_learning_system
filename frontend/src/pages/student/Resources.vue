@@ -706,8 +706,8 @@ const RESOURCE_TYPE_MAP: Record<string, string> = {
 
 async function handleRegenerateSingle(resourceType: string) {
   const mappedType = RESOURCE_TYPE_MAP[resourceType] || resourceType
-  // 自动获取 stage_id：优先用 currentStageIndex，没有则取第一个阶段
-  let stageId = pathStore.learningPath?.stages?.[pathStore.currentStageIndex ?? 0]?.stage_id
+  // 自动获取 stage_id：使用 resourceStore 中的 currentStageIndex
+  let stageId = pathStore.learningPath?.stages?.[store.currentStageIndex ?? 0]?.stage_id
   if (!stageId && pathStore.learningPath?.stages?.length) {
     stageId = pathStore.learningPath.stages[0].stage_id
   }
@@ -729,7 +729,7 @@ async function handleRegenerateSingle(resourceType: string) {
     submittedAnswers.value = {}
     Object.keys(answers).forEach(k => delete answers[k])
     selectedQuestionIdx.value = 0
-    await store.loadForStage(pathStore.currentStageIndex, pathStore.learningPath?.stages)
+    await store.loadForStage(store.currentStageIndex ?? 0, pathStore.learningPath?.stages)
   } catch (e: any) {
     ElMessage.error(e?.response?.data?.detail || '重新生成失败')
   } finally {
@@ -1253,7 +1253,7 @@ function _onResourceGenerated() {
   selectedQuestionIdx.value = 0
 
   if (pathStore.learningPath?.stages) {
-    store.loadForStage(pathStore.currentStageIndex ?? 0, pathStore.learningPath.stages)
+    store.loadForStage(store.currentStageIndex ?? 0, pathStore.learningPath.stages)
   }
 }
 onMounted(() => {

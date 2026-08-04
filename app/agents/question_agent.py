@@ -2,7 +2,7 @@ from typing import Dict, Any, List, Optional
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select
 from app.agents.base import BaseAgent
-from app.agents.utils import extract_json
+from app.agents.utils import extract_json, normalize_resource_content
 from app.core.logger import log
 from app.sandbox.local_runner import LocalRunner
 
@@ -75,6 +75,7 @@ class QuestionAgent(BaseAgent):
             log.warning(f"生成题目数量不足（{q_count}道），建议至少3道")
 
         # 确保每道题都有 knowledge_point 字段
+        result = normalize_resource_content(result, "question")
         for q in result.get("questions", []):
             if "knowledge_point" not in q or not q["knowledge_point"]:
                 # 如果LLM遗漏，用topic的第一个知识点兜底
@@ -123,6 +124,7 @@ class QuestionAgent(BaseAgent):
         if record:
             questions_data = record.content
             if isinstance(questions_data, dict):
+                questions_data = normalize_resource_content(questions_data, "question")
                 q_list = questions_data.get("questions", [])
                 if not q_list:
                     log.info(f"跳过空题目缓存，将重新生成")
