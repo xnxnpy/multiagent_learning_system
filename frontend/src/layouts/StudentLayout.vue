@@ -22,6 +22,8 @@ const menuItems = [
   { key: 'profile', label: '学习画像' },
   { key: 'learning-path', label: '学习路径' },
   { key: 'resources', label: '学习资源' },
+  { key: 'question-bank', label: '题库' },
+  { key: 'wrong-book', label: '错题本' },
   { key: 'tutor', label: '智能辅导' },
   { key: 'report', label: '学习报告' },
   { key: 'notifications', label: '通知' },

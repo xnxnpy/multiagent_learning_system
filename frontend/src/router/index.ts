@@ -62,6 +62,16 @@ const routes: RouteRecordRaw[] = [
         path: 'my-learning',
         name: 'MyLearning',
         component: () => import('@/pages/student/MyLearning.vue')
+      },
+      {
+        path: 'question-bank',
+        name: 'QuestionBank',
+        component: () => import('@/pages/student/QuestionBank.vue')
+      },
+      {
+        path: 'wrong-book',
+        name: 'WrongBook',
+        component: () => import('@/pages/student/WrongBook.vue')
       }
     ]
   },

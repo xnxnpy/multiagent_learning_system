@@ -141,35 +141,31 @@ export const useLearningPathStore = defineStore('learningPath', () => {
   }
 
   const RESOURCE_STEP_NAMES = [
-    '文档生成 Agent · 生成学习文档',
-    '思维导图 Agent · 生成思维导图',
-    '题库生成 Agent · 生成练习题目',
-    '代码示例 Agent · 生成代码示例',
-    '视频脚本 Agent · 生成教学视频脚本',
-    '拓展阅读 Agent · 生成阅读材料',
-    '术语词汇 Agent · 生成词汇卡片',
-    '知识关联 Agent · 生成关联图',
-    '学习总结 Agent · 生成总结报告',
+    'Supervisor · 分析画像与阶段',
+    '文档生成 · 个性化讲解',
+    '题库生成 · 摸底练习',
+    '质量评估 · 守门员审核',
+    '资源入库 · 双写完成',
   ]
 
-  async function generateStageResources(stageId: number, force = false) {
+  async function generateStageResources(stageId: number, _force = false) {
     stageGenerating.value = true
-    appStore.addTask({ id: 'workflow', type: 'workflow', label: '生成本阶段资源', progress: 0, status: 'running' })
-    // 模拟子步骤进度（后端是同步HTTP，无法推送实时进度）
+    appStore.addTask({ id: 'workflow', type: 'workflow', label: 'Supervisor 正在编排本阶段资源', progress: 5, status: 'running' })
+
+    // 后端为同步 HTTP，无法推送节点级进度；用轮询文案模拟 Supervisor 思考过程
     let simIdx = 0
-    const totalSteps = RESOURCE_STEP_NAMES.length
     const simTimer = setInterval(() => {
-      if (simIdx < totalSteps - 1) {
+      if (simIdx < RESOURCE_STEP_NAMES.length - 1) {
         simIdx++
-        const pct = Math.round((simIdx / totalSteps) * 100)
+        const pct = Math.min(5 + Math.round((simIdx / RESOURCE_STEP_NAMES.length) * 90), 95)
         appStore.updateTask('workflow', { progress: pct, detail: RESOURCE_STEP_NAMES[simIdx] })
       }
-    }, 2000)
+    }, 8000)
+
     try {
       const res: any = await request.post('/v1/student/learn/stage/generate', {
         stage_id: stageId,
-        force,
-      })
+      }, { timeout: 600000 })
       stageResources.value = res.generated || {}
 
       // 同步更新 resourceStore，确保 Resources 页面能看到数据
@@ -181,7 +177,10 @@ export const useLearningPathStore = defineStore('learningPath', () => {
       )
 
       appStore.updateTask('workflow', { progress: 100, detail: '完成' })
-      return res.generated
+      return res
+    } catch (e) {
+      appStore.failTask('workflow', '资源生成失败')
+      throw e
     } finally {
       clearInterval(simTimer)
       stageGenerating.value = false

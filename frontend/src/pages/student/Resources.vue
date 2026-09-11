@@ -3,12 +3,12 @@
     <!-- Action Bar -->
     <div class="action-bar">
       <div class="action-left">
-        <el-button type="primary" :loading="store.generating" @click="handleGenerateAll">
+        <el-button type="primary" :loading="generatingAll || pathStore.stageGenerating" @click="handleGenerateAll">
           <el-icon><MagicStick /></el-icon>
-          {{ store.workflowSessionId ? '继续生成' : '一键生成全部资源' }}
+          {{ hasAnyData ? 'Supervisor 重新编排本阶段' : '智能生成本阶段资源' }}
         </el-button>
         <el-popconfirm
-          title="重新生成会清除当前所有学习资源和答题记录，确定继续吗？"
+          title="重新生成会替换当前阶段的资源（答题历史保留），确定继续吗？"
           confirm-button-text="确定重新生成"
           cancel-button-text="取消"
           @confirm="handleRegenerate"
@@ -27,6 +27,28 @@
         </el-tag>
       </div>
     </div>
+
+    <!-- 空阶段引导：进入阶段但尚无核心资源时，引导调用 Supervisor -->
+    <el-alert
+      v-if="!store.loading && !hasAnyData && pathStore.learningPath?.stages?.length"
+      type="info"
+      :closable="false"
+      show-icon
+      class="empty-stage-alert"
+    >
+      <template #title>
+        本阶段还没有学习资源。Supervisor 会根据你的画像和知识库，按需生成讲解文档与练习题。
+      </template>
+      <el-button
+        type="primary"
+        size="small"
+        style="margin-top: 8px"
+        :loading="generatingAll || pathStore.stageGenerating"
+        @click="handleGenerateAll"
+      >
+        开始智能生成
+      </el-button>
+    </el-alert>
 
     <!-- Loading state -->
     <div v-if="store.loading && !hasAnyData" class="loading-state">
@@ -767,6 +789,7 @@ const codeRunning = ref<Record<number, boolean>>({})
 const submitting = ref(false)
 const runningCode = ref(false)
 const showWorkflow = ref(false)
+const generatingAll = ref(false)
 const viewMode = ref<'single' | 'all'>('single')
 const selectedQuestionIdx = ref(0)
 const submittedCount = computed(() => Object.keys(submittedAnswers.value).length)
@@ -995,36 +1018,34 @@ function stepName(step: string): string {
 // ── Actions ────────────────────────────────────────
 
 async function handleGenerateAll() {
-  // Ensure we have a topic
-  if (!store.currentTopic) {
-    try {
-      const axios = (await import('@/utils/axios')).default
-      const profile = await axios.get('/v1/student/profile')
-      if (profile?.goal) store.currentTopic = profile.goal
-      else if (profile?.major) store.currentTopic = profile.major
-    } catch { /* ignore */ }
+  // 走 Supervisor 学习环：按当前阶段增量生成（不再跑旧的全量工作流）
+  if (!pathStore.learningPath) await pathStore.fetchPath()
+  const stages = pathStore.learningPath?.stages
+  if (!stages?.length) {
+    ElMessage.warning('请先在「学习画像」页面完成画像，生成学习路径')
+    return
   }
-  if (!store.currentTopic) {
-    ElMessage.warning('请先在「学习画像」页面构建学习画像，确定学习主题')
+  const idx = store.currentStageIndex ?? pathStore.currentStage ?? 0
+  const stageId = stages[idx]?.stage_id
+  if (stageId === undefined) {
+    ElMessage.warning('无法确定当前阶段')
     return
   }
 
+  generatingAll.value = true
   showWorkflow.value = true
   try {
-    const sessionId = await store.startWorkflow()
-    await store.runWorkflow(sessionId, {
-      onComplete: () => {
-        ElMessage.success('全部资源生成完成！')
-        showWorkflow.value = false
-      },
-      onError: (err) => {
-        ElMessage.error('生成失败：' + err.message)
-        showWorkflow.value = false
-      },
-    })
-  } catch (err: any) {
-    ElMessage.error('启动失败：' + (err?.message || '未知错误'))
+    const res = await pathStore.generateStageResources(stageId)
+    const generated = Object.keys(res?.generated || {})
+    ElMessage.success(generated.length
+      ? `Supervisor 已完成本阶段资源：${generated.length} 类`
+      : '本阶段资源已齐备')
     showWorkflow.value = false
+  } catch (err: any) {
+    ElMessage.error('生成失败：' + (err?.response?.data?.detail || err?.message || '未知错误'))
+    showWorkflow.value = false
+  } finally {
+    generatingAll.value = false
   }
 }
 
@@ -1264,6 +1285,10 @@ onMounted(() => {
 <style scoped>
 .resources-page {
   max-width: 1400px;
+}
+
+.empty-stage-alert {
+  margin-bottom: 16px;
 }
 
 .action-bar {

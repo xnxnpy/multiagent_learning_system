@@ -145,6 +145,32 @@ export const studentAPI = {
     return request.post('/v1/student/learn/start')
   },
 
+  generateStageResources: (data: { stage_id: number; profile_id?: number }) => {
+    // Supervisor 学习环：同步等待生成完成（可能数分钟）
+    return request.post('/v1/student/learn/stage/generate', data, { timeout: 600000 })
+  },
+
+  getStageResources: (stageId: number) => {
+    return request.get(`/v1/student/learn/stage/resources/${stageId}`)
+  },
+
+  // ── 题库与错题本 ──
+  getQuestionBank: (params?: { stage_id?: number; knowledge_point?: string; status?: string; page?: number; page_size?: number }) => {
+    return request.get('/v1/question-bank', { params })
+  },
+
+  getWrongBook: (params?: { page?: number; page_size?: number }) => {
+    return request.get('/v1/question-bank/wrong-book', { params })
+  },
+
+  getWrongBookStats: () => {
+    return request.get('/v1/question-bank/wrong-book/stats')
+  },
+
+  removeFromWrongBook: (questionUid: string) => {
+    return request.post(`/v1/question-bank/wrong-book/${questionUid}/remove`)
+  },
+
   submitAnswer: (data: { question_id: string; answer: string }) => {
     return request.post('/v1/student/question/submit', data)
   },

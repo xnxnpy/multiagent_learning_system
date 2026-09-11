@@ -649,7 +649,7 @@ async function startAutoWorkflow() {
           workflowRunning.value = false
           hasPath.value = true
           appStore.completeTask('workflow')
-          addMsg('assistant', '✅ 学习路径和学习资源已准备就绪！\n\n请前往「学习路径」页面查看并开始学习。')
+          addMsg('assistant', '✅ 学习路径已准备就绪！\n\n请前往「学习路径」查看，进入学习阶段后会由 Supervisor 按需生成个性化资源。')
           break
         case 'error':
           if (finished) break
