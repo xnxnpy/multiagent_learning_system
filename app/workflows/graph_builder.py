@@ -6,11 +6,6 @@ from app.core.logger import log
 from app.core.redis_client import get_redis
 from app.agents.profile_agent import ProfileAgent
 from app.agents.learning_path_agent import LearningPathAgent
-from app.agents.document_agent import DocumentAgent
-from app.agents.question_agent import QuestionAgent
-from app.agents.code_agent import CodeAgent
-from app.agents.mindmap_agent import MindmapAgent
-from app.agents.evaluation_agent import create_evaluation_agent
 from sqlalchemy.ext.asyncio import AsyncSession
 
 # 每个用户的进度回调（用于步骤内发送中间进度到前端）
@@ -321,39 +316,6 @@ class WorkflowBuilder:
             return [str(kp) for kp in kps if kp]
         return []
 
-    async def _evaluate(self, state: AgentState) -> Dict[str, Any]:
-        """执行评估"""
-        log.info(f"工作流步骤：执行评估，用户 {state.user_id}")
-        db = get_user_db(state.user_id)
-
-        step_info = {"step": "evaluate", "status": "started", "timestamp": self._get_timestamp()}
-        state.steps_history.append(step_info)
-        state.current_step = "evaluate"
-        state.progress = 11 / self.total_steps
-        
-        try:
-            evaluation_agent = create_evaluation_agent(db)
-            evaluation = await evaluation_agent.run(state.user_id)
-            
-            step_info["status"] = "completed"
-            return {
-                **state.dict(),
-                "evaluation": evaluation,
-                "evaluated": True,
-                "steps_history": state.steps_history,
-                "current_step": "evaluate",
-                "progress": 1.0
-            }
-        except Exception as e:
-            log.error(f"评估失败: {e}")
-            step_info["status"] = "failed"
-            step_info["error"] = str(e)
-            return {
-                **state.dict(),
-                "error": str(e),
-                "steps_history": state.steps_history
-            }
-    
     def _get_timestamp(self) -> str:
         """获取时间戳"""
         from datetime import datetime

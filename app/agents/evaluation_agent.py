@@ -65,6 +65,27 @@ class EvaluationAgent(BaseAgent):
         # 修正知识点分数：确保总和不超过实际总分
         result = self._fix_kp_scores(result, learning_stats)
 
+        # ── 确定性覆盖：mastery_level 与 weaknesses 不信 LLM ──
+        # mastery = 按题目分值加权的真实掌握度（纯数学）
+        det_mastery = self._calc_deterministic_mastery(kp_stats)
+        if learning_stats.get("total_attempts", 0) > 0:
+            result["mastery_level"] = det_mastery
+        # weakness = 答题数据中 status=="薄弱" 的知识点（非自由文本；即使为空也覆盖，清掉 LLM 幻觉）
+        det_weaknesses = [kp["topic"] for kp in kp_stats if kp.get("status") == "薄弱" and kp.get("topic")]
+        analysis = result.get("analysis")
+        if not isinstance(analysis, dict):
+            analysis = {}
+        analysis["weaknesses"] = det_weaknesses
+        # strengths/suggestions 仍保留 LLM 的叙述性内容
+        if isinstance((result.get("analysis") or {}).get("strengths"), list):
+            analysis["strengths"] = result["analysis"]["strengths"]
+        if isinstance((result.get("analysis") or {}).get("suggestions"), list):
+            analysis["suggestions"] = result["analysis"]["suggestions"]
+        result["analysis"] = analysis
+
+        # 路径调整建议：基于确定性数据的三条规则（供 API 层裁决，Agent 不直接改路径）
+        result["should_update_path"] = self._should_update_path_deterministic(learning_stats, det_mastery, det_weaknesses)
+
         # 确保 summary 字段存在（LLM 可能漏掉）
         if "summary" not in result or not result["summary"]:
             result["summary"] = self._build_auto_summary(result, stage_trend)
@@ -80,21 +101,55 @@ class EvaluationAgent(BaseAgent):
         log.info(f"EvaluationAgent 完成评估，学生 {user_id} 评估等级: {result.get('overall_grade')}")
         return result
 
-    async def _update_path_incrementally(self, user_id: int, eval_result: Dict) -> bool:
-        """根据评估结果增量更新学习路径
+    def _calc_deterministic_mastery(self, kp_stats: List[Dict]) -> float:
+        """按题目分值加权的真实掌握度（纯数学，无 LLM 参与）"""
+        weighted = 0.0
+        total_w = 0.0
+        for kp in kp_stats:
+            w = float(kp.get("total") or 0)
+            if w <= 0:
+                continue
+            weighted += float(kp.get("mastery") or 0) * w
+            total_w += w
+        return round(weighted / total_w, 4) if total_w > 0 else 0.0
 
-        更新条件（满足任一即更新）：
-        1. 掌握度变化 ≥ 15%
-        2. 薄弱点列表变化 ≥ 2 个
-        3. 路径剩余阶段 < 2
+    def _should_update_path_deterministic(
+        self, stats: Dict, mastery: float, weaknesses: List[str]
+    ) -> bool:
+        """路径调整建议：三条确定性规则（输入全部来自真实答题数据）
+
+        满足任一即建议更新：
+        1. 总正确率 < 50% 且练习量 ≥ 3
+        2. 出现「薄弱」状态的知识点 ≥ 2 个
+        3. 掌握度 < 40% 且已有练习
+        """
+        attempts = stats.get("total_attempts", 0)
+        accuracy = stats.get("accuracy_rate", 0)
+        if attempts >= 3 and accuracy < 0.5:
+            return True
+        if len(weaknesses) >= 2:
+            return True
+        if attempts > 0 and mastery < 0.4:
+            return True
+        return False
+
+    async def maybe_adjust_path(self, user_id: int, eval_result: Dict) -> bool:
+        """根据确定性评估结果增量更新学习路径（由 API 层调用，Agent 不在 run 内直调）
+
+        更新条件（与 _should_update_path_deterministic 同源，二次校验）：
+        1. should_update_path 标志为真
+        2. 或薄弱点集合相对画像发生实质变化
 
         Returns: True=路径已更新，False=无需更新
         """
-        from app.models import AsyncSessionLocal, LearningPath, EvaluationReport
+        from app.models import AsyncSessionLocal, LearningPath, StudentProfile
+
+        if not eval_result.get("should_update_path"):
+            log.info(f"用户 {user_id} 评估未建议路径更新，跳过")
+            return False
 
         try:
             async with AsyncSessionLocal() as db:
-                # 查询当前画像（上次评估结果）
                 profile_result = await db.execute(
                     select(StudentProfile).where(
                         StudentProfile.user_id == user_id,
@@ -103,36 +158,15 @@ class EvaluationAgent(BaseAgent):
                 )
                 profile = profile_result.scalar_one_or_none()
 
-                # 查询上次评估的掌握度
-                last_eval_result = await db.execute(
-                    select(EvaluationReport).where(
-                        EvaluationReport.user_id == user_id
-                    ).order_by(EvaluationReport.created_at.desc()).limit(1)
-                )
-                last_eval = last_eval_result.scalar_one_or_none()
-                last_mastery = last_eval.mastery_level if last_eval and last_eval.mastery_level else 0
-
-                # 当前掌握度
-                current_mastery = eval_result.get("mastery_level", 0)
-                mastery_change = abs(current_mastery - last_mastery)
-
-                # 薄弱点变化
+                # 薄弱点相对画像是否有新增（信息日志用；裁决已由 should_update_path 完成）
                 old_weaknesses = set(profile.weakness or []) if profile else set()
-                new_weaknesses = set(eval_result.get("analysis", {}).get("weaknesses", []))
-                weakness_change = len(new_weaknesses.symmetric_difference(old_weaknesses))
-
-                # 判断是否需要更新
-                should_update = (
-                    mastery_change >= 0.15 or       # 掌握度变化 ≥15%
-                    weakness_change >= 2 or          # 薄弱点变化 ≥2
-                    len(new_weaknesses - old_weaknesses) > 0  # 出现新的薄弱点
+                new_weaknesses = set(
+                    (eval_result.get("analysis") or {}).get("weaknesses") or []
                 )
+                has_new_weakness = bool(new_weaknesses - old_weaknesses)
+                if has_new_weakness:
+                    log.info(f"用户 {user_id} 出现新薄弱点: {new_weaknesses - old_weaknesses}")
 
-                if not should_update:
-                    log.info(f"学生 {user_id} 评估结果无显著变化（掌握度变化{mastery_change:.1%}，薄弱点变化{weakness_change}），跳过路径更新")
-                    return False
-
-                # 需要更新 → 调用路径规划 Agent 重新生成
                 path_query = select(LearningPath).where(LearningPath.user_id == user_id)
                 if profile:
                     path_query = path_query.where(LearningPath.profile_id == profile.id)
@@ -151,14 +185,13 @@ class EvaluationAgent(BaseAgent):
                 if not current_stages:
                     return False
 
-                # 调用路径规划 Agent 重新生成后续阶段
+                # 路径规划由独立 Agent 执行（决策与执行分离）
                 from app.agents.learning_path_agent import LearningPathAgent
                 path_agent = LearningPathAgent(db)
                 new_path_data = await path_agent.run(user_id, profile=self._profile_to_dict(profile))
 
                 if new_path_data and new_path_data.get("stages"):
                     new_stages = new_path_data["stages"]
-                    # 重新编号新阶段的 stage_id，避免与已完成阶段冲突
                     max_existing_id = max((s.get("stage_id", 0) for s in stages), default=0)
                     for i, s in enumerate(new_stages):
                         s["stage_id"] = max_existing_id + i + 1
@@ -167,7 +200,10 @@ class EvaluationAgent(BaseAgent):
                     path.path_version = (path.path_version or 1) + 1
                     db.add(path)
                     await db.commit()
-                    log.info(f"学生 {user_id} 路径已增量更新（版本 {path.path_version}），新增阶段 id {max_existing_id+1}-{max_existing_id+len(new_stages)}")
+                    log.info(
+                        f"用户 {user_id} 路径已增量更新（版本 {path.path_version}），"
+                        f"新增阶段 id {max_existing_id + 1}-{max_existing_id + len(new_stages)}"
+                    )
                     return True
 
                 return False

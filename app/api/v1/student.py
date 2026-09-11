@@ -2172,7 +2172,7 @@ async def complete_stage(
                 try:
                     from app.agents.evaluation_agent import EvaluationAgent
                     eval_agent = EvaluationAgent(db=None)
-                    path_updated = await eval_agent._update_path_incrementally(current_user.id, eval_result)
+                    path_updated = await eval_agent.maybe_adjust_path(current_user.id, eval_result)
                     if path_updated:
                         await notification_manager.send_notification(
                             user_id=current_user.id,
