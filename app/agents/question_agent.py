@@ -17,21 +17,24 @@ class QuestionAgent(BaseAgent):
         super().__init__(db)
         self.local_runner = LocalRunner()
 
-    async def run(self, topic: str, user_id: int = None) -> Dict[str, Any]:
+    async def run(self, topic: str, user_id: int = None, force: bool = False,
+                  extra_instructions: str = "") -> Dict[str, Any]:
         """
-        执行题目生成任务（先查库，有则返回，无则生成后保存）
+        执行题目生成任务
 
         Args:
             topic: 知识点主题
             user_id: 用户 ID（用于缓存和个性化）
+            force: True 时跳过 DB 缓存强制重新生成
+            extra_instructions: 追加到 prompt 的接地材料/修正指令
 
         Returns:
             包含题目列表的字典
         """
         log.info(f"QuestionAgent 开始为主题 '{topic}' 生成题目")
 
-        # 先查库
-        if user_id and self.db:
+        # 先查库（force 时跳过）
+        if user_id and self.db and not force:
             existing = await self._get_from_db(user_id, topic)
             if existing:
                 log.info(f"命中数据库缓存，主题: {topic}")
@@ -43,6 +46,8 @@ class QuestionAgent(BaseAgent):
             profile = await self._get_profile(user_id)
 
         prompt = self._load_and_format_prompt(topic, profile)
+        if extra_instructions:
+            prompt += extra_instructions
 
         result = None
         for attempt in range(2):

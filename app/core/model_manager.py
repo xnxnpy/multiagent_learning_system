@@ -194,6 +194,7 @@ IMAGE_MODELS = {
 # ── 默认 Agent → 文本模型映射 ──
 DEFAULT_AGENT_TEXT_MODELS = {
     "profile": "spark_ultra",
+    "supervisor": "spark_ultra",
     "document": "spark_x2_flash",
     "question": "spark_x2_flash",
     "code": "spark_x2_flash",

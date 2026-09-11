@@ -68,46 +68,30 @@ class WorkflowBuilder:
     
     def __init__(self):
         self.graph = None
-        self.total_steps = 13
+        self.total_steps = 3
 
     def build_workflow(self):
-        """构建完整的学习工作流"""
-        log.info("开始构建学习工作流")
+        """构建学习路径工作流（画像 → 路径 → 全局知识图谱）
+
+        资源生成已迁移到 stage_workflow.py 的 Supervisor 学习环，
+        由学生进入具体阶段时按需增量触发，不再在此一次性全量生成。
+        """
+        log.info("开始构建学习路径工作流")
 
         workflow = StateGraph(AgentState)
 
         workflow.add_node("build_profile", self._build_profile)
         workflow.add_node("generate_path", self._generate_path)
         workflow.add_node("generate_knowledge_graph", self._generate_knowledge_graph)
-        workflow.add_node("generate_document", self._generate_document)
-        workflow.add_node("generate_ppt_video", self._generate_ppt_video)
-        workflow.add_node("generate_mindmap", self._generate_mindmap)
-        workflow.add_node("generate_questions", self._generate_questions)
-        workflow.add_node("generate_code", self._generate_code)
-        workflow.add_node("generate_reading", self._generate_reading)
-        workflow.add_node("generate_glossary", self._generate_glossary)
-        workflow.add_node("generate_knowledge_link", self._generate_knowledge_link)
-        workflow.add_node("generate_summary", self._generate_summary)
-        workflow.add_node("quality_evaluate", self._quality_evaluate)
 
         workflow.set_entry_point("build_profile")
 
         workflow.add_edge("build_profile", "generate_path")
         workflow.add_edge("generate_path", "generate_knowledge_graph")
-        workflow.add_edge("generate_knowledge_graph", "generate_document")
-        workflow.add_edge("generate_document", "generate_ppt_video")
-        workflow.add_edge("generate_ppt_video", "generate_mindmap")
-        workflow.add_edge("generate_mindmap", "generate_questions")
-        workflow.add_edge("generate_questions", "generate_code")
-        workflow.add_edge("generate_code", "generate_reading")
-        workflow.add_edge("generate_reading", "generate_glossary")
-        workflow.add_edge("generate_glossary", "generate_knowledge_link")
-        workflow.add_edge("generate_knowledge_link", "generate_summary")
-        workflow.add_edge("generate_summary", "quality_evaluate")
-        workflow.add_edge("quality_evaluate", END)
+        workflow.add_edge("generate_knowledge_graph", END)
 
         self.graph = workflow.compile()
-        log.info("学习工作流构建完成")
+        log.info("学习路径工作流构建完成")
         return self.graph
     
     async def _build_profile(self, state: AgentState) -> Dict[str, Any]:
@@ -303,116 +287,6 @@ class WorkflowBuilder:
                 "progress": 3 / self.total_steps
             }
 
-    async def _generate_document(self, state: AgentState) -> Dict[str, Any]:
-        """生成文档"""
-        log.info(f"工作流步骤：生成文档，用户 {state.user_id}")
-        db = get_user_db(state.user_id)
-
-        step_info = {"step": "generate_document", "status": "started", "timestamp": self._get_timestamp()}
-        state.steps_history.append(step_info)
-        state.current_step = "generate_document"
-        state.progress = 4 / self.total_steps
-        
-        try:
-            topic = self._extract_topic(state)
-            doc_agent = DocumentAgent(db)
-            document = await doc_agent.run(topic, user_id=state.user_id)
-
-            # 保存到 learning_resources
-            await self._save_resource(db, state.user_id, self._get_stage_id(state), "document", topic, document if isinstance(document, dict) else {"content": document})
-
-            step_info["status"] = "completed"
-            return {
-                **state.dict(),
-                "document": document,
-                "document_generated": True,
-                "steps_history": state.steps_history,
-                "current_step": "generate_document",
-                "progress": 4 / self.total_steps
-            }
-        except Exception as e:
-            log.error(f"生成文档失败: {e}")
-            step_info["status"] = "failed"
-            step_info["error"] = str(e)
-            return {
-                **state.dict(),
-                "error": str(e),
-                "steps_history": state.steps_history
-            }
-    
-    async def _generate_questions(self, state: AgentState) -> Dict[str, Any]:
-        """生成题目"""
-        log.info(f"工作流步骤：生成题目，用户 {state.user_id}")
-        db = get_user_db(state.user_id)
-
-        step_info = {"step": "generate_questions", "status": "started", "timestamp": self._get_timestamp()}
-        state.steps_history.append(step_info)
-        state.current_step = "generate_questions"
-        state.progress = 7 / self.total_steps
-        
-        try:
-            topic = self._extract_topic(state)
-            question_agent = QuestionAgent(db)
-            questions = await question_agent.run(topic, user_id=state.user_id)
-
-            await self._save_resource(db, state.user_id, self._get_stage_id(state), "question", topic, questions if isinstance(questions, dict) else {"questions": questions})
-
-            step_info["status"] = "completed"
-            return {
-                **state.dict(),
-                "questions": questions,
-                "questions_generated": True,
-                "steps_history": state.steps_history,
-                "current_step": "generate_questions",
-                "progress": 7 / self.total_steps
-            }
-        except Exception as e:
-            log.error(f"生成题目失败: {e}")
-            step_info["status"] = "failed"
-            step_info["error"] = str(e)
-            return {
-                **state.dict(),
-                "error": str(e),
-                "steps_history": state.steps_history
-            }
-    
-    async def _generate_code(self, state: AgentState) -> Dict[str, Any]:
-        """生成代码"""
-        log.info(f"工作流步骤：生成代码，用户 {state.user_id}")
-        db = get_user_db(state.user_id)
-
-        step_info = {"step": "generate_code", "status": "started", "timestamp": self._get_timestamp()}
-        state.steps_history.append(step_info)
-        state.current_step = "generate_code"
-        state.progress = 8 / self.total_steps
-        
-        try:
-            topic = self._extract_topic(state)
-            task = f"编写一个与「{topic}」相关的 Python 代码示例"
-            code_agent = CodeAgent(db)
-            code = await code_agent.run(task, user_id=state.user_id)
-
-            await self._save_resource(db, state.user_id, self._get_stage_id(state), "code", topic, code if isinstance(code, dict) else {"code": code})
-
-            step_info["status"] = "completed"
-            return {
-                **state.dict(),
-                "code": code,
-                "code_generated": True,
-                "steps_history": state.steps_history,
-                "current_step": "generate_code",
-                "progress": 8 / self.total_steps
-            }
-        except Exception as e:
-            log.error(f"生成代码失败: {e}")
-            step_info["status"] = "failed"
-            step_info["error"] = str(e)
-            return {
-                **state.dict(),
-                "error": str(e),
-                "steps_history": state.steps_history
-            }
-    
     def _extract_topic(self, state: AgentState) -> str:
         """从学习路径阶段中提取主题（资源 topic 必须来自阶段，不能用画像目标）"""
         kps = self._get_stage_kp_names(state)
@@ -446,368 +320,6 @@ class WorkflowBuilder:
                 return [kp.get("name", "") for kp in kps if kp.get("name")]
             return [str(kp) for kp in kps if kp]
         return []
-
-    def _get_stage_id(self, state: AgentState):
-        """从 state 中提取当前阶段 ID"""
-        if state.learning_path and state.learning_path.get("stages"):
-            return state.learning_path["stages"][0].get("stage_id")
-        return None
-
-    async def _save_resource(self, db, user_id, stage_id, resource_type, topic, content):
-        """统一保存资源到 learning_resources 表"""
-        from app.models.upsert import upsert as mysql_upsert
-        from app.models import LearningResource, StudentProfile
-        from sqlalchemy import select as sa_select
-        prof_result = await db.execute(
-            sa_select(StudentProfile).where(
-                StudentProfile.user_id == user_id,
-                StudentProfile.is_active == True,
-            )
-        )
-        prof = prof_result.scalar_one_or_none()
-        # 清除旧的 quality_score，确保 quality_evaluate 会重新评估
-        clean_content = dict(content) if isinstance(content, dict) else content
-        if isinstance(clean_content, dict):
-            clean_content.pop("quality_score", None)
-            clean_content.pop("security_flag", None)
-        await mysql_upsert(db, LearningResource.__table__, values={
-            "user_id": user_id, "profile_id": prof.id if prof else None,
-            "stage_id": stage_id, "resource_type": resource_type,
-            "topic": topic, "content": clean_content,
-        })
-        await db.commit()
-
-    async def _generate_mindmap(self, state: AgentState) -> Dict[str, Any]:
-        """生成思维导图"""
-        log.info(f"工作流步骤：生成思维导图，用户 {state.user_id}")
-        db = get_user_db(state.user_id)
-        step_info = {"step": "generate_mindmap", "status": "started", "timestamp": self._get_timestamp()}
-        state.steps_history.append(step_info)
-        state.current_step = "generate_mindmap"
-        state.progress = 6 / self.total_steps
-
-        try:
-            topic = self._extract_topic(state)
-            mindmap_agent = MindmapAgent(db)
-            result = await mindmap_agent.run(topic, user_id=state.user_id)
-
-            if isinstance(result, dict):
-                content = {
-                    "mindmap_markdown": result.get("mindmap_markdown", ""),
-                    "mindmap_html": result.get("mindmap_html", ""),
-                }
-                await self._save_resource(db, state.user_id, self._get_stage_id(state), "mindmap", topic, content)
-
-            step_info["status"] = "completed"
-            return {
-                **state.dict(),
-                "mindmap_generated": True,
-                "steps_history": state.steps_history,
-                "current_step": "generate_mindmap",
-                "progress": 6 / self.total_steps
-            }
-        except Exception as e:
-            log.error(f"生成思维导图失败: {e}")
-            try:
-                await db.rollback()
-            except Exception:
-                pass
-            step_info["status"] = "failed"
-            step_info["error"] = str(e)
-            return {**state.dict(), "error": str(e), "steps_history": state.steps_history}
-
-    async def _generate_reading(self, state: AgentState) -> Dict[str, Any]:
-        """生成拓展阅读材料"""
-        log.info(f"工作流步骤：生成拓展阅读，用户 {state.user_id}")
-        db = get_user_db(state.user_id)
-        step_info = {"step": "generate_reading", "status": "started", "timestamp": self._get_timestamp()}
-        state.steps_history.append(step_info)
-        state.current_step = "generate_reading"
-        state.progress = 9 / self.total_steps
-
-        try:
-            topic = self._extract_topic(state)
-            from app.agents.reading_material_agent import ReadingMaterialAgent
-            rm_agent = ReadingMaterialAgent(db)
-            result = await rm_agent.run(topic, user_id=state.user_id)
-
-            await self._save_resource(db, state.user_id, self._get_stage_id(state), "reading_material", topic, result if isinstance(result, dict) else {"content": result})
-
-            step_info["status"] = "completed"
-            return {
-                **state.dict(),
-                "reading_generated": True,
-                "steps_history": state.steps_history,
-                "current_step": "generate_reading",
-                "progress": 9 / self.total_steps
-            }
-        except Exception as e:
-            log.warning(f"拓展阅读生成失败: {e}")
-            step_info["status"] = "failed"
-            step_info["error"] = str(e)
-            return {**state.dict(), "error": str(e), "steps_history": state.steps_history}
-
-    async def _generate_glossary(self, state: AgentState) -> Dict[str, Any]:
-        """生成术语词汇卡片"""
-        log.info(f"工作流步骤：生成术语词汇，用户 {state.user_id}")
-        db = get_user_db(state.user_id)
-        step_info = {"step": "generate_glossary", "status": "started", "timestamp": self._get_timestamp()}
-        state.steps_history.append(step_info)
-        state.current_step = "generate_glossary"
-        state.progress = 10 / self.total_steps
-
-        try:
-            topic = self._extract_topic(state)
-            from app.agents.glossary_agent import GlossaryAgent
-            gl_agent = GlossaryAgent(db)
-            result = await gl_agent.run(topic, user_id=state.user_id)
-
-            await self._save_resource(db, state.user_id, self._get_stage_id(state), "glossary", topic, result if isinstance(result, dict) else {"content": result})
-
-            step_info["status"] = "completed"
-            return {
-                **state.dict(),
-                "glossary_generated": True,
-                "steps_history": state.steps_history,
-                "current_step": "generate_glossary",
-                "progress": 9 / self.total_steps
-            }
-        except Exception as e:
-            log.warning(f"术语词汇生成失败: {e}")
-            step_info["status"] = "failed"
-            step_info["error"] = str(e)
-            return {**state.dict(), "error": str(e), "steps_history": state.steps_history}
-
-    async def _generate_knowledge_link(self, state: AgentState) -> Dict[str, Any]:
-        """生成知识点关联图"""
-        log.info(f"工作流步骤：生成知识点关联图，用户 {state.user_id}")
-        db = get_user_db(state.user_id)
-        step_info = {"step": "generate_knowledge_link", "status": "started", "timestamp": self._get_timestamp()}
-        state.steps_history.append(step_info)
-        state.current_step = "generate_knowledge_link"
-        state.progress = 11 / self.total_steps
-
-        try:
-            topic = self._extract_topic(state)
-            from app.agents.knowledge_graph_agent import KnowledgeGraphAgent
-            kl_agent = KnowledgeGraphAgent(db, scope="stage")
-            result = await kl_agent.run(topic, user_id=state.user_id)
-
-            await self._save_resource(db, state.user_id, self._get_stage_id(state), "knowledge_link", topic, result if isinstance(result, dict) else {"content": result})
-
-            step_info["status"] = "completed"
-            return {
-                **state.dict(),
-                "steps_history": state.steps_history,
-                "current_step": "generate_knowledge_link",
-                "progress": 10 / self.total_steps
-            }
-        except Exception as e:
-            log.warning(f"知识点关联图生成失败: {e}")
-            step_info["status"] = "failed"
-            step_info["error"] = str(e)
-            return {**state.dict(), "error": str(e), "steps_history": state.steps_history}
-
-    async def _generate_summary(self, state: AgentState) -> Dict[str, Any]:
-        """生成学习总结报告"""
-        log.info(f"工作流步骤：生成学习总结，用户 {state.user_id}")
-        db = get_user_db(state.user_id)
-        step_info = {"step": "generate_summary", "status": "started", "timestamp": self._get_timestamp()}
-        state.steps_history.append(step_info)
-        state.current_step = "generate_summary"
-        state.progress = 12 / self.total_steps
-
-        try:
-            topic = self._extract_topic(state)
-            from app.agents.summary_agent import SummaryAgent
-            sm_agent = SummaryAgent(db)
-            result = await sm_agent.run(topic, user_id=state.user_id)
-
-            await self._save_resource(db, state.user_id, self._get_stage_id(state), "summary", topic, result if isinstance(result, dict) else {"content": result})
-
-            step_info["status"] = "completed"
-            return {
-                **state.dict(),
-                "summary_generated": True,
-                "steps_history": state.steps_history,
-                "current_step": "generate_summary",
-                "progress": 12 / self.total_steps
-            }
-        except Exception as e:
-            log.warning(f"学习总结生成失败: {e}")
-            step_info["status"] = "failed"
-            step_info["error"] = str(e)
-            return {**state.dict(), "error": str(e), "steps_history": state.steps_history}
-
-    async def _quality_evaluate(self, state: AgentState) -> Dict[str, Any]:
-        """对本阶段生成的所有资源进行质量评估"""
-        log.info(f"工作流步骤：资源质量评估，用户 {state.user_id}")
-        db = get_user_db(state.user_id)
-        step_info = {"step": "quality_evaluate", "status": "started", "timestamp": self._get_timestamp()}
-        state.steps_history.append(step_info)
-        state.current_step = "quality_evaluate"
-        state.progress = 12 / self.total_steps
-
-        try:
-            from app.agents.resource_quality_agent import ResourceQualityAgent
-            from app.models import LearningResource, StudentProfile, upsert as mysql_upsert
-            from app.models.upsert import upsert as mysql_upsert_fn
-            from sqlalchemy import select as sa_select
-
-            topic = self._extract_topic(state)
-            stage_id = self._get_stage_id(state)
-            quality_agent = ResourceQualityAgent(db)
-
-            resource_types = [
-                "document", "ppt_video", "mindmap", "question", "code",
-                "reading_material", "glossary", "knowledge_link", "summary",
-            ]
-
-            evaluated = 0
-            # 获取活跃 profile_id
-            prof_result = await db.execute(
-                sa_select(StudentProfile).where(
-                    StudentProfile.user_id == state.user_id,
-                    StudentProfile.is_active == True,
-                )
-            )
-            prof = prof_result.scalar_one_or_none()
-
-            for res_type in resource_types:
-                res_query = sa_select(LearningResource).where(
-                    LearningResource.user_id == state.user_id,
-                    LearningResource.stage_id == stage_id,
-                    LearningResource.resource_type == res_type,
-                )
-                if prof:
-                    res_query = res_query.where(LearningResource.profile_id == prof.id)
-                result = await db.execute(
-                    res_query.order_by(LearningResource.created_at.desc()).limit(1)
-                )
-                record = result.scalar_one_or_none()
-                if record and isinstance(record.content, dict) and not record.content.get("quality_score"):
-                    try:
-                        quality = await quality_agent.run(
-                            topic=topic, resource_type=res_type,
-                            content=record.content, user_id=state.user_id,
-                        )
-                        updated_content = dict(record.content)
-                        updated_content["quality_score"] = quality
-                        record.content = updated_content
-                        await db.commit()
-                        evaluated += 1
-                        log.info(f"资源 {res_type} 质量评估完成: {quality.get('overall_score')}分")
-                    except Exception as e:
-                        log.warning(f"资源 {res_type} 质量评估失败: {e}")
-
-            log.info(f"质量评估完成，共评估 {evaluated} 个资源")
-
-            # ── 敏感词检测 ──
-            from app.core.content_security import content_security
-            if not content_security._loaded:
-                await content_security.load_from_db(db)
-            if content_security.is_enabled():
-                flagged = 0
-                for res_type in resource_types:
-                    result = await db.execute(
-                        sa_select(LearningResource).where(
-                            LearningResource.user_id == state.user_id,
-                            LearningResource.stage_id == stage_id,
-                            LearningResource.resource_type == res_type,
-                        ).order_by(LearningResource.created_at.desc()).limit(1)
-                    )
-                    record = result.scalar_one_or_none()
-                    if record and isinstance(record.content, dict) and not record.content.get("security_flag"):
-                        text = json.dumps(record.content, ensure_ascii=False)
-                        hits = content_security.check(text)
-                        if hits:
-                            record.content["security_flag"] = True
-                            record.content["security_words"] = hits
-                            await db.commit()
-                            flagged += 1
-                            await content_security.add_log({
-                                "time": self._get_timestamp(),
-                                "resource_type": res_type,
-                                "topic": topic,
-                                "hit_words": hits,
-                                "user_id": state.user_id,
-                            }, db)
-                if flagged:
-                    log.info(f"敏感词检测完成，标记 {flagged} 个资源")
-
-            step_info["status"] = "completed"
-            return {
-                **state.dict(),
-                "steps_history": state.steps_history,
-                "current_step": "quality_evaluate",
-                "progress": 12 / self.total_steps,
-            }
-        except Exception as e:
-            log.error(f"资源质量评估失败: {e}")
-            step_info["status"] = "failed"
-            step_info["error"] = str(e)
-            return {**state.dict(), "error": str(e), "steps_history": state.steps_history}
-
-    async def _generate_ppt_video(self, state: AgentState) -> Dict[str, Any]:
-        """生成 PPT 教学视频"""
-        log.info(f"工作流步骤：生成 PPT 教学视频，用户 {state.user_id}")
-        db = get_user_db(state.user_id)
-
-        step_info = {"step": "generate_ppt_video", "status": "started", "timestamp": self._get_timestamp()}
-        state.steps_history.append(step_info)
-        state.current_step = "generate_ppt_video"
-        state.progress = 5 / self.total_steps
-
-        try:
-            # 获取当前阶段的主题和ID
-            topic = self._extract_topic(state)
-            stage_id = self._get_stage_id(state)
-
-            # 辅助函数：发送步骤内中间进度
-            def _send(sub_step: str, sub_progress: float):
-                cb = _progress_callbacks.get(state.user_id)
-                if cb:
-                    import asyncio
-                    asyncio.create_task(cb({
-                        "type": "step", "data": {
-                            "current_step": "generate_ppt_video",
-                            "sub_step": sub_step,
-                            "progress": sub_progress,
-                            "steps_history": state.steps_history,
-                        }
-                    }))
-
-            from app.agents.ppt_video_agent import PptVideoAgent
-            ppt_agent = PptVideoAgent(db)
-            try:
-                ppt_video = await ppt_agent.run(
-                    topic=topic,
-                    stage_id=stage_id,
-                    user_id=state.user_id,
-                    on_progress=_send,
-                )
-            except Exception as agent_err:
-                log.error(f"PptVideoAgent.run 失败: {agent_err}", exc_info=True)
-                ppt_video = {"success": False, "error": str(agent_err)}
-
-            step_info["status"] = "completed"
-            return {
-                **state.dict(),
-                "ppt_video": ppt_video,
-                "ppt_video_generated": True,
-                "steps_history": state.steps_history,
-                "current_step": "generate_ppt_video",
-                "progress": 5 / self.total_steps,
-            }
-        except Exception as e:
-            log.error(f"生成 PPT 教学视频失败: {e}", exc_info=True)
-            step_info["status"] = "failed"
-            step_info["error"] = str(e)
-            return {
-                **state.dict(),
-                "error": str(e),
-                "steps_history": state.steps_history,
-            }
 
     async def _evaluate(self, state: AgentState) -> Dict[str, Any]:
         """执行评估"""
@@ -907,13 +419,9 @@ class WorkflowManager:
         state.db = db
         _db_sessions[state.user_id] = db
 
-        # 线性节点顺序
+        # 路径规划三步（资源生成已迁移到 stage_workflow Supervisor 学习环）
         steps = [
             "build_profile", "generate_path", "generate_knowledge_graph",
-            "generate_document", "generate_ppt_video", "generate_mindmap",
-            "generate_questions", "generate_code",
-            "generate_reading", "generate_glossary", "generate_knowledge_link", "generate_summary",
-            "quality_evaluate"
         ]
 
         try:
@@ -951,10 +459,6 @@ class WorkflowManager:
 
         steps = [
             "build_profile", "generate_path", "generate_knowledge_graph",
-            "generate_document", "generate_ppt_video", "generate_mindmap",
-            "generate_questions", "generate_code",
-            "generate_reading", "generate_glossary", "generate_knowledge_link", "generate_summary",
-            "quality_evaluate"
         ]
 
         try:

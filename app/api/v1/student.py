@@ -107,6 +107,12 @@ class AnswerSubmitRequest(BaseModel):
     duration_seconds: Optional[int] = Field(None, description="答题耗时（秒）")
 
 
+class StageGenerateRequest(BaseModel):
+    """阶段资源生成请求（Supervisor 学习环入口）"""
+    stage_id: int
+    profile_id: Optional[int] = None
+
+
 class AnswerEvaluation(BaseModel):
     """答案评估"""
     model_config = {"extra": "allow"}
@@ -1074,15 +1080,8 @@ async def regenerate_resource(
         delete_query = delete_query.where(LearningResource.profile_id == profile_id)
     await db.execute(delete_query)
 
-    # 如果重新生成题目，同时清掉该阶段的旧答题记录
-    if resource_type == "question":
-        from app.models import LearningRecord
-        await db.execute(
-            LearningRecord.__table__.delete().where(
-                LearningRecord.user_id == current_user.id,
-                LearningRecord.resource_type == "question",
-            )
-        )
+    # 注意：不删除答题记录（LearningRecord）——答题历史是评估与错题本的依据，
+    # 重生成题目只替换题面资源；旧题目的作答记录由题库按 question_uid 关联存活。
 
     await db.commit()
 
@@ -1128,12 +1127,14 @@ async def submit_answer(
     records = result.scalars().all()
 
     question = None
+    matched_stage_id = None
     for record in records:
         content = record.content if isinstance(record.content, dict) else {}
         questions_list = content.get("questions", [])
         for q in questions_list:
             if q.get("question_id") == request.question_id:
                 question = q
+                matched_stage_id = record.stage_id
                 break
         if question:
             break
@@ -1157,6 +1158,16 @@ async def submit_answer(
     )
     db.add(learning_record)
     await db.commit()
+
+    # 同步题库/错题本状态（question_uid = s{stage}_q{id}，与 upsert 方案一致）
+    try:
+        from app.api.v1.question_bank import record_answer_for_question
+        q_uid = str(question.get("question_uid") or f"s{matched_stage_id or 0}_q{request.question_id}")
+        await record_answer_for_question(
+            db, current_user.id, q_uid, evaluation.correct, evaluation.score
+        )
+    except Exception as e:
+        log.warning(f"同步题库作答状态失败（不影响提交）: {e}")
 
     # ============ 延迟触发学习评估（最后一道题提交后等几秒再评估） ============
     _schedule_eval_delay(current_user.id)
@@ -2290,6 +2301,43 @@ async def generate_stage_resources(
             generated[r.resource_type] = r.content
 
     return {"stage_id": request.stage_id, "topic": stage_topic, "generated": generated}
+
+
+@router.post("/learn/stage/generate")
+async def generate_stage_resources(
+    request: StageGenerateRequest,
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    """为指定阶段运行 Supervisor 学习环（按需增量生成资源）
+
+    触发时机：学生进入某个学习阶段时。画像确认后不再一次性全量生成。
+    """
+    from app.workflows.stage_workflow import run_stage_workflow
+
+    log.info(f"学生 {current_user.id} 请求为阶段 {request.stage_id} 生成资源（Supervisor 学习环）")
+    try:
+        final = await run_stage_workflow(
+            db=db,
+            user_id=current_user.id,
+            stage_id=request.stage_id,
+            profile_id=request.profile_id,
+        )
+    except Exception as e:
+        log.error(f"阶段 {request.stage_id} Supervisor 学习环失败: {e}", exc_info=True)
+        raise HTTPException(status_code=500, detail=f"资源生成失败: {str(e)}")
+
+    if final.status == "failed":
+        raise HTTPException(status_code=500, detail=final.error or "资源生成失败")
+
+    return {
+        "stage_id": request.stage_id,
+        "status": final.status,
+        "generated": final.generated,
+        "quality_scores": final.quality_scores,
+        "regen_counts": final.regen_counts,
+        "messages": final.messages[-20:],  # 最近 20 条协作消息日志
+    }
 
 
 @router.get("/learn/stage/resources/{stage_id}")

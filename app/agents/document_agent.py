@@ -14,21 +14,24 @@ class DocumentAgent(BaseAgent):
     def __init__(self, db: AsyncSession = None):
         super().__init__(db)
 
-    async def run(self, topic: str, user_id: int = None) -> Dict[str, Any]:
+    async def run(self, topic: str, user_id: int = None, force: bool = False,
+                  extra_instructions: str = "") -> Dict[str, Any]:
         """
-        执行文档生成任务（先查库，有则返回，无则生成后保存）
+        执行文档生成任务
 
         Args:
             topic: 知识点主题
             user_id: 用户 ID（用于缓存和个性化）
+            force: True 时跳过 DB 缓存强制重新生成（Supervisor 重做/学生手动重生成）
+            extra_instructions: 追加到 prompt 的接地材料/修正指令
 
         Returns:
             包含 Markdown 文档和配图的字典
         """
         log.info(f"DocumentAgent 开始为主题 '{topic}' 生成文档")
 
-        # 先查库
-        if user_id and self.db:
+        # 先查库（force 时跳过，保证 Supervisor 重做能真正重新生成）
+        if user_id and self.db and not force:
             existing = await self._get_from_db(user_id, topic)
             if existing:
                 log.info(f"命中数据库缓存，主题: {topic}")
@@ -40,6 +43,8 @@ class DocumentAgent(BaseAgent):
             profile = await self._get_profile(user_id)
 
         prompt = self._load_and_format_prompt(topic, profile)
+        if extra_instructions:
+            prompt += extra_instructions
         markdown_content = await self._call_llm(prompt)
 
         # 校验内容

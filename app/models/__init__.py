@@ -12,6 +12,7 @@ from app.models.assignment import Assignment, AssignmentSubmission
 from app.models.system_config import SystemConfig
 from app.models.workflow_state import WorkflowState
 from app.models.knowledge_document import KnowledgeDocument
+from app.models.question_item import QuestionItem
 
 __all__ = [
     "Base",
@@ -33,4 +34,6 @@ __all__ = [
     "AssignmentSubmission",
     "SystemConfig",
     "WorkflowState",
+    "KnowledgeDocument",
+    "QuestionItem",
 ]

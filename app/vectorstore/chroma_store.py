@@ -121,5 +121,26 @@ class ChromaVectorStore:
             self._chroma.delete(ids=ids)
             log.info(f"成功删除 {len(ids)} 个文档")
 
+    def delete_documents_by_filter(self, where: Dict) -> int:
+        """按 metadata 过滤删除文档（资源重生成时清旧分块）
+
+        Returns:
+            删除的文档数量（尽力而为，Chroma 底层不总返回计数时为 -1）
+        """
+        if not where:
+            return -1
+        try:
+            coll = self._chroma._collection
+            existing = coll.get(where=where)
+            ids = existing.get("ids") or []
+            if ids:
+                coll.delete(ids=ids)
+                log.info(f"按过滤条件删除 {len(ids)} 个文档块: {where}")
+                return len(ids)
+            return 0
+        except Exception as e:
+            log.warning(f"按过滤条件删除文档失败: {e}")
+            return -1
+
 
 vector_store = ChromaVectorStore()
