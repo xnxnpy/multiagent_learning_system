@@ -167,7 +167,7 @@ class WorkflowBuilder:
 
         try:
             profile_agent = ProfileAgent(db)
-            profile = await profile_agent.run(state.user_id, "基于学习历史分析学生画像")
+            profile = await profile_agent.run(user_id=state.user_id)
 
             step_info["status"] = "completed"
             return {

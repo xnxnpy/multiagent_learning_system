@@ -477,8 +477,24 @@ function initWebSocket() {
         fetchProfile()
         break
 
+      case 'profile_ready': {
+        // 8 维度已采集完成，弹出确认框；确认后发送「确认」触发工作流
+        fetchProfile()
+        const summary = data.summary ? `\n\n${data.summary}` : ''
+        ElMessageBox.confirm(
+          `画像信息已采集完成，请核对。${summary}\n\n确认无误后将生成个性化学习方案。`,
+          '画像确认',
+          { confirmButtonText: '确认，生成方案', cancelButtonText: '再改改', type: 'info' }
+        ).then(() => {
+          sendMessageText('确认')
+        }).catch(() => {
+          addMsg('assistant', '好的，您可以继续修改画像信息，改完后再告诉我。')
+        })
+        break
+      }
+
       case 'check_workflow':
-        // 画像已完善，自动启动工作流（不往聊天里塞硬编码消息）
+        // 画像已确认，自动启动工作流（不往聊天里塞硬编码消息）
         needsWorkflow.value = true
         startAutoWorkflow()
         break
@@ -498,9 +514,14 @@ function initWebSocket() {
 
 async function sendMessage() {
   const text = inputText.value.trim()
+  if (!text) return
+  inputText.value = ''
+  await sendMessageText(text)
+}
+
+async function sendMessageText(text: string) {
   if (!text || sending.value || !wsClient) return
 
-  inputText.value = ''
   addMsg('user', text)
   persistMessage('user', text)
 

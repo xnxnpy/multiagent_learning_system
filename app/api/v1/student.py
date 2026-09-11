@@ -587,10 +587,24 @@ async def get_init_status(
     has_profile = profile is not None and profile.major is not None
     has_path = path is not None
 
+    # 画像须经用户显式确认后才允许自动启动工作流（确认状态存 Redis）
+    profile_confirmed = False
+    if has_profile:
+        try:
+            from app.core.redis_client import get_redis
+            r = await get_redis()
+            if r:
+                raw = await r.get(f"profile:collect:{current_user.id}")
+                if raw:
+                    import json as _json
+                    profile_confirmed = bool(_json.loads(raw).get("confirmed"))
+        except Exception:
+            profile_confirmed = False
+
     return InitStatusResponse(
         has_profile=has_profile,
         has_path=has_path,
-        needs_workflow=has_profile and not has_path
+        needs_workflow=has_profile and not has_path and profile_confirmed
     )
 
 
