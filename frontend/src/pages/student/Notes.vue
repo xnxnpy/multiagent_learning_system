@@ -97,7 +97,7 @@ async function load(p = page.value) {
   loading.value = true
   try {
     const res: any = await request.get('/v1/notes', {
-      params: { page, page_size: pageSize, search: search.value || undefined },
+      params: { page: page.value, page_size: pageSize, search: search.value || undefined },
     })
     items.value = res?.items || []
     total.value = res?.total || 0

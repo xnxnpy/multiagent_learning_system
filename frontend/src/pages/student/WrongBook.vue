@@ -107,7 +107,7 @@ async function load(p = page.value) {
   page.value = p
   loading.value = true
   try {
-    const res: any = await studentAPI.getWrongBook({ page, page_size: pageSize })
+    const res: any = await studentAPI.getWrongBook({ page: page.value, page_size: pageSize })
     items.value = res?.items || []
     total.value = res?.total || 0
   } catch {

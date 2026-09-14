@@ -115,7 +115,7 @@ async function load(p = page.value) {
   loading.value = true
   try {
     const res: any = await studentAPI.getQuestionBank({
-      page,
+      page: page.value,
       page_size: pageSize,
       status: filters.status || undefined,
       knowledge_point: filters.knowledge_point || undefined,
