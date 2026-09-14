@@ -105,6 +105,14 @@
             </el-button>
           </div>
         </template>
+        <el-alert
+          v-if="knowledgeGraphData?.mock"
+          type="warning"
+          :closable="false"
+          show-icon
+          title="当前为示例图谱（生成失败时的兜底），请重新生成"
+          style="margin-bottom: 8px"
+        />
         <KnowledgeGraph v-if="knowledgeGraphData" :graphData="knowledgeGraphData" />
         <el-empty v-else-if="!kgLoading" description="暂无知识图谱，点击上方按钮生成" :image-size="80" />
         <div v-else class="kg-loading">
@@ -248,8 +256,8 @@ async function loadKnowledgeGraph() {
   kgLoading.value = true
   knowledgeGraphData.value = null
   try {
-    // 知识图谱为全局数据，stage_id=0 是全局图谱的标识
-    const data = await request.get('/v1/student/knowledge-graph?stage_id=0')
+    // 知识图谱为全局数据（Neo4j 按 user_id 隔离）
+    const data = await request.get('/v1/student/knowledge-graph')
     knowledgeGraphData.value = (data.nodes?.length > 0) ? data : null
   } catch {
     knowledgeGraphData.value = null

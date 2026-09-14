@@ -205,7 +205,7 @@ class SupervisorAgent(BaseAgent):
         try:
             from app.rag.retriever import RAGRetriever
             retriever = RAGRetriever(top_k=top_k, use_rerank=True)
-            docs = await retriever.retrieve_with_rerank(query, top_k=top_k)
+            docs = await retriever.retrieve_smart(query, user_id=user_id, top_k=top_k)
             hits = []
             for i, doc in enumerate(docs):
                 meta = getattr(doc, "metadata", {}) or {}

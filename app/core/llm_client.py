@@ -63,7 +63,8 @@ HTTP_MODEL_CONFIGS = {
         "model": "generalv3.5",
         "max_tokens": 8192,
         "temperature": 0.5,
-        "password_key": "XUNFEI_API_PASSWORD_MAX"
+        # MAX 模型已停用：无独立 APIPassword 配置，需要时在 config.py 补 XUNFEI_API_PASSWORD_MAX
+        "password_key": "XUNFEI_API_PASSWORD_PRO"
     },
     XunfeiModel.X1: {
         "endpoint": "https://spark-api-open.xf-yun.com/v2/chat/completions",

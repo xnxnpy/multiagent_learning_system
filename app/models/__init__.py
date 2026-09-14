@@ -13,6 +13,7 @@ from app.models.system_config import SystemConfig
 from app.models.workflow_state import WorkflowState
 from app.models.knowledge_document import KnowledgeDocument
 from app.models.question_item import QuestionItem
+from app.models.study_note import StudyNote
 
 __all__ = [
     "Base",
@@ -36,4 +37,5 @@ __all__ = [
     "WorkflowState",
     "KnowledgeDocument",
     "QuestionItem",
+    "StudyNote",
 ]

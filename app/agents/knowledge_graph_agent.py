@@ -29,16 +29,15 @@ class KnowledgeGraphAgent(BaseAgent):
         else:
             return await self._run_stage_scope(topic, user_id, stage_id)
 
-    # ── scope="path"：全局知识图谱（存 Neo4j）─────────────────
+    # ── scope="path"：全局知识图谱（存 Neo4j，固定标签）──────
 
     async def _run_path_scope(self, topic: str, content: str, user_id: int, force: bool) -> Dict[str, Any]:
         from app.core.neo4j_client import KnowledgeGraphStore
 
-        effective_stage_id = 0
         log.info(f"KnowledgeGraphAgent [path] 为主题 '{topic}' 生成全局知识图谱")
 
         if user_id and not force:
-            existing = await KnowledgeGraphStore.get_graph(user_id, stage_id=effective_stage_id)
+            existing = await KnowledgeGraphStore.get_graph(user_id)
             if existing.get("nodes"):
                 log.info(f"Neo4j 命中缓存，{len(existing['nodes'])} 节点")
                 return existing
@@ -46,31 +45,95 @@ class KnowledgeGraphAgent(BaseAgent):
         if content and len(content) > MAX_CONTENT_LENGTH:
             content = content[:MAX_CONTENT_LENGTH]
 
+        # ── 种子接地：强制以学习路径真实知识点为图谱骨架 ──
+        seed_names = self._extract_seed_kps(content)
+        seed_section = ""
+        if seed_names:
+            seed_section = (
+                "## 种子知识点（必须全部作为节点出现，label 不得改写）\n"
+                + "、".join(seed_names)
+                + "\n- 这些是学生学习路径中的真实知识点，是图谱的骨架\n"
+                "- LLM 只允许：1) 在种子之间发现「前置/依赖/相关」关系；"
+                "2) 在种子下补充少量细节子节点（source=llm）\n"
+                "- 严禁引入与种子完全无关的节点（如「发展历史」「未来趋势」）\n"
+            )
+
         prompt = self._load_prompt(self.PROMPT_PATH)
-        scope_instructions = """## 全局知识图谱模式（scope=path）
-从所有阶段中提取知识点，构建跨阶段的知识关系图：
-- 级别1：学习阶段 — 所有阶段同级，每个阶段都是级别1
-- 级别2：阶段内的主要知识模块 — 每个阶段至少2-3个
-- 级别3：具体概念或技术 — 每个二级节点下至少2个
-- 级别4：细节知识点 — 重要的三级节点下延伸1-2个
-- 节点数量 20-40 个，级别3和4应占总数60%以上
-- 跨阶段关系用"前置"或"依赖"标注
-- 确保图谱连通，所有节点都通过边连接"""
+        scope_instructions = seed_section + """## 全局知识图谱模式（scope=path）
+从种子知识点与各阶段描述构建知识关系图：
+- 级别1：学习阶段/核心模块
+- 级别2：主要知识模块
+- 级别3：具体概念（种子知识点至少在此层）
+- 级别4：细节知识点（可选，少量）
+- 节点数量 10-40 个
+- 跨阶段关系用「前置」或「依赖」标注
+- 确保图谱连通"""
         prompt = self._format_prompt(prompt, scope="path", topic=topic, content=content,
                                      profile_context="", scope_instructions=scope_instructions)
         response = await self._call_llm(prompt)
 
         graph_data = extract_json(response)
+        is_mock = False
         if not graph_data or not self._validate_graph(graph_data):
-            log.warning("知识图谱 JSON 提取失败，使用 mock 兜底")
+            log.warning("知识图谱 JSON 提取失败，使用 mock 兜底（显式标记）")
             graph_data = self._get_mock_path_graph(topic)
+            is_mock = True
 
         graph_data = self._ensure_edges(graph_data)
+        graph_data = self._mark_seeds(graph_data, seed_names)
+        graph_data["mock"] = is_mock
+        if is_mock:
+            graph_data["title"] = f"{topic} 知识图谱（示例）"
 
         if user_id:
-            await KnowledgeGraphStore.save_graph(user_id, effective_stage_id, topic, graph_data)
+            await KnowledgeGraphStore.save_graph(user_id, topic, graph_data)
 
-        log.info(f"KnowledgeGraphAgent [path] 完成，节点数: {len(graph_data.get('nodes', []))}")
+        log.info(
+            f"KnowledgeGraphAgent [path] 完成，节点数: {len(graph_data.get('nodes', []))}, "
+            f"mock={is_mock}"
+        )
+        return graph_data
+
+    def _extract_seed_kps(self, content: str) -> List[str]:
+        """从路径文本中提取「知识点：a、b、c」形式的种子"""
+        seeds: List[str] = []
+        for line in content.splitlines():
+            if "知识点：" in line:
+                part = line.split("知识点：", 1)[1]
+                for name in part.split("、"):
+                    name = name.strip()
+                    if name and name not in seeds:
+                        seeds.append(name)
+        return seeds[:40]
+
+    def _mark_seeds(self, graph_data: Dict, seed_names: List[str]) -> Dict:
+        """标记种子节点；种子缺失的自动补入（接地保底）"""
+        if not seed_names:
+            return graph_data
+        nodes = graph_data.get("nodes") or []
+        existing_labels = {str(n.get("label", "")).strip() for n in nodes}
+        for n in nodes:
+            label = str(n.get("label", "")).strip()
+            if label in seed_names:
+                n["seed"] = True
+                n["source"] = "path"
+            else:
+                n.setdefault("seed", False)
+                n.setdefault("source", "llm")
+        # 缺失的种子补为孤立节点（保证路径知识点不丢）
+        missing = [s for s in seed_names if s not in existing_labels]
+        next_id = len(nodes) + 1
+        for name in missing:
+            nodes.append({
+                "id": f"seed_{next_id}",
+                "label": name,
+                "level": 3,
+                "description": "学习路径知识点",
+                "seed": True,
+                "source": "path",
+            })
+            next_id += 1
+        graph_data["nodes"] = nodes
         return graph_data
 
     # ── scope="stage"：单阶段关联图（存 MySQL）────────────────
@@ -192,19 +255,18 @@ class KnowledgeGraphAgent(BaseAgent):
 
     def _get_mock_path_graph(self, topic: str) -> Dict[str, Any]:
         return {
-            "title": f"{topic} 知识图谱",
-            "knowledge_point_count": 10,
+            "title": f"{topic} 知识图谱（示例）",
+            "mock": True,
+            "knowledge_point_count": 8,
             "nodes": [
-                {"id": "n1", "label": topic, "level": 1, "description": "核心主题"},
-                {"id": "n2", "label": "基础概念", "level": 2, "description": "基础理论知识"},
-                {"id": "n3", "label": "核心技术", "level": 2, "description": "核心技术要点"},
-                {"id": "n4", "label": "实践应用", "level": 2, "description": "实际应用场景"},
-                {"id": "n5", "label": "概念定义", "level": 3, "description": "核心概念的定义"},
-                {"id": "n6", "label": "原理分析", "level": 3, "description": "基本原理说明"},
-                {"id": "n7", "label": "算法实现", "level": 3, "description": "关键算法"},
-                {"id": "n8", "label": "应用案例", "level": 3, "description": "典型应用"},
-                {"id": "n9", "label": "发展历史", "level": 4, "description": "发展历程"},
-                {"id": "n10", "label": "未来趋势", "level": 4, "description": "发展趋势"},
+                {"id": "n1", "label": topic, "level": 1, "description": "核心主题", "seed": True, "source": "path"},
+                {"id": "n2", "label": "基础概念", "level": 2, "description": "基础理论知识", "seed": False, "source": "llm"},
+                {"id": "n3", "label": "核心技术", "level": 2, "description": "核心技术要点", "seed": False, "source": "llm"},
+                {"id": "n4", "label": "实践应用", "level": 2, "description": "实际应用场景", "seed": False, "source": "llm"},
+                {"id": "n5", "label": "概念定义", "level": 3, "description": "核心概念的定义", "seed": False, "source": "llm"},
+                {"id": "n6", "label": "原理分析", "level": 3, "description": "基本原理说明", "seed": False, "source": "llm"},
+                {"id": "n7", "label": "算法实现", "level": 3, "description": "关键算法", "seed": False, "source": "llm"},
+                {"id": "n8", "label": "应用案例", "level": 3, "description": "典型应用", "seed": False, "source": "llm"},
             ],
             "edges": [
                 {"source": "n1", "target": "n2", "relationship": "包含"},
@@ -214,8 +276,6 @@ class KnowledgeGraphAgent(BaseAgent):
                 {"source": "n2", "target": "n6", "relationship": "包含"},
                 {"source": "n3", "target": "n7", "relationship": "包含"},
                 {"source": "n4", "target": "n8", "relationship": "包含"},
-                {"source": "n5", "target": "n9", "relationship": "相关"},
-                {"source": "n6", "target": "n10", "relationship": "相关"},
                 {"source": "n7", "target": "n8", "relationship": "应用"},
             ],
         }

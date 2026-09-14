@@ -79,6 +79,66 @@ class RAGRetriever(BaseRetriever):
             return candidates
         return await self._rerank_with_bge(query, candidates, top_k)
 
+    async def retrieve_smart(
+        self, query: str, user_id: Optional[int] = None, top_k: int = 4
+    ) -> List[Document]:
+        """智能检索：查询改写 + 多路召回 + 质量过滤（P4 RAG 增强）
+
+        1. LLM 将口语问题改写为 1 个规范检索式（失败则用原话）
+        2. 原话 + 改写式双路检索，合并去重
+        3. 按 user_id 过滤（个人知识库隔离）
+        4. BGE 重排 + 低分截断
+        """
+        queries = [query]
+        try:
+            from app.core.model_manager import model_manager
+            rewritten = await model_manager.chat(
+                [{
+                    "role": "user",
+                    "content": (
+                        f"将以下学生口语问题改写为适合向量检索的书面关键词（只输出一个检索式，不超过30字）：\n{query}"
+                    ),
+                }],
+                agent_name="tutor",
+            )
+            rewritten = (rewritten or "").strip().strip('"').strip("「」")
+            if rewritten and rewritten != query and 2 <= len(rewritten) <= 60:
+                queries.append(rewritten)
+        except Exception as e:
+            log.debug(f"查询改写失败，使用原话: {e}")
+
+        seen = set()
+        candidates: List[Document] = []
+        for q in queries:
+            docs = await self.retrieve(q, top_k=top_k * 2)
+            for d in docs:
+                text = d.page_content[:80]
+                if text in seen:
+                    continue
+                seen.add(text)
+                if user_id is not None:
+                    uid = (d.metadata or {}).get("user_id")
+                    if uid is not None and uid != user_id:
+                        continue
+                candidates.append(d)
+
+        if not candidates:
+            return []
+        if len(candidates) <= top_k:
+            return candidates
+
+        # 质量过滤：重排后丢弃分数过低的尾部（相对最高分 < 15%）
+        reranked = await self._rerank_with_bge(query, candidates, top_k=top_k)
+        if reranked:
+            scores = [float(d.metadata.get("rerank_score") or 0) for d in reranked]
+            best = max(scores) if scores else 0
+            if best > 0:
+                floor = best * 0.15
+                kept = [d for d, s in zip(reranked, scores) if s >= floor]
+                if kept:
+                    return kept
+        return reranked
+
     async def add_documents(self, documents, ids: Optional[List[str]] = None) -> List[str]:
         """添加文档（兼容 LangChain Document 和旧的 dict 格式）"""
         converted = []

@@ -72,6 +72,11 @@ const routes: RouteRecordRaw[] = [
         path: 'wrong-book',
         name: 'WrongBook',
         component: () => import('@/pages/student/WrongBook.vue')
+      },
+      {
+        path: 'notes',
+        name: 'StudyNotes',
+        component: () => import('@/pages/student/Notes.vue')
       }
     ]
   },

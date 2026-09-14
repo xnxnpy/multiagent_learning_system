@@ -205,15 +205,13 @@ class TutorAgent:
         if not query.strip():
             return "未提供检索词。"
         try:
-            docs = await default_retriever.retrieve_with_rerank(query, top_k=4)
+            # 智能检索：查询改写 + 多路召回 + 用户隔离 + 质量过滤
+            docs = await default_retriever.retrieve_smart(query, user_id=user_id, top_k=4)
         except Exception as e:
             return f"知识库检索失败：{e}"
         hits = []
-        for i, doc in enumerate(docs):
+        for doc in docs:
             meta = getattr(doc, "metadata", {}) or {}
-            uid = meta.get("user_id")
-            if uid is not None and uid != user_id:
-                continue
             text = (getattr(doc, "page_content", "") or "")[:400]
             if text:
                 hits.append(f"[E{len(hits) + 1}] {text}")

@@ -2761,13 +2761,12 @@ async def get_assignment_submission(
 
 @router.get("/knowledge-graph")
 async def get_knowledge_graph(
-    stage_id: Optional[int] = Query(None, description="阶段 ID（不传则返回全部）"),
     current_user: User = Depends(get_current_user),
 ):
-    """从 Neo4j 获取知识图谱"""
+    """从 Neo4j 获取用户全局知识图谱"""
     try:
         from app.core.neo4j_client import KnowledgeGraphStore
-        graph = await KnowledgeGraphStore.get_graph(current_user.id, stage_id=stage_id)
+        graph = await KnowledgeGraphStore.get_graph(current_user.id)
         return graph
     except Exception as e:
         log.warning(f"获取知识图谱失败（Neo4j 可能未启动）: {e}")
