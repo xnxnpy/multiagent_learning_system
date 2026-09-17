@@ -410,6 +410,7 @@ class XunfeiLLM:
 
                         # HTTP 流式解析：用 buffer 处理不规则 chunks
                         buffer = ""
+                        got_content = False
                         async for raw_chunk in response.content:
                             buffer += raw_chunk.decode('utf-8', errors='ignore')
                             while '\n' in buffer:
@@ -419,6 +420,10 @@ class XunfeiLLM:
                                     continue
                                 data_str = line[6:]
                                 if data_str == '[DONE]':
+                                    if not got_content:
+                                        log.warning("HTTP 流式结束但无内容，回退模拟数据")
+                                        async for chunk in self._mock_stream_response(messages):
+                                            yield chunk
                                     return
                                 try:
                                     data = json.loads(data_str)
@@ -427,9 +432,15 @@ class XunfeiLLM:
                                         delta = choices[0].get('delta', {})
                                         content = delta.get('content', '')
                                         if content:
+                                            got_content = True
                                             yield content
                                 except json.JSONDecodeError:
                                     continue
+
+                        if not got_content:
+                            log.warning("HTTP 流式无内容，回退模拟数据")
+                            async for chunk in self._mock_stream_response(messages):
+                                yield chunk
 
         except Exception as e:
             log.error(f"讯飞星火 API 流式调用异常: {e}")
@@ -509,14 +520,21 @@ class XunfeiLLM:
                 ) as ws:
                     await ws.send_json(body)
 
+                    got_content = False
                     async for msg in ws:
                         if msg.type == aiohttp.WSMsgType.TEXT:
                             data = json.loads(msg.data)
+                            header = data.get("header") or {}
+                            code = header.get("code")
+                            if code not in (None, 0):
+                                log.error(f"讯飞 WS 错误码 {code}: {header.get('message', '')}")
+                                break
                             choices = data.get("payload", {}).get("choices", {})
                             text_list = choices.get("text", [])
                             if text_list:
                                 content = text_list[0].get("content", "")
                                 if content:
+                                    got_content = True
                                     yield content
                             if choices.get("status") == 2:
                                 break
@@ -524,9 +542,19 @@ class XunfeiLLM:
                             log.error(f"WebSocket 流式错误: {msg.data}")
                             break
 
+                    if not got_content:
+                        log.warning("讯飞 WS 流式无内容，回退 HTTP 流式")
+                        async for chunk in self.chat_stream(
+                            messages, model=model, temperature=temperature, max_tokens=max_tokens
+                        ):
+                            yield chunk
+                        return
+
         except Exception as e:
-            log.error(f"讯飞星火 WebSocket 流式调用异常: {e}")
-            async for chunk in self._mock_stream_response(messages):
+            log.error(f"讯飞星火 WebSocket 流式调用异常: {e}，回退 HTTP 流式")
+            async for chunk in self.chat_stream(
+                messages, model=model, temperature=temperature, max_tokens=max_tokens
+            ):
                 yield chunk
 
     def _mock_response(self, messages: List[Dict[str, str]]) -> str:

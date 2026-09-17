@@ -5,7 +5,6 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select
 from app.agents.base import BaseAgent
 from app.agents.utils import extract_json
-from app.core.model_manager import ModelManagerChatModel
 from app.core.logger import log
 from app.models import StudentProfile, LearningPath, AsyncSessionLocal
 
@@ -61,10 +60,6 @@ class ProfileAgent(BaseAgent):
 
     PROMPT_PATH = "prompts/profile_chat_prompt.txt"
     EXTRACT_PROMPT_PATH = "prompts/profile_extract_prompt.txt"
-
-    def __init__(self, db: AsyncSession = None):
-        super().__init__(db)
-        self._chat_model = ModelManagerChatModel(agent_name="profile")
 
     # ── 收集状态（Redis）────────────────────────────────────
 
@@ -236,22 +231,26 @@ class ProfileAgent(BaseAgent):
                 messages.append({"role": msg["role"], "content": msg["content"]})
         messages.append({"role": "user", "content": user_input})
 
-        from langchain_core.messages import SystemMessage, HumanMessage, AIMessage
-        lc_messages = []
-        for msg in messages:
-            role, content = msg["role"], msg["content"]
-            if role == "system":
-                lc_messages.append(SystemMessage(content=content))
-            elif role == "user":
-                lc_messages.append(HumanMessage(content=content))
-            elif role == "assistant":
-                lc_messages.append(AIMessage(content=content))
-
+        # 直接走 model_manager.chat_stream，不经过 LangChain astream
+        # （自定义 ChatModel 在 WS/HTTP 流式无输出时会触发 "No generation chunks"）
+        from app.core.model_manager import model_manager
         full_response = ""
-        async for chunk in self._chat_model.astream(lc_messages):
-            text = chunk if isinstance(chunk, str) else getattr(chunk, 'text', str(chunk))
-            full_response += text
-            yield text
+        async for chunk in model_manager.chat_stream(messages, agent_name="profile"):
+            if chunk:
+                full_response += chunk
+                yield chunk
+
+        if not full_response:
+            # 流式完全无输出时的兜底：非流式重试一次
+            try:
+                full_response = await model_manager.chat(messages, agent_name="profile")
+            except Exception as e:
+                log.error(f"画像对话非流式兜底也失败: {e}")
+                full_response = ""
+            if full_response:
+                yield full_response
+            else:
+                yield "抱歉，服务暂时繁忙，请稍后重试。"
 
         # 后台：单维度提取 → 保存 → 更新状态 → 通知
         async def _bg_extract_and_notify():
