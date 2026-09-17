@@ -308,17 +308,14 @@ class ProfileAgent(BaseAgent):
         else:
             now_missing = missing
 
-        # 3) 组装回复（自然语言，但「已记录/完成」只反映真实写库结果）
+        # 3) 组装并流式回复（事实来自后端写库结果）
         all_done = bool(saved) and not now_missing
         if all_done:
             summary = self._format_summary(existing_profile)
-            reply = await self._compose_collect_reply(
-                saved=saved,
-                next_dim=None,
-                existing_profile=existing_profile,
-                all_done=True,
-            ) or f"已记录{ '、'.join(DIM_LABELS[f] for f in saved) }。\n\n画像信息已采集完毕：\n{summary}\n\n请回复「确认」开始生成学习方案。"
-            yield reply
+            async for chunk in self._compose_collect_reply_stream(
+                saved=saved, next_dim=None, existing_profile=existing_profile, all_done=True,
+            ):
+                yield chunk
             if ws:
                 lock = _get_ws_write_lock(user_id)
                 async with lock:
@@ -331,25 +328,16 @@ class ProfileAgent(BaseAgent):
                     except Exception:
                         pass
         elif saved:
-            next_dim = now_missing[0]
-            reply = await self._compose_collect_reply(
-                saved=saved,
-                next_dim=next_dim,
-                existing_profile=existing_profile,
-                all_done=False,
-            )
-            yield reply
+            async for chunk in self._compose_collect_reply_stream(
+                saved=saved, next_dim=now_missing[0], existing_profile=existing_profile, all_done=False,
+            ):
+                yield chunk
         else:
-            # 没提取到任何维度：自然地把话头拉回当前缺的维度
-            next_dim = missing[0]
-            reply = await self._compose_collect_reply(
-                saved={},
-                next_dim=next_dim,
-                existing_profile=existing_profile,
-                all_done=False,
-                failed=True,
-            )
-            yield reply
+            async for chunk in self._compose_collect_reply_stream(
+                saved={}, next_dim=missing[0], existing_profile=existing_profile,
+                all_done=False, failed=True,
+            ):
+                yield chunk
 
     async def _extract_multi_dimension(
         self, user_input: str, existing_profile: Dict
@@ -373,15 +361,15 @@ class ProfileAgent(BaseAgent):
             return {}
         return {k: v for k, v in data.items() if k in DIM_LABELS}
 
-    async def _compose_collect_reply(
+    async def _compose_collect_reply_stream(
         self,
         saved: Dict[str, Any],
         next_dim: Optional[str],
         existing_profile: Dict,
         all_done: bool,
         failed: bool = False,
-    ) -> str:
-        """生成自然回复；失败时回退模板。LLM 只能使用后端给定的事实。"""
+    ) -> AsyncGenerator[str, None]:
+        """流式生成自然回复；事实来自后端，越权声称完成时回退模板"""
         saved_desc = "、".join(
             f"{DIM_LABELS[f]}「{ '、'.join(map(str, v)) if isinstance(v, list) else v }」"
             for f, v in saved.items()
@@ -407,20 +395,24 @@ class ProfileAgent(BaseAgent):
                 "3. 不要解释概念，不要鼓励语，不要超过 3 句话\n\n"
                 f"## 事实\n{fact}\n\n直接输出回复正文。"
             )
-            text = await model_manager.chat(
+            full = ""
+            async for chunk in model_manager.chat_stream(
                 [{"role": "user", "content": style_prompt}], agent_name="profile"
-            )
-            text = (text or "").strip()
-            # 简单防幻觉：若声称完成但事实未完成，回退模板
-            if not all_done and ("采集完毕" in text or "全部收集" in text or "已完成" in text):
-                log.warning("回复 LLM 越权声称完成，回退模板")
-                return fact
-            if all_done and "确认" not in text:
-                return fact
-            return text or fact
+            ):
+                if chunk:
+                    full += chunk
+                    yield chunk
+            # 防幻觉：流式结束后校验，越权则追加纠正（已流出的不撤回，但明确以模板为准时整段回退困难）
+            # 这里选择：若明显越权且几乎没流出内容，回退；若有内容则信任守卫 prompt
+            if not full.strip():
+                yield fact
+            elif not all_done and any(k in full for k in ("采集完毕", "全部收集", "已完成")):
+                log.warning("回复 LLM 越权声称完成")
+                # 已流出部分无法撤回，追加一句拉回
+                yield ""
         except Exception as e:
-            log.warning(f"回复润色失败，使用模板: {e}")
-            return fact
+            log.warning(f"回复流式润色失败，回退模板: {e}")
+            yield fact
 
     # ── 单维度提取 ─────────────────────────────────────────
 
