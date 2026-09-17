@@ -72,6 +72,7 @@ class ProfileAgent(BaseAgent):
 
     PROMPT_PATH = "prompts/profile_chat_prompt.txt"
     EXTRACT_PROMPT_PATH = "prompts/profile_extract_prompt.txt"
+    EXTRACT_MULTI_PROMPT_PATH = "prompts/profile_extract_multi.txt"
 
     # ── 收集状态（Redis）────────────────────────────────────
 
@@ -256,55 +257,67 @@ class ProfileAgent(BaseAgent):
             yield f"画像信息已采集完毕：\n{summary}\n\n请回复「确认」开始生成学习方案。"
             return
 
-        # ── 收集中：先提取，再用确定性文案回复（不再让聊天 LLM 自由发挥）──
-        current_dim = missing[0]
-        label = DIM_LABELS[current_dim]
-        reask = DIMENSION_QUESTIONS.get(current_dim, f"请再说明一下你的{label}。")
-
-        # 1) 同步提取当前维度（LLM 只负责解析，不负责对话）
-        value = None
+        # ── 收集中：自然对话 + 多维提取 + 校验写库 + 约束回复 ──
+        # 1) 多维提取：从学生整句话里抽所有明确说出的维度
         try:
-            extracted = await self._extract_single_dimension(user_input, current_dim)
-            if extracted is not None:
-                value = self._validate_extracted(current_dim, extracted)
+            extracted_map = await self._extract_multi_dimension(user_input, existing_profile)
         except Exception as e:
-            log.error(f"单维度提取异常: {e}")
+            log.error(f"多维提取异常: {e}")
+            extracted_map = {}
 
-        # 2) 保存并推进状态机
-        now_missing = missing
-        if value is not None:
-            existing_profile[current_dim] = value
-            try:
-                async with AsyncSessionLocal() as save_db:
-                    saver = ProfileAgent(save_db)
-                    await saver._save_profile(user_id, existing_profile, profile_id=profile_id)
-            except Exception as e:
-                log.error(f"画像保存失败: {e}")
-                yield f"保存{label}失败，请重试一次。{reask}"
-                return
+        # 2) 校验 + 落库（只有校验通过的才会写）
+        saved: Dict[str, Any] = {}
+        if extracted_map:
+            for field, raw in extracted_map.items():
+                if field not in DIM_LABELS:
+                    continue
+                val = self._validate_extracted(field, raw)
+                if val is None:
+                    log.info(f"维度 {field} 提取值非法，丢弃: {raw!r}")
+                    continue
+                existing_profile[field] = val
+                saved[field] = val
+                if field not in confirmed_dims:
+                    confirmed_dims.append(field)
 
-            if current_dim not in confirmed_dims:
-                confirmed_dims.append(current_dim)
-            state["confirmed_dims"] = confirmed_dims
-            now_missing = [f for f, _, _ in DIMENSIONS if f not in confirmed_dims]
-            if not now_missing:
-                state["awaiting_confirm"] = True
-            await self._save_collect_state(user_id, state)
+            if saved:
+                try:
+                    async with AsyncSessionLocal() as save_db:
+                        saver = ProfileAgent(save_db)
+                        await saver._save_profile(user_id, existing_profile, profile_id=profile_id)
+                except Exception as e:
+                    log.error(f"画像保存失败: {e}")
+                    yield f"保存失败，请再试一次。{DIMENSION_QUESTIONS.get(missing[0], '')}"
+                    return
 
-            if ws:
-                lock = _get_ws_write_lock(user_id)
-                async with lock:
-                    try:
-                        await ws.send_json({"type": "profile_update", "message": "画像已更新"})
-                    except Exception:
-                        pass
+                state["confirmed_dims"] = confirmed_dims
+                now_missing = [f for f, _, _ in DIMENSIONS if f not in confirmed_dims]
+                if not now_missing:
+                    state["awaiting_confirm"] = True
+                await self._save_collect_state(user_id, state)
+
+                if ws:
+                    lock = _get_ws_write_lock(user_id)
+                    async with lock:
+                        try:
+                            await ws.send_json({"type": "profile_update", "message": "画像已更新"})
+                        except Exception:
+                            pass
+            else:
+                now_missing = missing
         else:
-            log.info(f"用户 {user_id} 维度 {current_dim} 提取失败，重问")
+            now_missing = missing
 
-        # 3) 确定性回复文案
-        if value is not None and not now_missing:
+        # 3) 组装回复（自然语言，但「已记录/完成」只反映真实写库结果）
+        all_done = bool(saved) and not now_missing
+        if all_done:
             summary = self._format_summary(existing_profile)
-            reply = f"已记录{label}。\n\n画像信息已采集完毕：\n{summary}\n\n请回复「确认」开始生成学习方案。"
+            reply = await self._compose_collect_reply(
+                saved=saved,
+                next_dim=None,
+                existing_profile=existing_profile,
+                all_done=True,
+            ) or f"已记录{ '、'.join(DIM_LABELS[f] for f in saved) }。\n\n画像信息已采集完毕：\n{summary}\n\n请回复「确认」开始生成学习方案。"
             yield reply
             if ws:
                 lock = _get_ws_write_lock(user_id)
@@ -317,12 +330,97 @@ class ProfileAgent(BaseAgent):
                         })
                     except Exception:
                         pass
-        elif value is not None:
+        elif saved:
             next_dim = now_missing[0]
-            next_q = DIMENSION_QUESTIONS.get(next_dim, f"请再说明一下你的{DIM_LABELS[next_dim]}。")
-            yield f"已记录{label}。{next_q}"
+            reply = await self._compose_collect_reply(
+                saved=saved,
+                next_dim=next_dim,
+                existing_profile=existing_profile,
+                all_done=False,
+            )
+            yield reply
         else:
-            yield f"抱歉，没太听懂关于{label}的回答。{reask}"
+            # 没提取到任何维度：自然地把话头拉回当前缺的维度
+            next_dim = missing[0]
+            reply = await self._compose_collect_reply(
+                saved={},
+                next_dim=next_dim,
+                existing_profile=existing_profile,
+                all_done=False,
+                failed=True,
+            )
+            yield reply
+
+    async def _extract_multi_dimension(
+        self, user_input: str, existing_profile: Dict
+    ) -> Dict[str, Any]:
+        """自然对话多维提取：只返回学生明确说出的维度"""
+        import os
+        base_dir = os.path.abspath(os.path.join(os.path.dirname(__file__), '..', '..'))
+        with open(os.path.join(base_dir, self.EXTRACT_MULTI_PROMPT_PATH), 'r', encoding='utf-8') as f:
+            template = f.read()
+        prompt = template.format(
+            user_input=user_input,
+            existing_profile=json.dumps(
+                {k: existing_profile.get(k) for k in DIM_LABELS if existing_profile.get(k)},
+                ensure_ascii=False,
+            ) or "{}",
+        )
+        response = await self._call_llm(prompt)
+        data = extract_json(response)
+        if not isinstance(data, dict):
+            log.warning(f"多维提取 JSON 解析失败: {response[:200]}")
+            return {}
+        return {k: v for k, v in data.items() if k in DIM_LABELS}
+
+    async def _compose_collect_reply(
+        self,
+        saved: Dict[str, Any],
+        next_dim: Optional[str],
+        existing_profile: Dict,
+        all_done: bool,
+        failed: bool = False,
+    ) -> str:
+        """生成自然回复；失败时回退模板。LLM 只能使用后端给定的事实。"""
+        saved_desc = "、".join(
+            f"{DIM_LABELS[f]}「{ '、'.join(map(str, v)) if isinstance(v, list) else v }」"
+            for f, v in saved.items()
+        ) if saved else ""
+        next_q = DIMENSION_QUESTIONS.get(next_dim, "") if next_dim else ""
+
+        if failed:
+            fact = f"我还想了解你的{DIM_LABELS.get(next_dim, '')}。{DIMENSION_QUESTIONS.get(next_dim, '')}"
+        elif all_done:
+            fact = f"好的，已经记下{saved_desc or '这些信息'}。画像信息已采集完毕，请回复「确认」开始生成学习方案。"
+        else:
+            fact = f"好的，已记录{saved_desc}。"
+            if next_q:
+                fact += next_q
+
+        try:
+            from app.core.model_manager import model_manager
+            style_prompt = (
+                "你是学习画像收集助手。请用 1-3 句自然中文复述以下事实，并自然衔接所给问题。"
+                "硬性要求：\n"
+                "1. 只能使用下面给出的事实，不得添加、推断、编造任何其他已记录信息\n"
+                "2. 若事实中写明「采集完毕」，必须提到请用户回复确认；否则必须包含所给问题\n"
+                "3. 不要解释概念，不要鼓励语，不要超过 3 句话\n\n"
+                f"## 事实\n{fact}\n\n直接输出回复正文。"
+            )
+            text = await model_manager.chat(
+                [{"role": "user", "content": style_prompt}], agent_name="profile"
+            )
+            text = (text or "").strip()
+            # 简单防幻觉：若声称完成但事实未完成，回退模板
+            if not all_done and ("采集完毕" in text or "全部收集" in text or "已完成" in text):
+                log.warning("回复 LLM 越权声称完成，回退模板")
+                return fact
+            if all_done and "确认" not in text:
+                return fact
+            return text or fact
+        except Exception as e:
+            log.warning(f"回复润色失败，使用模板: {e}")
+            return fact
 
     # ── 单维度提取 ─────────────────────────────────────────
 
