@@ -74,7 +74,23 @@ class ProfileAgent(BaseAgent):
             if r:
                 raw = await r.get(self._state_key(user_id))
                 if raw:
-                    return json.loads(raw)
+                    state = json.loads(raw)
+                    # 复检：剔除已失效/非法的 confirmed_dims（防 Redis 脏状态）
+                    profile = await self._get_existing_profile(user_id) if self.db else {}
+                    profile = profile or {}
+                    cleaned = [
+                        f for f in state.get("confirmed_dims", [])
+                        if f in DIM_LABELS and self._is_valid_value(f, profile.get(f), DIM_TYPES[f])
+                    ]
+                    if cleaned != state.get("confirmed_dims"):
+                        log.info(f"画像收集状态复检：清理无效维度 {set(state.get('confirmed_dims', [])) - set(cleaned)}")
+                        state["confirmed_dims"] = cleaned
+                        # 若清理后不再齐全，取消确认门闩
+                        if len(cleaned) < len(DIMENSIONS):
+                            state["confirmed"] = False
+                            state["awaiting_confirm"] = False
+                        await self._save_collect_state(user_id, state)
+                    return state
         except Exception as e:
             log.warning(f"读取画像收集状态失败: {e}")
         return await self._init_collect_state(user_id)
@@ -131,7 +147,12 @@ class ProfileAgent(BaseAgent):
         if value is None:
             return False
         v = str(value).strip()
-        return bool(v) and v not in VAGUE_VALUES and len(v) >= 2
+        if not (bool(v) and v not in VAGUE_VALUES and len(v) >= 2):
+            return False
+        # 枚举维度：必须能通过提取校验（防止旧库脏值被预置为已确认）
+        if field in ("grade", "learning_style", "coding_ability"):
+            return self._validate_extracted(field, value) is not None
+        return True
 
     def _validate_extracted(self, field: str, value: Any) -> Any:
         """校验并归一化提取结果；非法返回 None"""
@@ -146,23 +167,25 @@ class ProfileAgent(BaseAgent):
         v = str(value).strip()
         if not v or v in VAGUE_VALUES or len(v) < 2:
             return None
-        # 枚举维度归一化
+        # 枚举维度：不在候选集合内一律拒绝（返回 None），防止串维度污染
         if field == "grade":
             v2 = v.replace("1", "一").replace("2", "二").replace("3", "三").replace("4", "四")
-            return v2 if v2 in GRADE_CANDIDATES else (v if v in GRADE_CANDIDATES else v)
+            if v2 in GRADE_CANDIDATES:
+                return v2
+            return v if v in GRADE_CANDIDATES else None
         if field == "learning_style":
             for kw, canonical in [("视频", "看视频"), ("文档", "看文档"), ("看书", "看文档"),
                                   ("实践", "动手实践"), ("动手", "动手实践"), ("做题", "做题"), ("练习", "做题")]:
                 if kw in v:
                     return canonical
-            return v if v in STYLE_CANDIDATES else v
+            return v if v in STYLE_CANDIDATES else None
         if field == "coding_ability":
             for kw, canonical in [("零基础", "零基础"), ("没学过", "零基础"), ("不会", "零基础"),
                                   ("入门", "入门"), ("基础语法", "会基础语法"), ("中级", "中级"),
                                   ("熟练", "熟练"), ("精通", "精通")]:
                 if kw in v:
                     return canonical
-            return v
+            return v if v in CODING_CANDIDATES else None
         return v
 
     # ── 主流程：流式对话 ───────────────────────────────────
@@ -322,12 +345,22 @@ class ProfileAgent(BaseAgent):
 
     def _dimension_spec(self, field: str) -> str:
         specs = {
-            "major": "原样保留学生对自己专业的表述。",
-            "grade": f"归一化到候选集合：{('、'.join(sorted(GRADE_CANDIDATES)))}。如「大2」归一化为「大二」。",
-            "goal": "原样保留学生对学习目标的表述。",
-            "knowledge_level": "原样保留学生对知识水平的表述。",
-            "learning_style": f"归一化到候选集合：{('、'.join(sorted(STYLE_CANDIDATES)))}。",
-            "coding_ability": f"归一化到候选集合：{('、'.join(sorted(CODING_CANDIDATES)))}。",
+            "major": "原样保留学生对自己专业的表述。若回答像年级/职业方向而非专业名，输出空。",
+            "grade": (
+                f"只允许候选值：{('、'.join(sorted(GRADE_CANDIDATES)))}。"
+                "「大2」归一化为「大二」。"
+                "若回答不是年级（例如专业名、职业方向、技术方向），必须输出空字符串，严禁当作年级。"
+            ),
+            "goal": "原样保留学生对学习目标的表述。若回答像专业名/年级而非目标，输出空。",
+            "knowledge_level": "原样保留学生对知识水平的表述。若回答像专业/职业方向而非水平，输出空。",
+            "learning_style": (
+                f"只允许候选值：{('、'.join(sorted(STYLE_CANDIDATES)))}。"
+                "不在候选内输出空。"
+            ),
+            "coding_ability": (
+                f"只允许候选值：{('、'.join(sorted(CODING_CANDIDATES)))}。"
+                "不在候选内输出空。"
+            ),
             "interests": "输出 JSON 数组，只提取学生明确提到的方向，每个元素为字符串。",
             "weakness": "输出 JSON 数组，只提取学生明确表示薄弱/不擅长的内容，每个元素为字符串。",
         }
