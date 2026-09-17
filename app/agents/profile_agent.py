@@ -260,7 +260,9 @@ class ProfileAgent(BaseAgent):
         # ── 收集中：自然对话 + 多维提取 + 校验写库 + 约束回复 ──
         # 1) 多维提取：从学生整句话里抽所有明确说出的维度
         try:
-            extracted_map = await self._extract_multi_dimension(user_input, existing_profile)
+            extracted_map = await self._extract_multi_dimension(
+                user_input, existing_profile, focus_dim=missing[0]
+            )
         except Exception as e:
             log.error(f"多维提取异常: {e}")
             extracted_map = {}
@@ -340,10 +342,12 @@ class ProfileAgent(BaseAgent):
                 yield chunk
 
     async def _extract_multi_dimension(
-        self, user_input: str, existing_profile: Dict
+        self, user_input: str, existing_profile: Dict, focus_dim: Optional[str] = None
     ) -> Dict[str, Any]:
         """自然对话多维提取：只返回学生明确说出的维度"""
         import os
+        focus = focus_dim or ""
+        focus_label = DIM_LABELS.get(focus, "（不限）")
         base_dir = os.path.abspath(os.path.join(os.path.dirname(__file__), '..', '..'))
         with open(os.path.join(base_dir, self.EXTRACT_MULTI_PROMPT_PATH), 'r', encoding='utf-8') as f:
             template = f.read()
@@ -353,13 +357,24 @@ class ProfileAgent(BaseAgent):
                 {k: existing_profile.get(k) for k in DIM_LABELS if existing_profile.get(k)},
                 ensure_ascii=False,
             ) or "{}",
+            current_focus=focus or "无特定优先",
+            current_focus_label=focus_label,
         )
         response = await self._call_llm(prompt)
         data = extract_json(response)
         if not isinstance(data, dict):
             log.warning(f"多维提取 JSON 解析失败: {response[:200]}")
             return {}
-        return {k: v for k, v in data.items() if k in DIM_LABELS}
+        result = {k: v for k, v in data.items() if k in DIM_LABELS}
+
+        # 确定性兜底：「有编程类基础」类回答应同时覆盖 knowledge_level
+        text = user_input
+        if "knowledge_level" not in result:
+            if any(k in text for k in ("有编程基础", "有编程语言基础", "有语言基础", "学过编程", "有一定基础")):
+                result["knowledge_level"] = "有编程语言基础"
+            elif any(k in text for k in ("零基础", "没学过", "没接触过", "不会编程")):
+                result["knowledge_level"] = "零基础"
+        return result
 
     async def _compose_collect_reply_stream(
         self,
