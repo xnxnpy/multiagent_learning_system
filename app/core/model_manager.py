@@ -63,6 +63,8 @@ TEXT_MODELS = {
         "password_key": "XUNFEI_API_PASSWORD_LITE",
         "concurrency": 5,
         "qps": 5,
+        # 双协议：auto = 先 WS 再 HTTP
+        "stream_protocol": "auto",
     },
     "spark_pro": {
         "name": "Spark Pro",
@@ -75,6 +77,7 @@ TEXT_MODELS = {
         "password_key": "XUNFEI_API_PASSWORD_PRO",
         "concurrency": 999,
         "qps": 999,
+        "stream_protocol": "auto",
     },
     "spark_pro_128k": {
         "name": "Spark Pro-128K",
@@ -109,6 +112,8 @@ TEXT_MODELS = {
         "password_key": "XUNFEI_API_PASSWORD_X2_FLASH",
         "concurrency": 20,
         "qps": 20,
+        # 仅 HTTP（无稳定 WS 端点）
+        "stream_protocol": "http",
     },
     "spark_x2": {
         "name": "Spark X2",
@@ -145,6 +150,7 @@ TEXT_MODELS = {
         "max_tokens": 32768,
         "concurrency": 100,
         "qps": 100,
+        "stream_protocol": "ws",
     },
     "qwen3_17b": {
         "name": "Qwen3-1.7B",
@@ -348,8 +354,14 @@ class ModelManager:
 
     async def chat_stream(self, messages, agent_name="default", model_key: Optional[str] = None,
                           temperature: float = 0.5, max_tokens: Optional[int] = None):
-        """统一流式文本生成接口"""
-        import json as _json
+        """统一流式文本生成接口（对话类必须走这里）
+
+        协议路由：
+        - stream_protocol == "ws"  → 优先 WebSocket，空/失败自动回退 HTTP
+        - stream_protocol == "http" → 只走 HTTP
+        - 未配置（auto）           → 有 ws_endpoint 则先 WS 再 HTTP，否则 HTTP
+        最终保证至少 yield 一次（mock 兜底），调用方不会得到空流。
+        """
         key = model_key or self._agent_text_models.get(agent_name, "spark_lite")
         model_config = TEXT_MODELS.get(key)
         if not model_config:
@@ -358,22 +370,40 @@ class ModelManager:
             key = "spark_lite"
 
         provider = model_config["provider"]
-        log.info(f"[{agent_name}] 流式生成 → [{key}] ({model_config['name']})")
+        prefer_ws = model_config.get("stream_protocol", "auto") != "http" and bool(model_config.get("ws_endpoint"))
+        has_http = bool(model_config.get("endpoint"))
+        log.info(
+            f"[{agent_name}] 流式生成 → [{key}] ({model_config['name']}) "
+            f"provider={provider} prefer_ws={prefer_ws}"
+        )
 
         rate_limiter = self._get_rate_limiter(key)
         await rate_limiter.acquire()
         try:
-            if model_config.get("ws_endpoint"):
+            got = False
+
+            # 1) 优先协议
+            if prefer_ws:
                 async for chunk in self._chat_stream_ws(messages, model_config, temperature, max_tokens):
+                    got = True
                     yield chunk
-            elif provider == "xunfei_spark":
-                async for chunk in self._chat_stream_spark(messages, model_config, temperature, max_tokens):
+
+            if not got and has_http:
+                if provider == "xunfei_maas":
+                    async for chunk in self._chat_stream_maas(messages, model_config, temperature, max_tokens):
+                        got = True
+                        yield chunk
+                else:
+                    async for chunk in self._chat_stream_spark(messages, model_config, temperature, max_tokens):
+                        got = True
+                        yield chunk
+
+            # 2) 仍无输出：mock 兜底，保证对话不空窗
+            if not got:
+                log.warning(f"[{agent_name}] 所有流式通道均无输出，使用 mock 兜底")
+                from app.core.llm_client import xunfei_llm
+                async for chunk in xunfei_llm._mock_stream_response(messages):
                     yield chunk
-            elif provider == "xunfei_maas":
-                async for chunk in self._chat_stream_maas(messages, model_config, temperature, max_tokens):
-                    yield chunk
-            else:
-                raise ValueError(f"不支持的提供商: {provider}")
         finally:
             rate_limiter.release()
 
