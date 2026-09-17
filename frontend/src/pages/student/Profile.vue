@@ -337,7 +337,7 @@ const now = () => new Date().toLocaleTimeString()
 const messages = ref<ChatMsg[]>([
   {
     role: 'assistant',
-    content: '您好！我是您的学习顾问。为了给您制定个性化的学习方案，请先告诉我您的专业方向和年级？',
+    content: '你好！我来帮你完善学习画像。你的专业是什么？例如计算机、软件测试、数学等。',
     time: now(),
   },
 ])

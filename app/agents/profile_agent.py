@@ -35,10 +35,22 @@ GRADE_CANDIDATES = {"大一", "大二", "大三", "大四", "研一", "研二", 
 STYLE_CANDIDATES = {"看视频", "看文档", "动手实践", "做题"}
 CODING_CANDIDATES = {"零基础", "入门", "会基础语法", "中级", "熟练", "精通"}
 
-# 模糊/无信息值：不算有效收集
+# 无信息值：不算有效收集
 VAGUE_VALUES = {
     "", " ", "未知", "待完善", "待评估", "其他", "不知道", "一般", "还行", "还可以",
     "大学生", "研究生", "在职", "没接触过", "没学过", "无",
+}
+
+# 各维度的确定性引导问题（收集流程不再依赖聊天 LLM 自由发挥）
+DIMENSION_QUESTIONS = {
+    "major": "你的专业是什么？例如计算机、软件测试、数学等。",
+    "grade": "你目前大几？（大一 / 大二 / 大三 / 大四 / 研一 / 研二 / 研三）",
+    "goal": "你的学习目标是什么？例如考研、找工作、课程需要等。",
+    "knowledge_level": "你目前对这个领域的知识水平如何？例如零基础、有编程语言基础、学过相关课程。",
+    "learning_style": "你平时喜欢哪种学习方式？看视频、看文档、动手实践还是做题？",
+    "coding_ability": "你的编程能力大概在什么水平？零基础 / 入门 / 会基础语法 / 中级 / 熟练。",
+    "interests": "你对哪些方向比较感兴趣？例如AI、Web开发、数据分析等（可以说多个）。",
+    "weakness": "你在哪些方面感觉比较薄弱？例如算法、数学基础、英语文献阅读等。",
 }
 
 # 确认关键词（awaiting_confirm 状态下用户输入匹配任一即视为确认）
@@ -244,78 +256,73 @@ class ProfileAgent(BaseAgent):
             yield f"画像信息已采集完毕：\n{summary}\n\n请回复「确认」开始生成学习方案。"
             return
 
-        # ── 收集中：单维度提问 + 单维度提取 ──
+        # ── 收集中：先提取，再用确定性文案回复（不再让聊天 LLM 自由发挥）──
         current_dim = missing[0]
+        label = DIM_LABELS[current_dim]
+        reask = DIMENSION_QUESTIONS.get(current_dim, f"请再说明一下你的{label}。")
 
-        chat_prompt = self._load_chat_prompt(existing_profile, current_dim)
-        messages = [{"role": "system", "content": chat_prompt}]
-        if chat_history:
-            for msg in chat_history:
-                messages.append({"role": msg["role"], "content": msg["content"]})
-        messages.append({"role": "user", "content": user_input})
+        # 1) 同步提取当前维度（LLM 只负责解析，不负责对话）
+        value = None
+        try:
+            extracted = await self._extract_single_dimension(user_input, current_dim)
+            if extracted is not None:
+                value = self._validate_extracted(current_dim, extracted)
+        except Exception as e:
+            log.error(f"单维度提取异常: {e}")
 
-        # 直接走 model_manager.chat_stream，不经过 LangChain astream
-        # （自定义 ChatModel 在 WS/HTTP 流式无输出时会触发 "No generation chunks"）
-        from app.core.model_manager import model_manager
-        full_response = ""
-        async for chunk in model_manager.chat_stream(messages, agent_name="profile"):
-            if chunk:
-                full_response += chunk
-                yield chunk
-
-        if not full_response:
-            # 流式完全无输出时的兜底：非流式重试一次
+        # 2) 保存并推进状态机
+        now_missing = missing
+        if value is not None:
+            existing_profile[current_dim] = value
             try:
-                full_response = await model_manager.chat(messages, agent_name="profile")
+                async with AsyncSessionLocal() as save_db:
+                    saver = ProfileAgent(save_db)
+                    await saver._save_profile(user_id, existing_profile, profile_id=profile_id)
             except Exception as e:
-                log.error(f"画像对话非流式兜底也失败: {e}")
-                full_response = ""
-            if full_response:
-                yield full_response
-            else:
-                yield "抱歉，服务暂时繁忙，请稍后重试。"
+                log.error(f"画像保存失败: {e}")
+                yield f"保存{label}失败，请重试一次。{reask}"
+                return
 
-        # 后台：单维度提取 → 保存 → 更新状态 → 通知
-        async def _bg_extract_and_notify():
-            try:
-                extracted = await self._extract_single_dimension(user_input, current_dim)
-                value = self._validate_extracted(current_dim, extracted) if extracted is not None else None
-                if value is not None:
-                    existing_profile[current_dim] = value
-                    async with AsyncSessionLocal() as save_db:
-                        saver = ProfileAgent(save_db)
-                        await saver._save_profile(user_id, existing_profile, profile_id=profile_id)
-                    if current_dim not in confirmed_dims:
-                        confirmed_dims.append(current_dim)
-                else:
-                    log.info(f"用户 {user_id} 对维度 {current_dim} 的回答未提取到有效值，等待重答")
+            if current_dim not in confirmed_dims:
+                confirmed_dims.append(current_dim)
+            state["confirmed_dims"] = confirmed_dims
+            now_missing = [f for f, _, _ in DIMENSIONS if f not in confirmed_dims]
+            if not now_missing:
+                state["awaiting_confirm"] = True
+            await self._save_collect_state(user_id, state)
 
-                state["confirmed_dims"] = confirmed_dims
-                now_missing = [f for f, _, _ in DIMENSIONS if f not in confirmed_dims]
-                if not now_missing:
-                    state["awaiting_confirm"] = True
-                await self._save_collect_state(user_id, state)
+            if ws:
+                lock = _get_ws_write_lock(user_id)
+                async with lock:
+                    try:
+                        await ws.send_json({"type": "profile_update", "message": "画像已更新"})
+                    except Exception:
+                        pass
+        else:
+            log.info(f"用户 {user_id} 维度 {current_dim} 提取失败，重问")
 
-                if ws:
-                    lock = _get_ws_write_lock(user_id)
-                    async with lock:
-                        try:
-                            await ws.send_json({"type": "profile_update", "message": "画像已更新"})
-                            if not now_missing:
-                                summary = self._format_summary(existing_profile)
-                                await ws.send_json({
-                                    "type": "profile_ready",
-                                    "message": "画像采集完成，请确认",
-                                    "summary": summary,
-                                })
-                        except Exception:
-                            pass
-            except Exception as e:
-                log.error(f"ProfileAgent 后台提取失败: {e}")
-
-        task = asyncio.create_task(_bg_extract_and_notify())
-        _background_tasks.add(task)
-        task.add_done_callback(_background_tasks.discard)
+        # 3) 确定性回复文案
+        if value is not None and not now_missing:
+            summary = self._format_summary(existing_profile)
+            reply = f"已记录{label}。\n\n画像信息已采集完毕：\n{summary}\n\n请回复「确认」开始生成学习方案。"
+            yield reply
+            if ws:
+                lock = _get_ws_write_lock(user_id)
+                async with lock:
+                    try:
+                        await ws.send_json({
+                            "type": "profile_ready",
+                            "message": "画像采集完成，请确认",
+                            "summary": summary,
+                        })
+                    except Exception:
+                        pass
+        elif value is not None:
+            next_dim = now_missing[0]
+            next_q = DIMENSION_QUESTIONS.get(next_dim, f"请再说明一下你的{DIM_LABELS[next_dim]}。")
+            yield f"已记录{label}。{next_q}"
+        else:
+            yield f"抱歉，没太听懂关于{label}的回答。{reask}"
 
     # ── 单维度提取 ─────────────────────────────────────────
 
