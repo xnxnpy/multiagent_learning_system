@@ -359,8 +359,8 @@ class ProfileAgent(BaseAgent):
         else:
             now_missing = missing
 
-        # 回复只播报本轮真正新确认的维度；没有新维度则不念旧账
-        report = newly if newly else saved
+        # 回复只播报本轮真正新确认的维度；旧值重复写入不播报
+        report = newly
 
         # 3) 组装并流式回复（只播报本轮新记入的维度）
         all_done = bool(saved) and not now_missing
@@ -438,7 +438,7 @@ class ProfileAgent(BaseAgent):
             log.warning(f"多维提取 JSON 解析失败: {str(response)[:200]}")
 
         # 规则结果合并：LLM 缺的字段用规则补（含 LLM 失败时的完整规则提取）
-        rule = self._rule_extract(user_input)
+        rule = self._rule_extract(user_input, focus=focus)
         for k, v in rule.items():
             cur = result.get(k)
             empty = cur is None or cur == [] or (isinstance(cur, str) and not cur.strip())
@@ -465,7 +465,7 @@ class ProfileAgent(BaseAgent):
         return result
 
     @staticmethod
-    def _rule_extract(user_input: str) -> Dict[str, Any]:
+    def _rule_extract(user_input: str, focus: Optional[str] = None) -> Dict[str, Any]:
         """LLM 提取失败时的规则兜底：常见明确表述"""
         out: Dict[str, Any] = {}
         t = user_input
@@ -503,23 +503,33 @@ class ProfileAgent(BaseAgent):
             out["learning_style"] = "动手实践"
         elif any(k in t for k in ("做题", "刷题", "练习题")):
             out["learning_style"] = "做题"
-        # 薄弱
+        # 薄弱：focus=weakness 时不要求「薄弱/差」关键词（学生常直接列清单）
+        import re as _re
         weak_map = [("数学", "数学基础"), ("算法", "算法"), ("英语", "英语"),
                     ("编程基础差", "编程基础"), ("逻辑", "逻辑思维")]
-        if any(k in t for k in ("薄弱", "差", "弱", "不好", "不擅长")):
+        if focus == "weakness":
+            if any(sep in t for sep in ("、", "，", ",")):
+                parts = [p.strip() for p in _re.split(r"[、,，]+", t) if p.strip()]
+                if parts:
+                    out["weakness"] = parts[:8]
+            else:
+                found = [val for kw, val in weak_map if kw in t]
+                if found:
+                    out["weakness"] = found
+                elif t.strip():
+                    out["weakness"] = [t.strip()]
+        elif any(k in t for k in ("薄弱", "差", "弱", "不好", "不擅长")):
             found = []
             for kw, val in weak_map:
                 if kw in t and val not in found:
                     found.append(val)
             if found:
                 out["weakness"] = found
+
         # 兴趣：含顿号/、的短语且无年级专业目标特征时，按列表拆
-        # （focus 为 interests 时由调用方再补，这里只在明显列表时出）
         if "interests" not in out and ("、" in t or "，" in t or "," in t):
-            import re as _re
             parts = [p.strip() for p in _re.split(r"[、,，]+", t) if p.strip()]
-            # 至少两项且不含年级词 → 按兴趣列表处理
-            if len(parts) >= 2 and not any(g in t for g in GRADE_CANDIDATES):
+            if len(parts) >= 2 and not any(g in t for g in GRADE_CANDIDATES) and focus != "weakness":
                 out["interests"] = parts[:6]
         return out
 
