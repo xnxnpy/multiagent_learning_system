@@ -367,13 +367,19 @@ class ProfileAgent(BaseAgent):
             return {}
         result = {k: v for k, v in data.items() if k in DIM_LABELS}
 
-        # 确定性兜底：「有编程类基础」类回答应同时覆盖 knowledge_level
-        text = user_input
-        if "knowledge_level" not in result:
-            if any(k in text for k in ("有编程基础", "有编程语言基础", "有语言基础", "学过编程", "有一定基础")):
+        # 确定性兜底：knowledge_level 缺失或为空字符串时，从原话补
+        # 注意：LLM 常返回 "knowledge_level": ""，不能只判断字段是否存在
+        kl_raw = result.get("knowledge_level")
+        kl_ok = kl_raw is not None and str(kl_raw).strip() and str(kl_raw).strip() not in VAGUE_VALUES
+        if not kl_ok:
+            text = user_input
+            if any(k in text for k in ("有编程基础", "有编程语言基础", "有语言基础", "学过编程", "有一定基础", "有基础")):
                 result["knowledge_level"] = "有编程语言基础"
-            elif any(k in text for k in ("零基础", "没学过", "没接触过", "不会编程")):
+            elif any(k in text for k in ("零基础", "没学过", "没接触过", "不会编程", "完全不会")):
                 result["knowledge_level"] = "零基础"
+            elif "knowledge_level" in result and not str(result.get("knowledge_level") or "").strip():
+                # 空字符串删掉，避免校验层拿到空值
+                result.pop("knowledge_level", None)
         return result
 
     async def _compose_collect_reply_stream(
