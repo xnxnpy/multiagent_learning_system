@@ -171,6 +171,11 @@ class ProfileAgent(BaseAgent):
         """校验并归一化提取结果；非法返回 None"""
         dtype = DIM_TYPES[field]
         if dtype == "list":
+            # 接受 list 或用顿号/逗号分隔的字符串
+            if isinstance(value, str):
+                import re as _re
+                parts = [p.strip() for p in _re.split(r"[、,，/;；\s]+", value) if p.strip()]
+                value = parts
             if not isinstance(value, list):
                 return None
             items = [str(v).strip() for v in value if v and str(v).strip() and str(v).strip() not in VAGUE_VALUES]
@@ -297,6 +302,7 @@ class ProfileAgent(BaseAgent):
             return
 
         # ── 收集中：自然对话 + 多维提取 + 校验写库 + 约束回复 ──
+        before_confirmed = set(confirmed_dims)
         # 1) 多维提取：从学生整句话里抽所有明确说出的维度
         try:
             extracted_map = await self._extract_multi_dimension(
@@ -308,6 +314,7 @@ class ProfileAgent(BaseAgent):
 
         # 2) 校验 + 落库（只有校验通过的才会写）
         saved: Dict[str, Any] = {}
+        newly: Dict[str, Any] = {}
         if extracted_map:
             for field, raw in extracted_map.items():
                 if field not in DIM_LABELS:
@@ -320,6 +327,9 @@ class ProfileAgent(BaseAgent):
                 saved[field] = val
                 if field not in confirmed_dims:
                     confirmed_dims.append(field)
+                    newly[field] = val
+                elif field not in before_confirmed:
+                    newly[field] = val
 
             if saved:
                 try:
@@ -349,12 +359,15 @@ class ProfileAgent(BaseAgent):
         else:
             now_missing = missing
 
-        # 3) 组装并流式回复（事实来自后端写库结果）
+        # 回复只播报本轮真正新确认的维度；没有新维度则不念旧账
+        report = newly if newly else saved
+
+        # 3) 组装并流式回复（只播报本轮新记入的维度）
         all_done = bool(saved) and not now_missing
         if all_done:
             summary = self._format_summary(existing_profile)
             async for chunk in self._compose_collect_reply_stream(
-                saved=saved, next_dim=None, existing_profile=existing_profile, all_done=True,
+                saved=report or saved, next_dim=None, existing_profile=existing_profile, all_done=True,
             ):
                 yield chunk
             if ws:
@@ -368,9 +381,16 @@ class ProfileAgent(BaseAgent):
                         })
                     except Exception:
                         pass
-        elif saved:
+        elif report:
             async for chunk in self._compose_collect_reply_stream(
-                saved=saved, next_dim=now_missing[0], existing_profile=existing_profile, all_done=False,
+                saved=report, next_dim=now_missing[0], existing_profile=existing_profile, all_done=False,
+            ):
+                yield chunk
+        elif saved:
+            # 只是重复确认了已有值，不念旧账，直接问下一缺
+            async for chunk in self._compose_collect_reply_stream(
+                saved={}, next_dim=now_missing[0], existing_profile=existing_profile, all_done=False,
+                failed=True,
             ):
                 yield chunk
         else:
@@ -483,6 +503,14 @@ class ProfileAgent(BaseAgent):
                     found.append(val)
             if found:
                 out["weakness"] = found
+        # 兴趣：含顿号/、的短语且无年级专业目标特征时，按列表拆
+        # （focus 为 interests 时由调用方再补，这里只在明显列表时出）
+        if "interests" not in out and ("、" in t or "，" in t or "," in t):
+            import re as _re
+            parts = [p.strip() for p in _re.split(r"[、,，]+", t) if p.strip()]
+            # 至少两项且不含年级词 → 按兴趣列表处理
+            if len(parts) >= 2 and not any(g in t for g in GRADE_CANDIDATES):
+                out["interests"] = parts[:6]
         return out
 
     async def _compose_collect_reply_stream(
