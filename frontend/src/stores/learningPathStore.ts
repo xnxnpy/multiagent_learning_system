@@ -152,15 +152,16 @@ export const useLearningPathStore = defineStore('learningPath', () => {
     stageGenerating.value = true
     appStore.addTask({ id: 'workflow', type: 'workflow', label: 'Supervisor 正在编排本阶段资源', progress: 5, status: 'running' })
 
-    // 后端为同步 HTTP，无法推送节点级进度；用轮询文案模拟 Supervisor 思考过程
+    // 后端为同步 HTTP；文案轮询模拟 Supervisor 思考（节点级进度走 send_agent_progress 通知）
     let simIdx = 0
+    appStore.updateTask('workflow', { progress: 8, detail: 'Supervisor · 分析画像与阶段…' })
     const simTimer = setInterval(() => {
       if (simIdx < RESOURCE_STEP_NAMES.length - 1) {
         simIdx++
-        const pct = Math.min(5 + Math.round((simIdx / RESOURCE_STEP_NAMES.length) * 90), 95)
+        const pct = Math.min(8 + Math.round((simIdx / RESOURCE_STEP_NAMES.length) * 85), 95)
         appStore.updateTask('workflow', { progress: pct, detail: RESOURCE_STEP_NAMES[simIdx] })
       }
-    }, 8000)
+    }, 4000)
 
     try {
       const res: any = await request.post('/v1/student/learn/stage/generate', {

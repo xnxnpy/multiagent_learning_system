@@ -60,9 +60,25 @@ class SupervisorAgent(BaseAgent):
         fix_hints: List[str],
     ) -> Dict[str, Any]:
         """产出一个经白名单校验的决策。LLM 失败时回退 default_plan。"""
+        # 上下文截断：过长 JSON 容易触发讯飞 400 RequestParamsError
+        compact_profile = {
+            k: profile.get(k)
+            for k in ("major", "grade", "goal", "knowledge_level", "learning_style",
+                      "coding_ability", "interests", "weakness")
+            if profile.get(k)
+        }
+        compact_stage = {
+            k: stage.get(k)
+            for k in ("title", "stage_id", "knowledge_points", "recommended_resources")
+            if stage.get(k) is not None
+        }
+        kb_brief = [
+            {"id": h.get("evidence_id", f"E{i+1}"), "text": str(h.get("text", ""))[:180]}
+            for i, h in enumerate(knowledge_base_hits[:3])
+        ]
         prompt = self._load_prompt(self.PROMPT_PATH).format(
-            profile=json.dumps(profile, ensure_ascii=False),
-            stage=json.dumps(stage, ensure_ascii=False),
+            profile=json.dumps(compact_profile, ensure_ascii=False),
+            stage=json.dumps(compact_stage, ensure_ascii=False),
             generated_summary=json.dumps(
                 {
                     "generated_tools": list(generated.keys()),
@@ -71,9 +87,12 @@ class SupervisorAgent(BaseAgent):
                 },
                 ensure_ascii=False,
             ),
-            knowledge_base_hits=json.dumps(knowledge_base_hits[:5], ensure_ascii=False),
-            fix_hints=json.dumps(fix_hints, ensure_ascii=False),
+            knowledge_base_hits=json.dumps(kb_brief, ensure_ascii=False),
+            fix_hints=json.dumps((fix_hints or [])[:5], ensure_ascii=False),
         )
+        # 再砍一刀：总长控制在 ~6k 字符内
+        if len(prompt) > 6000:
+            prompt = prompt[:5800] + "\n\n请只输出 JSON 决策。"
 
         try:
             response = await self._call_llm(prompt)

@@ -76,11 +76,27 @@ def _log_msg(state: StageState, sender: str, receiver: str, mtype: str, content:
     })
 
 
+async def _notify_progress(user_id: int, step_name: str, progress: int, status: str = "running") -> None:
+    """推送节点级进度到前端（懒加载，避免循环导入）"""
+    try:
+        from app.api.v1.student import send_agent_progress
+        await send_agent_progress(
+            user_id,
+            step="stage_workflow",
+            step_name=step_name,
+            progress=progress,
+            status=status,
+        )
+    except Exception as e:
+        log.debug(f"进度推送失败（不影响流程）: {e}")
+
+
 # ── 节点实现 ───────────────────────────────────────────────
 
 
 async def supervisor_plan_node(state: StageState) -> Dict[str, Any]:
     """思考节点：LLM 决策下一步调用哪个工具（输出经白名单校验）"""
+    await _notify_progress(state.user_id, "Supervisor · 正在分析画像并决策下一步工具", 10)
     supervisor = SupervisorAgent(state.db)
 
     # 仅在本轮需要 grounding 时检索（plan 后由 act 使用）
@@ -130,6 +146,20 @@ async def act_node(state: StageState) -> Dict[str, Any]:
     topic = state.topic
     params = decision.get("params") or {}
     fix_hints = params.get("fix_hints") or state.fix_hints
+
+    tool_name = decision.get("tool") or ""
+    tool_label = {
+        "document": "文档生成", "question": "题库生成", "code": "代码示例",
+        "mindmap": "思维导图", "reading_material": "拓展阅读", "glossary": "术语词汇",
+        "summary": "学习总结", "ppt_video": "PPT视频", "knowledge_link": "知识关联",
+    }.get(tool_name, tool_name)
+    reasoning = str(decision.get("reasoning", ""))[:80]
+    await _notify_progress(
+        user_id,
+        f"Supervisor 决策 → {tool_label} Agent（{reasoning}）",
+        30,
+    )
+    log.info(f"Supervisor 派发工具={tool_name} reasoning={reasoning}")
 
     # 需要接地的工具：检索知识库（空库自然返回 []，纯 LLM 降级）
     grounding = state.grounding
@@ -226,6 +256,7 @@ async def quality_gate_node(state: StageState) -> Dict[str, Any]:
     """质量守门员：确定性谓词——分数阈值 + 重做次数上限"""
     result = state.tool_result
     if not result or result.get("error"):
+        await _notify_progress(state.user_id, "资源生成失败，Supervisor 将重新规划", 50, "failed")
         return {"status": "failed"}
 
     tool = result["tool"]
@@ -257,6 +288,12 @@ async def quality_gate_node(state: StageState) -> Dict[str, Any]:
     scores = dict(state.quality_scores)
     scores[tool] = float(score)
     regen = dict(state.regen_counts)
+
+    await _notify_progress(
+        state.user_id,
+        f"质量评估 {tool}：{score} 分（阈值 {threshold}）",
+        70,
+    )
 
     messages_delta: List[Dict[str, Any]] = []
 

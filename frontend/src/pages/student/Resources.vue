@@ -576,10 +576,10 @@
       style="margin-top: 24px;"
     />
 
-    <!-- Workflow Dialog (legacy) -->
+    <!-- Workflow Dialog (legacy) — 绑定 appStore 后台任务的真实进度 -->
     <el-dialog v-model="showWorkflow" title="资源生成进度" width="500px" :close-on-click-modal="false">
-      <el-progress :percentage="Math.round((store.workflowState?.progress || 0) * 100)" :stroke-width="16" />
-      <p class="workflow-step">{{ stepName(store.workflowState?.current_step || '') }}</p>
+      <el-progress :percentage="wfTask?.progress || 0" :stroke-width="16" />
+      <p class="workflow-step">{{ wfTask?.detail || 'Supervisor 学习环编排中…' }}</p>
     </el-dialog>
   </div>
 </template>
@@ -594,6 +594,7 @@ import hljs from 'highlight.js'
 import 'highlight.js/styles/github.css'
 import { useResourceStore } from '@/stores/resourceStore'
 import { useLearningPathStore } from '@/stores/learningPathStore'
+import { useAppStore } from '@/stores/appStore'
 import { renderMath } from '@/utils/renderMath'
 import { renderMd } from '@/utils/renderMarkdown'
 import AgentCollaboration from '@/components/AgentCollaboration.vue'
@@ -708,6 +709,8 @@ import { useLearningTracker } from '@/composables/useLearningTracker'
 const route = useRoute()
 const store = useResourceStore()
 const pathStore = useLearningPathStore()
+const appStore = useAppStore()
+const wfTask = computed(() => appStore.tasks.find(t => t.id === 'workflow'))
 
 // ── 质量门控 ──────────────────────────────────────
 const regeneratingType = ref('')
