@@ -420,24 +420,34 @@ class ProfileAgent(BaseAgent):
             current_focus_label=focus_label,
         )
         response = await self._call_llm(prompt)
-        # 拦截 mock/非画像 JSON：提取失败必须返回空，不能把 mock 语料当提取结果
-        if not response or '"calculate_average"' in response or '"title"' in response and '"code"' in response:
-            if response and ("calculate_average" in response or '"questions"' in response):
-                log.warning("多维提取返回 mock，按提取失败处理")
-                return {}
-        data = extract_json(response)
-        if not isinstance(data, dict):
-            log.warning(f"多维提取 JSON 解析失败: {response[:200]}")
-            return {}
-        # mock JSON 解析出来可能有 title/code 等字段，过滤后应无画像维度
-        result = {k: v for k, v in data.items() if k in DIM_LABELS}
-        if not result and data and any(k in data for k in ("code", "questions", "video_script", "mindmap")):
-            log.warning("多维提取疑似 mock 结构，丢弃")
-            result = {}
+        data: Any = None
+        # 拦截 mock/非画像 JSON
+        if response and ("calculate_average" in response or '"questions"' in response or '"video_script"' in response):
+            log.warning("多维提取返回 mock，丢弃")
+            data = None
+        else:
+            data = extract_json(response) if response else None
+            if isinstance(data, dict) and any(k in data for k in ("code", "questions", "video_script", "mindmap")) and not any(k in data for k in DIM_LABELS):
+                log.warning("多维提取疑似 mock 结构，丢弃")
+                data = None
 
-        # LLM 失败/返回空时：规则兜底提取常见明确表述（保证「说了就记」）
-        if not result:
-            result = self._rule_extract(user_input)
+        result: Dict[str, Any] = {}
+        if isinstance(data, dict):
+            result = {k: v for k, v in data.items() if k in DIM_LABELS}
+        elif response:
+            log.warning(f"多维提取 JSON 解析失败: {str(response)[:200]}")
+
+        # 规则结果合并：LLM 缺的字段用规则补（含 LLM 失败时的完整规则提取）
+        rule = self._rule_extract(user_input)
+        for k, v in rule.items():
+            cur = result.get(k)
+            empty = cur is None or cur == [] or (isinstance(cur, str) and not cur.strip())
+            if empty:
+                result[k] = v
+
+        # focus 字段若规则有而 LLM 没给，确保带上
+        if focus and focus not in result and focus in rule:
+            result[focus] = rule[focus]
 
         # 确定性兜底：knowledge_level 缺失或为空字符串时，从原话补
         # 注意：LLM 常返回 "knowledge_level": ""，不能只判断字段是否存在
