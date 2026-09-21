@@ -2231,76 +2231,9 @@ async def complete_stage(
     return {"message": "阶段已完成", "completed_stages": completed}
 
 
-class StageGenerateRequest(BaseModel):
-    stage_id: int = Field(..., description="要生成资源的阶段 ID")
-    force: bool = Field(False, description="是否强制重新生成")
-
-
 class KnowledgeGraphRequest(BaseModel):
     stage_id: Optional[int] = Field(None, description="阶段 ID（不传则生成全局图谱）")
     topic: Optional[str] = Field(None, description="主题（不传则自动使用学习目标）")
-
-
-@router.post("/learn/stage/generate")
-async def generate_stage_resources(
-    request: StageGenerateRequest,
-    current_user: User = Depends(get_current_user),
-    db: AsyncSession = Depends(get_db),
-):
-    """为指定学习阶段生成全部资源（复用 _generate_one_stage）"""
-    from app.models import LearningResource
-
-    # 获取活跃画像
-    prof_result = await db.execute(
-        select(StudentProfile).where(
-            StudentProfile.user_id == current_user.id,
-            StudentProfile.is_active == True,
-        )
-    )
-    prof = prof_result.scalar_one_or_none()
-    path_query = select(LearningPath).where(LearningPath.user_id == current_user.id)
-    if prof:
-        path_query = path_query.where(LearningPath.profile_id == prof.id)
-    result = await db.execute(path_query)
-    path = result.scalar_one_or_none()
-    if not path or not path.stages:
-        raise HTTPException(status_code=404, detail="学习路径不存在")
-
-    stage = None
-    for s in path.stages:
-        if s.get("stage_id") == request.stage_id:
-            stage = s
-            break
-    if not stage:
-        raise HTTPException(status_code=404, detail=f"阶段 {request.stage_id} 不存在")
-
-    kps = stage.get("knowledge_points", [])
-    if kps and isinstance(kps[0], dict):
-        stage_topic = "、".join([kp.get("name", "") for kp in kps]) or stage.get("title", "")
-    else:
-        stage_topic = "、".join([str(kp) for kp in kps]) or stage.get("title", "")
-
-    # 直接复用统一的生成函数（含进度通知 + 质量评估）
-    await _generate_one_stage(current_user.id, stage, force=request.force)
-
-    # 读回生成结果返回给前端（按 profile_id 过滤）
-    id_query = select(LearningResource.resource_type, func.max(LearningResource.id).label("max_id")).where(
-        LearningResource.user_id == current_user.id,
-        LearningResource.stage_id == request.stage_id,
-    )
-    if prof:
-        id_query = id_query.where(LearningResource.profile_id == prof.id)
-    id_result = await db.execute(id_query.group_by(LearningResource.resource_type))
-    latest_ids = [row.max_id for row in id_result.all()]
-    generated = {}
-    if latest_ids:
-        content_result = await db.execute(
-            select(LearningResource).where(LearningResource.id.in_(latest_ids))
-        )
-        for r in content_result.scalars().all():
-            generated[r.resource_type] = r.content
-
-    return {"stage_id": request.stage_id, "topic": stage_topic, "generated": generated}
 
 
 @router.post("/learn/stage/generate")
