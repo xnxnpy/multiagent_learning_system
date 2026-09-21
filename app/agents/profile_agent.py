@@ -228,6 +228,19 @@ class ProfileAgent(BaseAgent):
 
         state = await self._load_collect_state(user_id)
         confirmed_dims = state.get("confirmed_dims", [])
+        # 与画像实际值对齐：画像里没有有效值的维度绝不算已确认（防脏状态提前「采集完毕」）
+        aligned = [
+            f for f in confirmed_dims
+            if f in DIM_LABELS and self._is_valid_value(f, existing_profile.get(f), DIM_TYPES[f])
+        ]
+        if aligned != confirmed_dims:
+            log.info(f"confirmed_dims 对齐画像: 清理 {set(confirmed_dims) - set(aligned)}")
+            confirmed_dims = aligned
+            state["confirmed_dims"] = aligned
+            if len(aligned) < len(DIMENSIONS):
+                state["confirmed"] = False
+                state["awaiting_confirm"] = False
+            await self._save_collect_state(user_id, state)
         missing = [field for field, _, _ in DIMENSIONS if field not in confirmed_dims]
 
         # ── 状态机 ──
@@ -235,6 +248,22 @@ class ProfileAgent(BaseAgent):
         if state.get("confirmed"):
             yield "画像已确认，学习方案已基于此生成。如需修改某项信息，请使用「编辑画像」功能。"
             return
+
+        # 用户明确说没采集完 → 重开收集（按画像实际值重算缺口）
+        if missing == [] and not self._is_confirmation(user_input) and self._says_not_done(user_input):
+            state["confirmed"] = False
+            state["awaiting_confirm"] = False
+            confirmed_dims = [
+                f for f, _, dtype in DIMENSIONS
+                if self._is_valid_value(f, existing_profile.get(f), dtype)
+            ]
+            state["confirmed_dims"] = confirmed_dims
+            await self._save_collect_state(user_id, state)
+            missing = [field for field, _, _ in DIMENSIONS if field not in confirmed_dims]
+            if missing:
+                next_q = DIMENSION_QUESTIONS.get(missing[0], "")
+                yield f"明白，还没采集完。{next_q}"
+                return
 
         # 全部维度已收集，等待用户显式确认
         if not missing:
@@ -361,11 +390,20 @@ class ProfileAgent(BaseAgent):
             current_focus_label=focus_label,
         )
         response = await self._call_llm(prompt)
+        # 拦截 mock/非画像 JSON：提取失败必须返回空，不能把 mock 语料当提取结果
+        if not response or '"calculate_average"' in response or '"title"' in response and '"code"' in response:
+            if response and ("calculate_average" in response or '"questions"' in response):
+                log.warning("多维提取返回 mock，按提取失败处理")
+                return {}
         data = extract_json(response)
         if not isinstance(data, dict):
             log.warning(f"多维提取 JSON 解析失败: {response[:200]}")
             return {}
+        # mock JSON 解析出来可能有 title/code 等字段，过滤后应无画像维度
         result = {k: v for k, v in data.items() if k in DIM_LABELS}
+        if not result and data and any(k in data for k in ("code", "questions", "video_script", "mindmap")):
+            log.warning("多维提取疑似 mock 结构，丢弃")
+            return {}
 
         # 确定性兜底：knowledge_level 缺失或为空字符串时，从原话补
         # 注意：LLM 常返回 "knowledge_level": ""，不能只判断字段是否存在
@@ -390,7 +428,7 @@ class ProfileAgent(BaseAgent):
         all_done: bool,
         failed: bool = False,
     ) -> AsyncGenerator[str, None]:
-        """流式生成自然回复；事实来自后端，越权声称完成时回退模板"""
+        """确定性事实流式输出：不经过润色 LLM，杜绝「未采集完却说请确认」"""
         saved_desc = "、".join(
             f"{DIM_LABELS[f]}「{ '、'.join(map(str, v)) if isinstance(v, list) else v }」"
             for f, v in saved.items()
@@ -398,42 +436,25 @@ class ProfileAgent(BaseAgent):
         next_q = DIMENSION_QUESTIONS.get(next_dim, "") if next_dim else ""
 
         if failed:
-            fact = f"我还想了解你的{DIM_LABELS.get(next_dim, '')}。{DIMENSION_QUESTIONS.get(next_dim, '')}"
-        elif all_done:
-            fact = f"好的，已经记下{saved_desc or '这些信息'}。画像信息已采集完毕，请回复「确认」开始生成学习方案。"
-        else:
-            fact = f"好的，已记录{saved_desc}。"
-            if next_q:
-                fact += next_q
-
-        try:
-            from app.core.model_manager import model_manager
-            style_prompt = (
-                "你是学习画像收集助手。请用 1-3 句自然中文复述以下事实，并自然衔接所给问题。"
-                "硬性要求：\n"
-                "1. 只能使用下面给出的事实，不得添加、推断、编造任何其他已记录信息\n"
-                "2. 若事实中写明「采集完毕」，必须提到请用户回复确认；否则必须包含所给问题\n"
-                "3. 不要解释概念，不要鼓励语，不要超过 3 句话\n\n"
-                f"## 事实\n{fact}\n\n直接输出回复正文。"
+            fact = (
+                f"好的，还想了解你的{DIM_LABELS.get(next_dim, '情况')}。"
+                f"{DIMENSION_QUESTIONS.get(next_dim, '')}"
             )
-            full = ""
-            async for chunk in model_manager.chat_stream(
-                [{"role": "user", "content": style_prompt}], agent_name="profile"
-            ):
-                if chunk:
-                    full += chunk
-                    yield chunk
-            # 防幻觉：流式结束后校验，越权则追加纠正（已流出的不撤回，但明确以模板为准时整段回退困难）
-            # 这里选择：若明显越权且几乎没流出内容，回退；若有内容则信任守卫 prompt
-            if not full.strip():
-                yield fact
-            elif not all_done and any(k in full for k in ("采集完毕", "全部收集", "已完成")):
-                log.warning("回复 LLM 越权声称完成")
-                # 已流出部分无法撤回，追加一句拉回
-                yield ""
-        except Exception as e:
-            log.warning(f"回复流式润色失败，回退模板: {e}")
-            yield fact
+        elif all_done:
+            summary_lines = self._format_summary(existing_profile)
+            fact = (
+                f"好的，已记录{saved_desc}。\n\n"
+                f"画像信息已采集完毕：\n{summary_lines}\n\n"
+                f"请回复「确认」开始生成学习方案。"
+            )
+        else:
+            fact = f"好的，已记录{saved_desc}。{next_q}" if saved_desc else next_q
+            if not fact.strip():
+                fact = DIMENSION_QUESTIONS.get(next_dim or "", "请再介绍一下你的情况。")
+
+        step = 16
+        for i in range(0, len(fact), step):
+            yield fact[i: i + step]
 
     # ── 单维度提取 ─────────────────────────────────────────
 
@@ -492,6 +513,14 @@ class ProfileAgent(BaseAgent):
             return True
         # 短回复包含「确认」也接受
         return len(text) <= 6 and "确认" in text
+
+    @staticmethod
+    def _says_not_done(user_input: str) -> bool:
+        """用户表达「还没采集完」"""
+        t = user_input.strip()
+        neg = any(k in t for k in ("没有", "未", "还没", "不", "没"))
+        done = any(k in t for k in ("采集", "收集", "完成", "完毕", "齐"))
+        return neg and done
 
     def _format_summary(self, profile: Dict[str, Any]) -> str:
         parts = []
