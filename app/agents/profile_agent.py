@@ -448,6 +448,13 @@ class ProfileAgent(BaseAgent):
         # focus 字段若规则有而 LLM 没给，确保带上
         if focus and focus not in result and focus in rule:
             result[focus] = rule[focus]
+        # focus 仍缺失：对非空用户输入，强制按 focus 规则再提一次
+        if focus and focus not in result and user_input.strip():
+            focus_rule = self._rule_extract(user_input, focus=focus)
+            if focus in focus_rule:
+                result[focus] = focus_rule[focus]
+
+        log.info(f"多维提取 focus={focus} result_keys={list(result.keys())} raw={str(response)[:160]}")
 
         # 确定性兜底：knowledge_level 缺失或为空字符串时，从原话补
         # 注意：LLM 常返回 "knowledge_level": ""，不能只判断字段是否存在
