@@ -227,17 +227,27 @@ class ProfileAgent(BaseAgent):
         existing_profile = self._merge_view(db_profile, frontend_profile)
 
         state = await self._load_collect_state(user_id)
-        confirmed_dims = state.get("confirmed_dims", [])
-        # 与画像实际值对齐：画像里没有有效值的维度绝不算已确认（防脏状态提前「采集完毕」）
-        aligned = [
+        confirmed_dims = list(state.get("confirmed_dims", []))
+        # 双向对齐：
+        # 1) 画像无有效值的维度 → 从 confirmed 剔除
+        # 2) 画像已有有效值但 confirmed 漏了 → 补进 confirmed
+        # 否则会出现「用户已说清专业却仍追问专业」
+        changed = False
+        filtered = [
             f for f in confirmed_dims
             if f in DIM_LABELS and self._is_valid_value(f, existing_profile.get(f), DIM_TYPES[f])
         ]
-        if aligned != confirmed_dims:
-            log.info(f"confirmed_dims 对齐画像: 清理 {set(confirmed_dims) - set(aligned)}")
-            confirmed_dims = aligned
-            state["confirmed_dims"] = aligned
-            if len(aligned) < len(DIMENSIONS):
+        if len(filtered) != len(confirmed_dims):
+            changed = True
+            log.info(f"confirmed 清理无效: {set(confirmed_dims) - set(filtered)}")
+        confirmed_dims = filtered
+        for f, _, dtype in DIMENSIONS:
+            if f not in confirmed_dims and self._is_valid_value(f, existing_profile.get(f), dtype):
+                confirmed_dims.append(f)
+                changed = True
+        if changed:
+            state["confirmed_dims"] = confirmed_dims
+            if len(confirmed_dims) < len(DIMENSIONS):
                 state["confirmed"] = False
                 state["awaiting_confirm"] = False
             await self._save_collect_state(user_id, state)
@@ -403,7 +413,11 @@ class ProfileAgent(BaseAgent):
         result = {k: v for k, v in data.items() if k in DIM_LABELS}
         if not result and data and any(k in data for k in ("code", "questions", "video_script", "mindmap")):
             log.warning("多维提取疑似 mock 结构，丢弃")
-            return {}
+            result = {}
+
+        # LLM 失败/返回空时：规则兜底提取常见明确表述（保证「说了就记」）
+        if not result:
+            result = self._rule_extract(user_input)
 
         # 确定性兜底：knowledge_level 缺失或为空字符串时，从原话补
         # 注意：LLM 常返回 "knowledge_level": ""，不能只判断字段是否存在
@@ -419,6 +433,57 @@ class ProfileAgent(BaseAgent):
                 # 空字符串删掉，避免校验层拿到空值
                 result.pop("knowledge_level", None)
         return result
+
+    @staticmethod
+    def _rule_extract(user_input: str) -> Dict[str, Any]:
+        """LLM 提取失败时的规则兜底：常见明确表述"""
+        out: Dict[str, Any] = {}
+        t = user_input
+        # 年级
+        for kw, val in [("大一", "大一"), ("大二", "大二"), ("大三", "大三"), ("大四", "大四"),
+                        ("研一", "研一"), ("研二", "研二"), ("研三", "研三")]:
+            if kw in t:
+                out["grade"] = val
+                break
+        # 目标
+        for kw, val in [("找工作", "找工作"), ("就业", "找工作"), ("考研", "考研"),
+                        ("课程", "课程需要"), ("毕业", "顺利毕业")]:
+            if kw in t:
+                out["goal"] = val
+                break
+        # 专业（…专业 / 学…的）
+        if "专业" in t:
+            # 取「XX专业」或「学XX的」
+            import re
+            m = re.search(r"([\u4e00-\u9fa5A-Za-z/]{2,10})专业", t)
+            if m:
+                major = m.group(1)
+                # 去掉年级前缀干扰
+                for g in ("大一", "大二", "大三", "大四", "研一", "研二", "研三", "学生"):
+                    major = major.replace(g, "")
+                major = major.strip("我是的目前现在")
+                if major and major not in GRADE_CANDIDATES:
+                    out["major"] = major
+        # 学习风格
+        if any(k in t for k in ("看视频", "视频学习", "喜欢视频")):
+            out["learning_style"] = "看视频"
+        elif any(k in t for k in ("看文档", "看资料", "看书")):
+            out["learning_style"] = "看文档"
+        elif any(k in t for k in ("动手实践", "动手", "实践", "做项目")):
+            out["learning_style"] = "动手实践"
+        elif any(k in t for k in ("做题", "刷题", "练习题")):
+            out["learning_style"] = "做题"
+        # 薄弱
+        weak_map = [("数学", "数学基础"), ("算法", "算法"), ("英语", "英语"),
+                    ("编程基础差", "编程基础"), ("逻辑", "逻辑思维")]
+        if any(k in t for k in ("薄弱", "差", "弱", "不好", "不擅长")):
+            found = []
+            for kw, val in weak_map:
+                if kw in t and val not in found:
+                    found.append(val)
+            if found:
+                out["weakness"] = found
+        return out
 
     async def _compose_collect_reply_stream(
         self,
