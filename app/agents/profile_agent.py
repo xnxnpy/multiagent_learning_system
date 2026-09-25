@@ -8,10 +8,7 @@ from app.agents.utils import extract_json
 from app.core.logger import log
 from app.models import StudentProfile, LearningPath, AsyncSessionLocal
 
-# 保持后台任务引用，防止被垃圾回收
-_background_tasks: set = set()
-
-# 每个用户的 WS 写锁（防止后台任务并发写入）
+# 每个用户的 WS 写锁（防止并发写入）
 _ws_write_locks: Dict[int, asyncio.Lock] = {}
 
 # 画像维度定义：(字段名, 中文标签, 类型)
@@ -53,7 +50,7 @@ DIMENSION_QUESTIONS = {
     "weakness": "你在哪些方面感觉比较薄弱？例如算法、数学基础、英语文献阅读等。",
 }
 
-# 确认关键词（awaiting_confirm 状态下用户输入匹配任一即视为确认）
+# 确认关键词（8 维齐后用户输入匹配任一即视为确认）
 CONFIRM_KEYWORDS = {"确认", "确定", "确认无误", "没问题", "好的", "好的确认", "开始", "可以", "ok", "OK", "Ok", "开始生成", "确认完成"}
 
 # 收集状态在 Redis 中的 TTL（7 天）
@@ -70,8 +67,6 @@ class ProfileAgent(BaseAgent):
     agent_name = "profile"
     """画像构建 Agent（单维度聚焦收集 + 用户显式确认门闩）"""
 
-    PROMPT_PATH = "prompts/profile_chat_prompt.txt"
-    EXTRACT_PROMPT_PATH = "prompts/profile_extract_prompt.txt"
     EXTRACT_MULTI_PROMPT_PATH = "prompts/profile_extract_multi.txt"
 
     # ── 收集状态（Redis）────────────────────────────────────
@@ -101,7 +96,6 @@ class ProfileAgent(BaseAgent):
                         # 若清理后不再齐全，取消确认门闩
                         if len(cleaned) < len(DIMENSIONS):
                             state["confirmed"] = False
-                            state["awaiting_confirm"] = False
                         await self._save_collect_state(user_id, state)
                     return state
         except Exception as e:
@@ -118,13 +112,11 @@ class ProfileAgent(BaseAgent):
         profile = profile or {}
         confirmed = [field for field, _, dtype in DIMENSIONS if self._is_valid_value(field, profile.get(field), dtype)]
 
-        state = {"confirmed_dims": confirmed, "awaiting_confirm": False, "confirmed": False}
+        state = {"confirmed_dims": confirmed, "confirmed": False}
         if len(confirmed) == len(DIMENSIONS):
             has_path = await self._user_has_path(user_id)
             if has_path:
                 state["confirmed"] = True
-            else:
-                state["awaiting_confirm"] = True
         await self._save_collect_state(user_id, state)
         return state
 
@@ -254,7 +246,6 @@ class ProfileAgent(BaseAgent):
             state["confirmed_dims"] = confirmed_dims
             if len(confirmed_dims) < len(DIMENSIONS):
                 state["confirmed"] = False
-                state["awaiting_confirm"] = False
             await self._save_collect_state(user_id, state)
         missing = [field for field, _, _ in DIMENSIONS if field not in confirmed_dims]
 
@@ -267,7 +258,6 @@ class ProfileAgent(BaseAgent):
         # 用户明确说没采集完 → 重开收集（按画像实际值重算缺口）
         if missing == [] and not self._is_confirmation(user_input) and self._says_not_done(user_input):
             state["confirmed"] = False
-            state["awaiting_confirm"] = False
             confirmed_dims = [
                 f for f, _, dtype in DIMENSIONS
                 if self._is_valid_value(f, existing_profile.get(f), dtype)
@@ -284,7 +274,6 @@ class ProfileAgent(BaseAgent):
         if not missing:
             if self._is_confirmation(user_input):
                 state["confirmed"] = True
-                state["awaiting_confirm"] = False
                 await self._save_collect_state(user_id, state)
                 yield "好的，画像已确认，正在为您生成个性化学习方案！"
                 if ws:
@@ -342,9 +331,6 @@ class ProfileAgent(BaseAgent):
                     return
 
                 state["confirmed_dims"] = confirmed_dims
-                now_missing = [f for f, _, _ in DIMENSIONS if f not in confirmed_dims]
-                if not now_missing:
-                    state["awaiting_confirm"] = True
                 await self._save_collect_state(user_id, state)
 
                 if ws:
@@ -576,32 +562,6 @@ class ProfileAgent(BaseAgent):
         for i in range(0, len(fact), step):
             yield fact[i: i + step]
 
-    # ── 单维度提取 ─────────────────────────────────────────
-
-    async def _extract_single_dimension(self, user_input: str, field: str) -> Any:
-        """从用户回答中只提取当前提问的维度；其他维度禁止输出"""
-        import os
-        label = DIM_LABELS[field]
-        dtype = DIM_TYPES[field]
-
-        spec = self._dimension_spec(field)
-        base_dir = os.path.abspath(os.path.join(os.path.dirname(__file__), '..', '..'))
-        with open(os.path.join(base_dir, self.EXTRACT_PROMPT_PATH), 'r', encoding='utf-8') as f:
-            template = f.read()
-        prompt = template.format(
-            dimension=field,
-            dimension_label=label,
-            dimension_type=dtype,
-            dimension_spec=spec,
-            user_input=user_input,
-        )
-        response = await self._call_llm(prompt)
-        data = extract_json(response)
-        if not isinstance(data, dict):
-            log.warning(f"单维度提取 JSON 解析失败: {response[:200]}")
-            return None
-        return data.get(field)
-
     def _dimension_spec(self, field: str) -> str:
         specs = {
             "major": "原样保留学生对自己专业的表述。若回答像年级/职业方向而非专业名，输出空。",
@@ -671,15 +631,6 @@ class ProfileAgent(BaseAgent):
         if frontend_profile and any(frontend_profile.values()):
             return {k: v for k, v in frontend_profile.items() if v and k in DIM_LABELS}
         return db_profile or {}
-
-    def _load_chat_prompt(self, existing_profile: Dict, current_dim: str) -> str:
-        template = self._load_prompt(self.PROMPT_PATH)
-        profile_json = json.dumps(existing_profile, ensure_ascii=False) if existing_profile else "{}"
-        return template.format(
-            existing_profile=profile_json,
-            current_dimension=current_dim,
-            current_dimension_label=DIM_LABELS[current_dim],
-        )
 
     async def _get_existing_profile(self, user_id: int, profile_id: int = None) -> Optional[Dict[str, Any]]:
         if not self.db:

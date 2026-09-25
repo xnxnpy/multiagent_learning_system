@@ -22,7 +22,12 @@ from pydantic import BaseModel, Field
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.logger import log
-from app.agents.supervisor_agent import SupervisorAgent, MAX_REGEN
+from app.agents.supervisor_agent import (
+    SupervisorAgent,
+    MAX_REGEN,
+    REQUIRED_TOOLS,
+    DEFAULT_QUALITY_THRESHOLD,
+)
 
 # 单节点超时（秒），防止某个工具卡死拖垮整个循环
 TOOL_TIMEOUT_SECONDS = 300
@@ -138,6 +143,36 @@ async def supervisor_plan_node(state: StageState) -> Dict[str, Any]:
             state.quality_scores, state.regen_counts, state.fix_hints,
             force_tools=state.force_tools, force_mode=state.force_mode,
         )
+
+    # 防绕过：LLM 输出 done 但必做资源未齐（且非 force 模式）→ 改走确定性计划
+    if decision.get("action") == "done" and not state.force_mode:
+        for tool in REQUIRED_TOOLS:
+            score = state.quality_scores.get(tool)
+            missing = tool not in state.generated or (
+                score is not None
+                and score < DEFAULT_QUALITY_THRESHOLD
+                and state.regen_counts.get(tool, 0) < MAX_REGEN
+            )
+            if missing:
+                log.warning(f"LLM 提前输出 done，但必做 {tool} 未完成，改用 default_plan")
+                decision = supervisor.default_plan(
+                    state.profile, state.stage, state.generated,
+                    state.quality_scores, state.regen_counts, state.fix_hints,
+                    force_tools=state.force_tools, force_mode=state.force_mode,
+                )
+                break
+
+    # 防死循环：LLM 再次选中已放弃（failed 标记）的工具 → 改走确定性计划
+    if decision.get("action") == "generate":
+        picked = decision.get("tool")
+        marker = state.generated.get(picked) if picked else None
+        if isinstance(marker, dict) and marker.get("failed"):
+            log.warning(f"LLM 选中已放弃的 {picked}，改用 default_plan")
+            decision = supervisor.default_plan(
+                state.profile, state.stage, state.generated,
+                state.quality_scores, state.regen_counts, state.fix_hints,
+                force_tools=state.force_tools, force_mode=state.force_mode,
+            )
 
     result["decision"] = decision
     _log_msg(state, "supervisor", "self", "decision", f"{decision.get('action')}:{decision.get('tool')} — {decision.get('reasoning')}")
@@ -257,18 +292,56 @@ async def observe_node(state: StageState) -> Dict[str, Any]:
     summary = _summarize_content(tool, content)
     generated = dict(state.generated)
     generated[tool] = summary
-    regen = dict(state.regen_counts)
 
     _log_msg(state, tool, "supervisor", "result", f"{tool} 已生成并入库")
-    return {"generated": generated, "regen_counts": regen}
+    return {"generated": generated}
 
 
 async def quality_gate_node(state: StageState) -> Dict[str, Any]:
     """质量守门员：确定性谓词——分数阈值 + 重做次数上限"""
     result = state.tool_result
-    if not result or result.get("error"):
-        await _notify_progress(state, "资源生成失败，Supervisor 将重新规划", 50, "failed")
-        return {"status": "failed"}
+    tool_err = (result or {}).get("error") if result else None
+    tool_err = tool_err or state.error
+
+    # ── 工具执行/入库失败：不直接中止全环，回环给 Supervisor 重规划 ──
+    if not result or tool_err:
+        tool = (result or {}).get("tool") or "?"
+        err = str(tool_err or "unknown")
+        regen = dict(state.regen_counts)
+        if tool != "?":
+            regen[tool] = regen.get(tool, 0) + 1
+
+        if tool != "?" and regen[tool] < MAX_REGEN:
+            log.warning(f"工具 {tool} 失败（第 {regen[tool]} 次），回环重规划: {err}")
+            await _notify_progress(state, f"{tool} 生成失败，Supervisor 重新规划", 50)
+            return {
+                "quality_scores": state.quality_scores,
+                "regen_counts": regen,
+                "fix_hints": [f"TOOL_FAILED_{tool}: {err[:120]}"],
+                "error": None,
+                "status": None,
+            }
+
+        # 重试次数用尽：必做/点名工具失败 → 全环失败；可选工具放弃并标记
+        if tool in REQUIRED_TOOLS or tool in state.force_tools:
+            await _notify_progress(state, f"{tool} 生成失败且重试用尽", 50, "failed")
+            _log_msg(state, "quality_gate", "supervisor", "fail", f"{tool} 重试用尽: {err}")
+            return {"regen_counts": regen, "error": None, "status": "failed"}
+
+        if tool != "?":
+            generated = dict(state.generated)
+            generated.setdefault(tool, {"failed": True, "error": err[:200]})
+            force_left = [t for t in state.force_tools if t != tool]
+            log.warning(f"可选工具 {tool} 重试用尽，标记放弃")
+            return {
+                "regen_counts": regen,
+                "generated": generated,
+                "force_tools": force_left,
+                "error": None,
+                "status": None,
+                "fix_hints": [],
+            }
+        return {"regen_counts": regen, "error": None, "status": "failed"}
 
     tool = result["tool"]
     content = result["content"]

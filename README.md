@@ -339,9 +339,8 @@ ai-resgen-learning-multiagent-system/
 ├── scripts/                         # 脚本
 │   ├── create_admin.py              # 创建管理员
 │   └── data.sql                     # SQL 初始化
-├── prompts/                         # Agent Prompt 模板 (15 个)
-│   ├── profile_chat_prompt.txt      # 画像对话
-│   ├── profile_extract_prompt.txt   # 画像提取
+├── prompts/                         # Agent Prompt 模板
+│   ├── profile_extract_multi.txt    # 画像多维提取
 │   ├── learning_path_prompt.txt     # 学习路径
 │   ├── document_prompt.txt          # 文档生成
 │   ├── question_prompt.txt          # 题目生成

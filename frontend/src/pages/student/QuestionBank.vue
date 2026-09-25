@@ -41,19 +41,19 @@
       <el-col :xs="12" :md="6">
         <el-card shadow="never" class="stat-card">
           <div class="stat-value" style="color: #22c55e">{{ correctCount }}</div>
-          <div class="stat-label">已掌握</div>
+          <div class="stat-label">本页答对</div>
         </el-card>
       </el-col>
       <el-col :xs="12" :md="6">
         <el-card shadow="never" class="stat-card">
           <div class="stat-value" style="color: #ef4444">{{ wrongCount }}</div>
-          <div class="stat-label">答错过</div>
+          <div class="stat-label">本页答错</div>
         </el-card>
       </el-col>
       <el-col :xs="12" :md="6">
         <el-card shadow="never" class="stat-card">
           <div class="stat-value" style="color: #f59e0b">{{ unansweredCount }}</div>
-          <div class="stat-label">未作答</div>
+          <div class="stat-label">本页未作答</div>
         </el-card>
       </el-col>
     </el-row>

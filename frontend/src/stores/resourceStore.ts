@@ -97,7 +97,21 @@ export const useResourceStore = defineStore('resource', () => {
 
   // ── Actions ────────────────────────────────────────
 
+  async function _currentStageId(): Promise<number | undefined> {
+    try {
+      const { useLearningPathStore } = await import('@/stores/learningPathStore')
+      const lp = useLearningPathStore()
+      if (!lp.learningPath) await lp.fetchPath()
+      const stages = lp.learningPath?.stages
+      const idx = currentStageIndex.value ?? lp.currentStage ?? 0
+      return stages?.[idx]?.stage_id
+    } catch {
+      return undefined
+    }
+  }
+
   async function submitAnswers(answers: Record<number, string>, topic?: string) {
+    const stageId = await _currentStageId()
     const submissions = Object.entries(answers)
       .filter(([, v]) => v !== undefined && v !== '')
       .map(([questionId, answer]) =>
@@ -105,6 +119,7 @@ export const useResourceStore = defineStore('resource', () => {
           question_id: parseInt(questionId),
           answer: String(answer),
           topic: topic || currentTopic.value,
+          ...(stageId !== undefined ? { stage_id: stageId } : {}),
         }).catch(() => null)
       )
     return Promise.all(submissions)

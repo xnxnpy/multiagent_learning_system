@@ -1117,10 +1117,13 @@ async function handleRunTestCode(q: any) {
   codeRunning.value[q.question_id] = true
   try {
     const axios = (await import('@/utils/axios')).default
+    const stages = pathStore.learningPath?.stages
+    const curStageId = stages?.[store.currentStageIndex ?? pathStore.currentStage ?? 0]?.stage_id
     const res = await axios.post('/v1/student/question/submit', {
       question_id: q.question_id,
       answer: code,
       topic: store.currentTopic,
+      ...(curStageId !== undefined ? { stage_id: curStageId } : {}),
     })
     const ev = res?.evaluations?.[0]
     if (ev) {

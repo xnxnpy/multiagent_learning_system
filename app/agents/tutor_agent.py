@@ -297,14 +297,41 @@ class TutorAgent:
         if not topic.strip():
             return "未提供出题主题。"
         try:
+            import time
             from app.agents.question_agent import QuestionAgent
-            from app.models import AsyncSessionLocal
+            from app.models import AsyncSessionLocal, StudentProfile, LearningPath
+            from sqlalchemy import select as sa_select
             async with AsyncSessionLocal() as db:
                 agent = QuestionAgent(db)
-                result = await agent.run(topic, user_id=user_id)
-            questions = (result or {}).get("questions") or []
-            if not questions:
-                return "题目生成失败或为空。"
+                # force：辅导出题不命中阶段资源缓存，每次新题
+                result = await agent.run(topic, user_id=user_id, force=True)
+                questions = (result or {}).get("questions") or []
+                if not questions:
+                    return "题目生成失败或为空。"
+
+                # 同步进题库/错题本（独立 uid，避免与阶段题撞号）
+                try:
+                    from app.api.v1.question_bank import upsert_question_from_resource
+                    prof = await db.execute(
+                        sa_select(StudentProfile).where(
+                            StudentProfile.user_id == user_id,
+                            StudentProfile.is_active == True,
+                        )
+                    )
+                    prof_row = prof.scalar_one_or_none()
+                    batch = int(time.time())
+                    for q in questions:
+                        if isinstance(q, dict) and not q.get("question_uid"):
+                            q["question_uid"] = f"t{batch}_q{q.get('question_id', 0)}"
+                    await upsert_question_from_resource(
+                        db, user_id,
+                        prof_row.id if prof_row else None,
+                        None,
+                        questions,
+                    )
+                except Exception as e:
+                    log.warning(f"辅导题目同步题库失败（不影响出题）: {e}")
+
             q = questions[0]
             opts = q.get("options") or []
             text = f"练习题：{q.get('question', '')}\n"

@@ -100,6 +100,7 @@ class AnswerSubmitRequest(BaseModel):
     question_id: int
     answer: str
     topic: str
+    stage_id: Optional[int] = Field(None, description="阶段 ID（避免跨阶段 question_id 撞号）")
     duration_seconds: Optional[int] = Field(None, description="答题耗时（秒）")
 
 
@@ -959,8 +960,24 @@ async def submit_answer(
     )
     if q_prof:
         q_query = q_query.where(LearningResource.profile_id == q_prof.id)
-    result = await db.execute(q_query.order_by(LearningResource.created_at.desc()))
-    records = result.scalars().all()
+    # 优先按阶段精确匹配：question_id 是阶段内序号（1..N），跨阶段会撞号
+    if request.stage_id is not None:
+        stage_filtered = q_query.where(LearningResource.stage_id == request.stage_id)
+        stage_result = await db.execute(
+            stage_filtered.order_by(LearningResource.created_at.desc())
+        )
+        stage_records = stage_result.scalars().all()
+        if stage_records:
+            records = stage_records
+        else:
+            log.warning(
+                f"学生 {current_user.id} 阶段 {request.stage_id} 无题目资源，回退全量匹配"
+            )
+            result = await db.execute(q_query.order_by(LearningResource.created_at.desc()))
+            records = result.scalars().all()
+    else:
+        result = await db.execute(q_query.order_by(LearningResource.created_at.desc()))
+        records = result.scalars().all()
 
     question = None
     matched_stage_id = None
