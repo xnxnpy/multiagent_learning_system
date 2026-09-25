@@ -120,7 +120,12 @@ async function load(p = page.value) {
 
 function goPractice(item: any) {
   const stageId = item.stage_id
-  router.push({ path: '/student/resources', query: stageId != null ? { stage: String(stageId) } : {} })
+  const qid = item.question_data?.question_id
+  const query: Record<string, string> = {}
+  if (stageId != null) query.stage = String(stageId)
+  if (qid != null) query.q = String(qid)
+  if (item.question_uid) query.quid = String(item.question_uid)
+  router.push({ path: '/student/resources', query })
 }
 
 async function handleRemove(item: any) {

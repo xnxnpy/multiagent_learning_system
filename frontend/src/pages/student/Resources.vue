@@ -1058,6 +1058,34 @@ function selectQuestion(idx: number) {
   viewMode.value = 'single'
 }
 
+/** 从题库/错题本跳入时，定位到目标题目并切到练习 Tab */
+function locateTargetQuestion() {
+  const qid = route.query.q
+  const quid = route.query.quid
+  if (qid === undefined && quid === undefined) return
+  const list = questions.value
+  if (!list.length) return
+  let idx = -1
+  if (quid !== undefined) {
+    idx = list.findIndex((q: any) =>
+      q.question_uid === String(quid) ||
+      q.question_uid === `s${route.query.stage ?? ''}_q${qid}` ||
+      q.question_id === Number(qid)
+    )
+  }
+  if (idx < 0 && qid !== undefined) {
+    idx = list.findIndex((q: any) => q.question_id === Number(qid))
+  }
+  if (idx >= 0) {
+    activeTab.value = 'questions'
+    selectQuestion(idx)
+    nextTick(() => {
+      const el = document.querySelector('.question-card')
+      el?.scrollIntoView({ behavior: 'smooth', block: 'center' })
+    })
+  }
+}
+
 async function handleSubmitAnswers() {
   const count = Object.values(answers).filter(v => v).length
   if (count === 0) {
@@ -1208,8 +1236,12 @@ onMounted(async () => {
   // 从学习路径跳转（带 stage 参数）
   const stageParam = route.query.stage
   if (stageParam !== undefined) {
-    const stageIndex = parseInt(String(stageParam), 10)
     if (!pathStore.learningPath) await pathStore.fetchPath()
+    // stage 可能是数组下标（学习路径页）或 stage_id（错题本）——统一解析为下标
+    const raw = Number(stageParam)
+    const stages = pathStore.learningPath?.stages || []
+    const byId = stages.findIndex(s => s.stage_id === raw)
+    const stageIndex = byId >= 0 ? byId : raw
     // 切换阶段前先清除答题状态
     submittedAnswers.value = {}
     Object.keys(answers).forEach(k => delete answers[k])
@@ -1217,6 +1249,7 @@ onMounted(async () => {
     selectedQuestionIdx.value = 0
     await store.loadForStage(stageIndex, pathStore.learningPath?.stages)
     await loadPreviousAnswers()
+    locateTargetQuestion()
     return
   }
 
@@ -1235,6 +1268,7 @@ onMounted(async () => {
     await store.loadForStage(stageIdx)
   }
   await loadPreviousAnswers()
+  locateTargetQuestion()
 })
 
 onUnmounted(() => {
@@ -1256,6 +1290,30 @@ function _onResourceGenerated() {
 onMounted(() => {
   window.addEventListener('resource-generated', _onResourceGenerated)
 })
+
+// 同页内 query 变化（如错题本 → 资源页已停留时再跳）时重载并定位
+watch(
+  () => [route.query.stage, route.query.q, route.query.quid],
+  async ([stage, q, quid], old) => {
+    if (!old) return // 首次由 onMounted 处理
+    if (stage === undefined && q === undefined && quid === undefined) return
+    if (stage === old[0] && q === old[1] && quid === old[2]) return
+    if (!pathStore.learningPath) await pathStore.fetchPath()
+    if (stage !== undefined) {
+      const raw = Number(stage)
+      const stages = pathStore.learningPath?.stages || []
+      const byId = stages.findIndex(s => s.stage_id === raw)
+      const stageIndex = byId >= 0 ? byId : raw
+      submittedAnswers.value = {}
+      Object.keys(answers).forEach(k => delete answers[k])
+      Object.keys(codeResults.value).forEach(k => delete codeResults.value[k])
+      selectedQuestionIdx.value = 0
+      await store.loadForStage(stageIndex, pathStore.learningPath?.stages)
+      await loadPreviousAnswers()
+    }
+    locateTargetQuestion()
+  }
+)
 </script>
 
 <style scoped>

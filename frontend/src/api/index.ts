@@ -172,8 +172,14 @@ export const studentAPI = {
     return request.post(`/v1/question-bank/wrong-book/${questionUid}/remove`)
   },
 
-  submitAnswer: (data: { question_id: string; answer: string }) => {
-    return request.post('/v1/student/question/submit', data)
+  submitAnswer: (data: {
+    question_id: number
+    answer: string
+    topic?: string
+    stage_id?: number
+    question_uid?: string
+  }) => {
+    return request.post('/v1/student/question/submit', data, { timeout: 300000 })
   },
 
   runCode: (data: { code: string; timeout?: number }) => {

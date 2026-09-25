@@ -101,6 +101,7 @@ class AnswerSubmitRequest(BaseModel):
     answer: str
     topic: str
     stage_id: Optional[int] = Field(None, description="阶段 ID（避免跨阶段 question_id 撞号）")
+    question_uid: Optional[str] = Field(None, description="题库唯一标识（题库页/错题本作答优先用它）")
     duration_seconds: Optional[int] = Field(None, description="答题耗时（秒）")
 
 
@@ -942,55 +943,78 @@ async def submit_answer(
     db: AsyncSession = Depends(get_db),
 ):
     """提交答案并评分，自动触发学习评估"""
-    log.info(f"学生 {current_user.id} 提交答案，题目ID: {request.question_id}")
+    log.info(
+        f"学生 {current_user.id} 提交答案，题目ID: {request.question_id}"
+        f"{f' uid={request.question_uid}' if request.question_uid else ''}"
+    )
 
-    # 直接从 DB 查找该用户当前画像的题目
     from sqlalchemy import select as sa_select
     from app.models import LearningResource
-    q_prof_result = await db.execute(
-        select(StudentProfile).where(
-            StudentProfile.user_id == current_user.id,
-            StudentProfile.is_active == True,
-        )
-    )
-    q_prof = q_prof_result.scalar_one_or_none()
-    q_query = sa_select(LearningResource).where(
-        LearningResource.user_id == current_user.id,
-        LearningResource.resource_type == "question"
-    )
-    if q_prof:
-        q_query = q_query.where(LearningResource.profile_id == q_prof.id)
-    # 优先按阶段精确匹配：question_id 是阶段内序号（1..N），跨阶段会撞号
-    if request.stage_id is not None:
-        stage_filtered = q_query.where(LearningResource.stage_id == request.stage_id)
-        stage_result = await db.execute(
-            stage_filtered.order_by(LearningResource.created_at.desc())
-        )
-        stage_records = stage_result.scalars().all()
-        if stage_records:
-            records = stage_records
-        else:
-            log.warning(
-                f"学生 {current_user.id} 阶段 {request.stage_id} 无题目资源，回退全量匹配"
-            )
-            result = await db.execute(q_query.order_by(LearningResource.created_at.desc()))
-            records = result.scalars().all()
-    else:
-        result = await db.execute(q_query.order_by(LearningResource.created_at.desc()))
-        records = result.scalars().all()
 
     question = None
     matched_stage_id = None
-    for record in records:
-        content = record.content if isinstance(record.content, dict) else {}
-        questions_list = content.get("questions", [])
-        for q in questions_list:
-            if q.get("question_id") == request.question_id:
-                question = q
-                matched_stage_id = record.stage_id
+    matched_uid = None
+
+    # 1) 题库 uid 精确命中（题库页/错题本作答；含 tutor 生成的独立题）
+    if request.question_uid:
+        from app.models import QuestionItem
+        item_result = await db.execute(
+            sa_select(QuestionItem).where(
+                QuestionItem.question_uid == request.question_uid,
+                QuestionItem.user_id == current_user.id,
+            )
+        )
+        item = item_result.scalar_one_or_none()
+        if item and isinstance(item.question_data, dict) and item.question_data:
+            question = item.question_data
+            matched_stage_id = item.stage_id
+            matched_uid = item.question_uid
+
+    # 2) 回退：按 LearningResource 匹配（阶段资源内题目）
+    if not question:
+        q_prof_result = await db.execute(
+            select(StudentProfile).where(
+                StudentProfile.user_id == current_user.id,
+                StudentProfile.is_active == True,
+            )
+        )
+        q_prof = q_prof_result.scalar_one_or_none()
+        q_query = sa_select(LearningResource).where(
+            LearningResource.user_id == current_user.id,
+            LearningResource.resource_type == "question"
+        )
+        if q_prof:
+            q_query = q_query.where(LearningResource.profile_id == q_prof.id)
+        # 优先按阶段精确匹配：question_id 是阶段内序号（1..N），跨阶段会撞号
+        if request.stage_id is not None:
+            stage_filtered = q_query.where(LearningResource.stage_id == request.stage_id)
+            stage_result = await db.execute(
+                stage_filtered.order_by(LearningResource.created_at.desc())
+            )
+            stage_records = stage_result.scalars().all()
+            if stage_records:
+                records = stage_records
+            else:
+                log.warning(
+                    f"学生 {current_user.id} 阶段 {request.stage_id} 无题目资源，回退全量匹配"
+                )
+                result = await db.execute(q_query.order_by(LearningResource.created_at.desc()))
+                records = result.scalars().all()
+        else:
+            result = await db.execute(q_query.order_by(LearningResource.created_at.desc()))
+            records = result.scalars().all()
+
+        for record in records:
+            content = record.content if isinstance(record.content, dict) else {}
+            questions_list = content.get("questions", [])
+            for q in questions_list:
+                if q.get("question_id") == request.question_id:
+                    question = q
+                    matched_stage_id = record.stage_id
+                    matched_uid = q.get("question_uid")
+                    break
+            if question:
                 break
-        if question:
-            break
 
     if not question:
         raise HTTPException(status_code=404, detail=f"题目 {request.question_id} 不存在，请先重新生成题目")
@@ -1012,10 +1036,15 @@ async def submit_answer(
     db.add(learning_record)
     await db.commit()
 
-    # 同步题库/错题本状态（question_uid = s{stage}_q{id}，与 upsert 方案一致）
+    # 同步题库/错题本状态（优先 uid 精确命中，回退 s{stage}_q{id} 约定）
     try:
         from app.api.v1.question_bank import record_answer_for_question
-        q_uid = str(question.get("question_uid") or f"s{matched_stage_id or 0}_q{request.question_id}")
+        q_uid = str(
+            request.question_uid
+            or matched_uid
+            or question.get("question_uid")
+            or f"s{matched_stage_id or 0}_q{request.question_id}"
+        )
         await record_answer_for_question(
             db, current_user.id, q_uid, evaluation.correct, evaluation.score
         )

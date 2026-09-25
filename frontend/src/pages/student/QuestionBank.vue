@@ -76,6 +76,79 @@
           </el-tag>
           <span v-if="item.last_score !== null" class="q-score">{{ item.last_score }} 分</span>
         </div>
+
+        <!-- 作答区 -->
+        <div class="q-actions">
+          <el-button
+            size="small"
+            :type="expandedId === item.question_uid ? 'info' : 'primary'"
+            plain
+            @click="toggleAnswer(item)"
+          >
+            {{ expandedId === item.question_uid ? '收起' : (item.attempt_count > 0 ? '再练一次' : '作答') }}
+          </el-button>
+        </div>
+
+        <div v-if="expandedId === item.question_uid" class="answer-panel">
+          <div v-if="qType(item) === 'choice'" class="answer-options">
+            <el-radio-group v-model="answers[item.question_uid]">
+              <el-radio
+                v-for="(opt, oi) in (item.question_data?.options || [])"
+                :key="oi"
+                :value="String(opt)"
+                class="option-radio"
+              >
+                {{ String.fromCharCode(65 + oi) }}. {{ opt }}
+              </el-radio>
+            </el-radio-group>
+          </div>
+          <div v-else-if="qType(item) === 'judge'" class="answer-options">
+            <el-radio-group v-model="answers[item.question_uid]">
+              <el-radio value="正确" class="option-radio">正确</el-radio>
+              <el-radio value="错误" class="option-radio">错误</el-radio>
+            </el-radio-group>
+          </div>
+          <el-input
+            v-else-if="qType(item) === 'code' || qType(item) === 'case_analysis'"
+            v-model="answers[item.question_uid]"
+            :type="qType(item) === 'code' ? 'textarea' : 'textarea'"
+            :rows="6"
+            :placeholder="qType(item) === 'code' ? '请输入 Python 代码...' : '请输入你的分析...'"
+          />
+          <el-input
+            v-else
+            v-model="answers[item.question_uid]"
+            placeholder="请输入答案..."
+          />
+
+          <div class="answer-submit-row">
+            <el-button
+              type="primary"
+              size="small"
+              :loading="submittingId === item.question_uid"
+              @click="submitOne(item)"
+            >
+              提交答案
+            </el-button>
+          </div>
+
+          <div v-if="results[item.question_uid]" class="answer-feedback" :class="results[item.question_uid].correct ? 'ok' : 'bad'">
+            <template v-if="results[item.question_uid].code_results?.results">
+              <div v-for="(r, ri) in results[item.question_uid].code_results.results" :key="ri">
+                用例{{ r.test_case }}: {{ r.status === 'passed' ? '✓ 通过' : '✗ 失败' }}{{ r.error ? ' - ' + r.error : '' }}
+              </div>
+            </template>
+            <template v-else>
+              <span v-if="results[item.question_uid].correct">✓ 回答正确！得分：{{ results[item.question_uid].score }}</span>
+              <span v-else>
+                ✗ 回答错误。正确答案：{{ item.question_data?.answer }}，得分：{{ results[item.question_uid].score }}
+              </span>
+            </template>
+            <div v-if="results[item.question_uid].feedback && qType(item) !== 'code'" class="fb-text">
+              {{ results[item.question_uid].feedback }}
+            </div>
+          </div>
+        </div>
       </div>
 
       <el-pagination
@@ -93,6 +166,7 @@
 
 <script setup lang="ts">
 import { ref, reactive, onMounted, computed } from 'vue'
+import { ElMessage } from 'element-plus'
 import { studentAPI } from '@/api'
 
 const loading = ref(false)
@@ -105,6 +179,12 @@ const filters = reactive({
   status: '',
   knowledge_point: '',
 })
+
+// ── 作答状态 ──
+const expandedId = ref<string | null>(null)
+const answers = reactive<Record<string, string>>({})
+const results = reactive<Record<string, any>>({})
+const submittingId = ref<string | null>(null)
 
 const correctCount = computed(() => items.value.filter(i => i.last_correct === true).length)
 const wrongCount = computed(() => items.value.filter(i => i.last_correct === false).length)
@@ -127,6 +207,53 @@ async function load(p = page.value) {
     total.value = 0
   } finally {
     loading.value = false
+  }
+}
+
+function qType(item: any): string {
+  return item?.question_data?.type || 'blank'
+}
+
+function toggleAnswer(item: any) {
+  const uid = item.question_uid
+  if (expandedId.value === uid) {
+    expandedId.value = null
+    return
+  }
+  expandedId.value = uid
+  if (!(uid in answers)) answers[uid] = ''
+  delete results[uid]
+}
+
+async function submitOne(item: any) {
+  const uid = item.question_uid
+  const answer = (answers[uid] || '').trim()
+  if (!answer) {
+    ElMessage.warning('请先作答再提交')
+    return
+  }
+  submittingId.value = uid
+  try {
+    const res: any = await studentAPI.submitAnswer({
+      question_id: Number(item.question_data?.question_id) || 0,
+      answer,
+      topic: item.knowledge_point || item.question_data?.knowledge_point || '',
+      ...(item.stage_id != null ? { stage_id: item.stage_id } : {}),
+      question_uid: uid,
+    })
+    const ev = res?.evaluations?.[0]
+    if (ev) {
+      results[uid] = ev
+      item.attempt_count = (item.attempt_count || 0) + 1
+      item.last_correct = ev.correct
+      item.last_score = ev.score
+      if (ev.correct) ElMessage.success('回答正确！')
+      else ElMessage.info('已提交，再接再厉')
+    }
+  } catch (e: any) {
+    ElMessage.error(e?.response?.data?.detail || '提交失败，请重试')
+  } finally {
+    submittingId.value = null
   }
 }
 
@@ -177,6 +304,27 @@ onMounted(() => load(1))
 .q-body :deep(.opts) { margin: 8px 0 0; padding-left: 20px; color: var(--el-text-color-regular); }
 .q-result { margin-top: 8px; font-size: 13px; color: var(--el-text-color-secondary); display: flex; gap: 8px; align-items: center; }
 .q-score { font-weight: 600; }
+.q-actions { margin-top: 10px; display: flex; gap: 8px; }
+.answer-panel {
+  margin-top: 12px;
+  padding: 14px 16px;
+  background: var(--el-fill-color-light);
+  border: 1px solid var(--el-border-color-lighter);
+  border-radius: 8px;
+}
+.answer-options { display: flex; flex-direction: column; gap: 6px; }
+.option-radio { margin-right: 0; height: auto; padding: 4px 0; white-space: normal; }
+.answer-submit-row { margin-top: 12px; display: flex; justify-content: flex-end; }
+.answer-feedback {
+  margin-top: 10px;
+  padding: 10px 12px;
+  border-radius: 6px;
+  font-size: 13px;
+  line-height: 1.6;
+}
+.answer-feedback.ok { background: #ecfdf5; color: #047857; }
+.answer-feedback.bad { background: #fef2f2; color: #b91c1c; }
+.fb-text { margin-top: 4px; opacity: 0.85; }
 .pager { margin-top: 16px; justify-content: center; }
 .empty-stage-alert { margin-bottom: 16px; }
 </style>
