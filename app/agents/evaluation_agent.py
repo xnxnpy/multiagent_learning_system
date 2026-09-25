@@ -697,13 +697,6 @@ class EvaluationAgent(BaseAgent):
             "should_update_path": False
         }
 
-    def _should_update_path(self, stats: Dict) -> bool:
-        """判断是否需要更新学习路径（基于学习统计数据）"""
-        accuracy = stats.get("accuracy_rate", 0)
-        total = stats.get("total_attempts", 0)
-        # 正确率低于 50% 且有一定练习量时，建议更新路径
-        return accuracy < 0.5 and total >= 3
-
     def _generate_fallback_result(self, stats: Dict) -> Dict[str, Any]:
         """生成降级评估结果"""
         accuracy = stats["accuracy_rate"]
@@ -733,7 +726,9 @@ class EvaluationAgent(BaseAgent):
             "knowledge_points": [],
             "report": f"学生已完成 {stats['total_attempts']} 次练习，正确率 {accuracy*100:.1f}%。",
             "summary": f"📊 评估等级：{grade}（正确率 {accuracy*100:.0f}%），继续保持学习！",
-            "should_update_path": self._should_update_path(stats)
+            "should_update_path": self._should_update_path_deterministic(
+                stats, mastery, ["需要更多练习"] if accuracy < 0.5 else []
+            )
         }
 
 

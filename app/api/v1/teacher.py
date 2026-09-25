@@ -775,13 +775,13 @@ async def teacher_regenerate_resource(
     current_user: User = Depends(require_roles(["teacher", "admin"])),
     db: AsyncSession = Depends(get_db),
 ):
-    """教师重新生成指定学生的某类资源"""
+    """教师重新生成指定学生的某类资源 — Supervisor force 模式"""
     log.info(f"教师 {current_user.id} 重新生成学生 {student_id} 的 {resource_type}")
 
-    from app.models import LearningPath
-    from app.api.v1.student import _RESOURCE_GENERATORS, _generate_and_evaluate
+    from app.api.v1.student import _SUPERVISOR_TOOLS
+    from app.workflows.stage_workflow import run_stage_workflow
 
-    if resource_type not in _RESOURCE_GENERATORS:
+    if resource_type not in _SUPERVISOR_TOOLS:
         raise HTTPException(status_code=400, detail=f"不支持的资源类型: {resource_type}")
 
     # 验证学生存在
@@ -789,62 +789,33 @@ async def teacher_regenerate_resource(
     if not student or student.role != "student":
         raise HTTPException(status_code=404, detail="学生不存在")
 
-    # 获取学生活跃画像
-    profile_result = await db.execute(
-        select(StudentProfile).where(
-            StudentProfile.user_id == student_id,
-            StudentProfile.is_active == True,
-        )
-    )
-    active_profile = profile_result.scalar_one_or_none()
-    profile_id = active_profile.id if active_profile else None
-
-    path_query = select(LearningPath).where(LearningPath.user_id == student_id)
-    if profile_id:
-        path_query = path_query.where(LearningPath.profile_id == profile_id)
-    path_result = await db.execute(path_query)
-    path = path_result.scalar_one_or_none()
-    if not path or not path.stages:
-        raise HTTPException(status_code=404, detail="学生学习路径不存在")
-
-    stage = next((s for s in path.stages if s.get("stage_id") == request.stage_id), None)
-    if not stage:
-        raise HTTPException(status_code=404, detail=f"阶段 {request.stage_id} 不存在")
-
-    kps = stage.get("knowledge_points", [])
-    stage_topic = "、".join([kp.get("name", "") if isinstance(kp, dict) else str(kp) for kp in kps]) or stage.get("title", "")
-
-    # 删除旧资源（按 profile_id 过滤）
-    delete_query = LearningResource.__table__.delete().where(
-        LearningResource.user_id == student_id,
-        LearningResource.stage_id == request.stage_id,
-        LearningResource.resource_type == resource_type,
-    )
-    if profile_id:
-        delete_query = delete_query.where(LearningResource.profile_id == profile_id)
-    await db.execute(delete_query)
-
-    # 如果重新生成题目，同时清掉该阶段的旧答题记录
-    if resource_type == "question":
-        from app.models import LearningRecord
-        await db.execute(
-            LearningRecord.__table__.delete().where(
-                LearningRecord.user_id == student_id,
-                LearningRecord.resource_type == "question",
-            )
-        )
-
-    await db.commit()
-
     try:
-        content, quality = await _generate_and_evaluate(
-            db, student_id, request.stage_id, stage_topic, resource_type,
-            profile_id=profile_id, trigger_user_id=current_user.id,
+        final = await run_stage_workflow(
+            db=db,
+            user_id=student_id,
+            stage_id=request.stage_id,
+            force_tools=[resource_type],
+            progress_user_id=current_user.id,  # 进度卡片推给教师
         )
-        return {"success": True, "content": content, "quality_score": quality}
     except Exception as e:
         log.error(f"教师重新生成失败: {e}", exc_info=True)
         raise HTTPException(status_code=500, detail=f"重新生成失败: {str(e)}")
+
+    if final.status == "failed":
+        raise HTTPException(status_code=500, detail=final.error or "重新生成失败")
+
+    from app.models import LearningResource
+    result = await db.execute(
+        select(LearningResource).where(
+            LearningResource.user_id == student_id,
+            LearningResource.stage_id == request.stage_id,
+            LearningResource.resource_type == resource_type,
+        ).order_by(LearningResource.created_at.desc()).limit(1)
+    )
+    record = result.scalar_one_or_none()
+    content = record.content if record and isinstance(record.content, dict) else {}
+    quality = content.get("quality_score") or final.quality_scores.get(resource_type)
+    return {"success": True, "content": content, "quality_score": quality}
 
 
 @router.post("/students/{student_id}/resources/{resource_type}/reevaluate")

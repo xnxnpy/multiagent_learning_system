@@ -12,7 +12,6 @@ export const useLearningPathStore = defineStore('learningPath', () => {
   const learningPath = ref<LearningPath | null>(null)
   const currentStage = ref(parseInt(localStorage.getItem(STAGE_KEY) || '0', 10))
   const generating = ref(false)
-  const workflowState = ref<any>(null)
   const completedStages = ref<number[]>([])
   const stageResources = ref<Record<string, any>>({})
   const stageGenerating = ref(false)
@@ -56,13 +55,13 @@ export const useLearningPathStore = defineStore('learningPath', () => {
 
         ws.on('message', async (data: any) => {
           switch (data.type) {
-            case 'step':
-              workflowState.value = data.data
+            case 'step': {
               // 喂进度给 appStore
               const detail = data.data.current_step || data.data.sub_step || ''
               const progress = Math.round((data.data.progress || 0) * 100)
               appStore.updateTask('workflow', { progress, detail })
               break
+            }
             case 'complete':
               if (finished) break
               finished = true
@@ -148,7 +147,17 @@ export const useLearningPathStore = defineStore('learningPath', () => {
     '资源入库 · 双写完成',
   ]
 
-  async function generateStageResources(stageId: number, _force = false) {
+  // Supervisor 白名单（force 全量重生用）
+  const SUPERVISOR_TOOLS = [
+    'document', 'question', 'code', 'mindmap',
+    'reading_material', 'glossary', 'summary', 'ppt_video', 'knowledge_link',
+  ]
+
+  async function generateStageResources(
+    stageId: number,
+    force = false,
+    resourceTypes?: string[],
+  ) {
     stageGenerating.value = true
     appStore.addTask({ id: 'workflow', type: 'workflow', label: 'Supervisor 正在编排本阶段资源', progress: 5, status: 'running' })
 
@@ -164,8 +173,13 @@ export const useLearningPathStore = defineStore('learningPath', () => {
     }, 4000)
 
     try {
+      // force 且未指定类型 → force 全部白名单；指定了类型 → 只 force 这些（补生成）
+      const types = resourceTypes?.length
+        ? resourceTypes
+        : (force ? [...SUPERVISOR_TOOLS] : undefined)
       const res: any = await request.post('/v1/student/learn/stage/generate', {
         stage_id: stageId,
+        ...(types ? { resource_types: types } : {}),
       }, { timeout: 600000 })
       stageResources.value = res.generated || {}
 
@@ -210,7 +224,6 @@ export const useLearningPathStore = defineStore('learningPath', () => {
     learningPath,
     currentStage,
     generating,
-    workflowState,
     completedStages,
     stageResources,
     stageGenerating,

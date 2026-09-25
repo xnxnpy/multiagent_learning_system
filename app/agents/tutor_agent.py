@@ -36,7 +36,6 @@ class TutorAgent:
     agent_name = "tutor"
 
     PROMPT_PATH = os.path.join(os.path.dirname(__file__), "../../prompts/tutor_react_prompt.txt")
-    LEGACY_PROMPT_PATH = os.path.join(os.path.dirname(__file__), "../../prompts/tutor_prompt.txt")
 
     def __init__(self):
         self._llm = ModelManagerChatModel(agent_name="tutor")

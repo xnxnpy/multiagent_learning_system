@@ -3,11 +3,8 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.models import get_db, User, StudentProfile, LearningPath, LearningRecord, ProfileChatMessage
 from app.core.logger import log
 from app.api.v1.deps import get_current_user
-from app.agents.profile_agent import ProfileAgent
 from app.agents.learning_path_agent import LearningPathAgent
-from app.agents.document_agent import DocumentAgent
 from app.agents.question_agent import QuestionAgent
-from app.agents.mindmap_agent import MindmapAgent
 from app.agents.knowledge_graph_agent import KnowledgeGraphAgent
 from app.agents.code_agent import CodeAgent
 from app.agents.evaluation_agent import create_evaluation_agent
@@ -18,7 +15,6 @@ import asyncio
 from sqlalchemy import select, func
 from pydantic import BaseModel, Field
 from datetime import datetime
-import json
 
 # 用户级评估锁，防止同一用户并发触发多次评估
 _evaluating_users: set[int] = set()
@@ -111,6 +107,10 @@ class StageGenerateRequest(BaseModel):
     """阶段资源生成请求（Supervisor 学习环入口）"""
     stage_id: int
     profile_id: Optional[int] = None
+    resource_types: Optional[List[str]] = Field(
+        None,
+        description="显式要生成的资源类型（如 [\"ppt_video\"]）。非空时进入 force 模式：只做这些，画像偏好跳过的可按需补生成",
+    )
 
 
 class AnswerEvaluation(BaseModel):
@@ -823,22 +823,9 @@ async def get_resources(
     return result
 
 
-# ── 单资源重新生成 ──────────────────────────────────────
+# ── 单资源重新生成（统一走 Supervisor force 模式）──────────
 
-# 资源类型 → Agent 生成函数映射
-_RESOURCE_GENERATORS = {
-    "document": "_gen_document",
-    "mindmap": "_gen_mindmap",
-    "code": "_gen_code",
-    "question": "_gen_question",
-    "reading_material": "_gen_reading_material",
-    "glossary": "_gen_glossary",
-    "knowledge_link": "_gen_knowledge_link",
-    "summary": "_gen_summary",
-    "ppt_video": "_gen_ppt_video",
-}
-
-# 资源类型 → Agent 显示名（用于进度卡片）
+# 资源类型 → 显示名（进度卡片；校验白名单见 supervisor.TOOLS）
 _RESOURCE_AGENT_NAMES = {
     "document": "文档生成 Agent · 生成学习文档",
     "mindmap": "思维导图 Agent · 生成思维导图",
@@ -850,6 +837,9 @@ _RESOURCE_AGENT_NAMES = {
     "summary": "学习总结 Agent · 生成总结报告",
     "ppt_video": "PPT 视频 Agent · 生成教学视频",
 }
+
+# Supervisor 白名单（与 supervisor_agent.TOOLS 一致，避免 student 循环 import）
+_SUPERVISOR_TOOLS = frozenset(_RESOURCE_AGENT_NAMES)
 
 
 async def send_agent_progress(
@@ -894,136 +884,6 @@ async def send_agent_progress(
         pass  # 通知失败不影响主流程
 
 
-async def _generate_and_evaluate(db, user_id, stage_id, stage_topic, resource_type, profile_id=None, trigger_user_id=None):
-    """为指定用户生成单种资源并评估质量，返回 (content, quality_score)
-
-    Args:
-        trigger_user_id: 触发者用户 ID（接收进度卡片）。默认与 user_id 相同（学生自助）。
-            教师代学生重新生成时传教师 ID，进度卡片会推给教师。
-    """
-    from app.models import LearningResource
-    from app.models.upsert import upsert as mysql_upsert
-    from app.agents.resource_quality_agent import ResourceQualityAgent
-
-    gen_func = _RESOURCE_GENERATORS.get(resource_type)
-    if not gen_func:
-        raise ValueError(f"不支持的资源类型: {resource_type}")
-
-    # 进度接收者：默认学生本人，教师代操作时为教师
-    progress_user_id = trigger_user_id or user_id
-    agent_name = _RESOURCE_AGENT_NAMES.get(resource_type, f"{resource_type} Agent · 生成中")
-
-    await send_agent_progress(
-        progress_user_id, step=resource_type, step_name=agent_name,
-        progress=10, status="running", stage_id=stage_id,
-    )
-
-    try:
-        content = await globals()[gen_func](db, user_id, stage_topic, stage_id)
-    except Exception as e:
-        await send_agent_progress(
-            progress_user_id, step=resource_type, step_name=agent_name,
-            progress=10, status="failed", stage_id=stage_id,
-        )
-        raise
-
-    # 统一 content 为 dict：兼容 Agent 返回字符串 / DB 读取的历史 JSON 字符串
-    if isinstance(content, str):
-        try:
-            import json as _json
-            _parsed = _json.loads(content)
-            content = _parsed if isinstance(_parsed, (dict, list)) else {"content": content}
-        except Exception:
-            content = {"content": content}
-    elif content is None:
-        content = {}
-
-    # 规范化资源内容：修复 LLM 将 JSON 字符串塞入字段的问题
-    if isinstance(content, dict):
-        from app.agents.utils import normalize_resource_content
-        content = normalize_resource_content(content, resource_type)
-
-    resource_values = {
-        "user_id": user_id, "profile_id": profile_id, "stage_id": stage_id,
-        "resource_type": resource_type, "topic": stage_topic, "content": content,
-    }
-    await mysql_upsert(db, LearningResource.__table__, values=resource_values)
-    await db.commit()
-
-    # 进入质量评估阶段
-    await send_agent_progress(
-        progress_user_id, step=resource_type,
-        step_name=f"{agent_name.split(' · ')[0]} · 资源质量评估中",
-        progress=60, status="running", stage_id=stage_id,
-    )
-
-    try:
-        quality_agent = ResourceQualityAgent(db)
-        quality = await quality_agent.run(
-            topic=stage_topic, resource_type=resource_type,
-            content=content, user_id=user_id,
-        )
-    except Exception as e:
-        await send_agent_progress(
-            progress_user_id, step=resource_type, step_name="资源质量评估失败",
-            progress=60, status="failed", stage_id=stage_id,
-        )
-        raise
-
-    # content 已是 dict，直接拷贝并追加质量评分
-    updated_content = dict(content) if isinstance(content, dict) else {"content": content}
-    updated_content["quality_score"] = quality
-    resource_values["content"] = updated_content
-    await mysql_upsert(db, LearningResource.__table__, values=resource_values)
-    await db.commit()
-
-    await send_agent_progress(
-        progress_user_id, step=resource_type, step_name="完成",
-        progress=100, status="completed", stage_id=stage_id,
-    )
-
-    return updated_content, quality
-
-
-async def _gen_document(db, user_id, topic, stage_id):
-    from app.agents.document_agent import DocumentAgent
-    return await DocumentAgent(db).run(topic, user_id=user_id)
-
-async def _gen_mindmap(db, user_id, topic, stage_id):
-    from app.agents.mindmap_agent import MindmapAgent
-    result = await MindmapAgent(db).run(topic, user_id=user_id)
-    return {"mindmap_markdown": result.get("mindmap_markdown", ""), "mindmap_html": result.get("mindmap_html", "")} if isinstance(result, dict) else result
-
-async def _gen_code(db, user_id, topic, stage_id):
-    from app.agents.code_agent import CodeAgent
-    return await CodeAgent(db).run(topic, user_id=user_id)
-
-async def _gen_question(db, user_id, topic, stage_id):
-    from app.agents.question_agent import QuestionAgent
-    return await QuestionAgent(db).run(topic, user_id=user_id)
-
-async def _gen_reading_material(db, user_id, topic, stage_id):
-    from app.agents.reading_material_agent import ReadingMaterialAgent
-    return await ReadingMaterialAgent(db).run(topic, user_id=user_id)
-
-async def _gen_glossary(db, user_id, topic, stage_id):
-    from app.agents.glossary_agent import GlossaryAgent
-    return await GlossaryAgent(db).run(topic, user_id=user_id)
-
-async def _gen_knowledge_link(db, user_id, topic, stage_id):
-    result = await KnowledgeGraphAgent(db, scope="stage").run(topic, user_id=user_id)
-    return result if isinstance(result, dict) else {"title": "知识点关联图", "nodes": [], "edges": []}
-
-async def _gen_summary(db, user_id, topic, stage_id):
-    from app.agents.summary_agent import SummaryAgent
-    return await SummaryAgent(db).run(topic, user_id=user_id)
-
-async def _gen_ppt_video(db, user_id, topic, stage_id):
-    from app.agents.ppt_video_agent import PptVideoAgent
-    result = await PptVideoAgent(db).run(topic=topic, stage_id=stage_id, user_id=user_id)
-    return result if isinstance(result, dict) else {}
-
-
 class RegenerateRequest(BaseModel):
     stage_id: int = Field(..., description="阶段 ID")
 
@@ -1035,65 +895,41 @@ async def regenerate_resource(
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ):
-    """重新生成单种资源（删旧生新 + 重新评估）"""
-    if resource_type not in _RESOURCE_GENERATORS:
+    """重新生成单种资源 — Supervisor force 模式（支持画像未覆盖的类型补生成）"""
+    if resource_type not in _SUPERVISOR_TOOLS:
         raise HTTPException(status_code=400, detail=f"不支持的资源类型: {resource_type}")
 
-    # 获取活跃画像 profile_id
-    profile_result = await db.execute(
-        select(StudentProfile).where(
-            StudentProfile.user_id == current_user.id,
-            StudentProfile.is_active == True,
-        )
-    )
-    active_profile = profile_result.scalar_one_or_none()
-    profile_id = active_profile.id if active_profile else None
+    from app.workflows.stage_workflow import run_stage_workflow
 
-    from app.models import LearningPath
-    path_query = select(LearningPath).where(LearningPath.user_id == current_user.id)
-    if profile_id:
-        path_query = path_query.where(LearningPath.profile_id == profile_id)
-    path_result = await db.execute(path_query)
-    path = path_result.scalar_one_or_none()
-    if not path or not path.stages:
-        raise HTTPException(status_code=404, detail="学习路径不存在")
-
-    stage = next((s for s in path.stages if s.get("stage_id") == request.stage_id), None)
-    if not stage:
-        raise HTTPException(status_code=404, detail=f"阶段 {request.stage_id} 不存在")
-
-    kps = stage.get("knowledge_points", [])
-    raw_kps = [kp.get("name", "") if isinstance(kp, dict) else str(kp) for kp in kps]
-    # 限制知识点数量和长度，避免 topic 过长
-    raw_kps = [kp[:20] for kp in raw_kps[:5]]
-    stage_topic = "、".join(raw_kps) or stage.get("title", "")
-    if len(stage_topic) > 80:
-        stage_topic = "、".join(raw_kps[:3]) or stage.get("title", "")
-
-    from app.models import LearningResource
-    delete_query = LearningResource.__table__.delete().where(
-        LearningResource.user_id == current_user.id,
-        LearningResource.stage_id == request.stage_id,
-        LearningResource.resource_type == resource_type,
-    )
-    if profile_id:
-        delete_query = delete_query.where(LearningResource.profile_id == profile_id)
-    await db.execute(delete_query)
-
-    # 注意：不删除答题记录（LearningRecord）——答题历史是评估与错题本的依据，
-    # 重生成题目只替换题面资源；旧题目的作答记录由题库按 question_uid 关联存活。
-
-    await db.commit()
-
+    log.info(f"学生 {current_user.id} force 重生资源 {resource_type} @ 阶段 {request.stage_id}")
     try:
-        content, quality = await _generate_and_evaluate(
-            db, current_user.id, request.stage_id, stage_topic, resource_type,
-            profile_id=profile_id, trigger_user_id=current_user.id,
+        final = await run_stage_workflow(
+            db=db,
+            user_id=current_user.id,
+            stage_id=request.stage_id,
+            force_tools=[resource_type],
+            progress_user_id=current_user.id,
         )
-        return {"success": True, "content": content, "quality_score": quality}
     except Exception as e:
         log.error(f"重新生成 {resource_type} 失败: {e}", exc_info=True)
         raise HTTPException(status_code=500, detail=f"重新生成失败: {str(e)}")
+
+    if final.status == "failed":
+        raise HTTPException(status_code=500, detail=final.error or "重新生成失败")
+
+    from app.models import LearningResource
+    from sqlalchemy import select as sa_select
+    result = await db.execute(
+        sa_select(LearningResource).where(
+            LearningResource.user_id == current_user.id,
+            LearningResource.stage_id == request.stage_id,
+            LearningResource.resource_type == resource_type,
+        ).order_by(LearningResource.created_at.desc()).limit(1)
+    )
+    record = result.scalar_one_or_none()
+    content = record.content if record and isinstance(record.content, dict) else {}
+    quality = content.get("quality_score") or final.quality_scores.get(resource_type)
+    return {"success": True, "content": content, "quality_score": quality}
 
 
 
@@ -1791,62 +1627,20 @@ async def cancel_learning(
 _background_stage_tasks: set = set()
 
 
-async def generate_all_stage_resources(user_id: int):
-    """学习路径生成后调用：只生成当前阶段的资源
-
-    后续阶段等学生到达时再按需生成。
-    """
-    from app.models import AsyncSessionLocal
-
-    # 获取学习路径（按活跃画像）
-    async with AsyncSessionLocal() as db:
-        from sqlalchemy import select as sa_select
-        from app.models import StudentProfile
-        prof_result = await db.execute(
-            sa_select(StudentProfile).where(
-                StudentProfile.user_id == user_id,
-                StudentProfile.is_active == True,
-            )
-        )
-        prof = prof_result.scalar_one_or_none()
-        path_query = select(LearningPath).where(LearningPath.user_id == user_id)
-        if prof:
-            path_query = path_query.where(LearningPath.profile_id == prof.id)
-        result = await db.execute(path_query)
-        path = result.scalar_one_or_none()
-
-    if not path or not path.stages:
-        return
-
-    stages = path.stages
-    completed = path.completed_stages or []
-
-    # 找到当前阶段（第一个未完成的阶段）
-    current_index = 0
-    for i, stage in enumerate(stages):
-        if stage.get("stage_id") not in completed:
-            current_index = i
-            break
-
-    # 只生成当前阶段资源
-    log.info(f"为用户 {user_id} 生成当前阶段 {current_index + 1} 资源")
-    await _generate_one_stage(user_id, stages[current_index])
-    log.info(f"阶段 {current_index + 1} 资源生成完毕")
-
-
-
 async def _generate_one_stage(user_id: int, stage: dict, force: bool = False,
                              progress_base: int = 0, progress_range: int = 100):
-    """为单个阶段生成资源（文档/思维导图/代码）
+    """为单个阶段生成资源 — 统一走 Supervisor 学习环
 
     Args:
-        progress_base: 进度基准百分比（用于在更大流程中映射进度）
-        progress_range: 进度区间宽度（百分比）
+        force: True 时 force 全部白名单类型；False 为增量（画像适配 + 补缺口）
+        progress_base/progress_range: 预留（节点级进度由 stage_workflow 推送）
     """
-    from app.models import AsyncSessionLocal, LearningResource
-    from app.core.websocket_manager import notification_manager
+    from app.models import AsyncSessionLocal
+    from app.agents.supervisor_agent import TOOLS as SUPERVISOR_TOOLS
 
     stage_id = stage.get("stage_id")
+    if stage_id is None:
+        return
 
     # 互斥锁：防止同一用户同一阶段并发生成
     lock_key = f"{user_id}_{stage_id}"
@@ -1856,230 +1650,27 @@ async def _generate_one_stage(user_id: int, stage: dict, force: bool = False,
     _stage_gen_locks[lock_key] = asyncio.Lock()
     try:
         async with _stage_gen_locks[lock_key]:
-            await _do_generate_one_stage(user_id, stage, force=force,
-                                         progress_base=progress_base, progress_range=progress_range)
+            from app.workflows.stage_workflow import run_stage_workflow
+            async with AsyncSessionLocal() as db:
+                force_tools = list(SUPERVISOR_TOOLS) if force else None
+                final = await run_stage_workflow(
+                    db=db,
+                    user_id=user_id,
+                    stage_id=stage_id,
+                    force_tools=force_tools,
+                    progress_user_id=user_id,
+                )
+            if final.status == "failed":
+                log.error(f"阶段 {stage_id} Supervisor 资源生成失败: {final.error}")
+            else:
+                log.info(
+                    f"阶段 {stage_id} Supervisor 资源生成完成: "
+                    f"{list(final.generated.keys())}"
+                )
     finally:
         _stage_gen_locks.pop(lock_key, None)
 
 
-async def _do_generate_one_stage(user_id: int, stage: dict, force: bool = False,
-                                 progress_base: int = 0, progress_range: int = 100):
-    """实际的资源生成逻辑"""
-    from app.models import AsyncSessionLocal, LearningResource
-    from app.core.websocket_manager import notification_manager
-
-    stage_id = stage.get("stage_id")
-    kps = stage.get("knowledge_points", [])
-    # knowledge_points 可能是字符串列表或字典列表
-    if kps and isinstance(kps[0], dict):
-        raw_kps = [kp.get("name", "") for kp in kps]
-    else:
-        raw_kps = [str(kp) for kp in kps]
-    # 限制知识点数量和长度，避免 topic 过长
-    raw_kps = [kp[:20] for kp in raw_kps[:5]]
-    stage_topic = "、".join(raw_kps) or stage.get("title", "")
-    if len(stage_topic) > 80:
-        stage_topic = "、".join(raw_kps[:3]) or stage.get("title", "")
-    # 固定生成全部资源类型，名称与主工作流对齐
-    resource_steps = [
-        ("document", "文档生成 Agent · 生成学习文档"),
-        ("ppt_video", "PPT 视频 Agent · 生成教学视频"),
-        ("mindmap", "思维导图 Agent · 生成思维导图"),
-        ("question", "题库生成 Agent · 生成练习题目"),
-        ("code", "代码实操 Agent · 生成代码示例"),
-        ("reading_material", "拓展阅读 Agent · 生成阅读材料"),
-        ("glossary", "术语词汇 Agent · 生成词汇卡片"),
-        ("knowledge_link", "知识图谱 Agent · 生成知识点关联图"),
-        ("summary", "学习总结 Agent · 生成总结报告"),
-    ]
-
-    # 获取活跃 profile_id + 检查缺失的资源类型（同一个 session）
-    async with AsyncSessionLocal() as db:
-        prof_result = await db.execute(
-            select(StudentProfile).where(
-                StudentProfile.user_id == user_id,
-                StudentProfile.is_active == True,
-            )
-        )
-        prof = prof_result.scalar_one_or_none()
-        res_profile_id = prof.id if prof else None
-
-        # 查询该阶段已有的资源类型
-        existing_types_query = select(LearningResource.resource_type).where(
-            LearningResource.user_id == user_id,
-            LearningResource.stage_id == stage_id,
-        )
-        if res_profile_id:
-            existing_types_query = existing_types_query.where(LearningResource.profile_id == res_profile_id)
-        existing_types_result = await db.execute(existing_types_query)
-        existing_types = {row[0] for row in existing_types_result.all()}
-
-    # 过滤掉已存在的类型，只生成缺失的（force=True 时全部重新生成）
-    if not force:
-        needed_types = [t for t in resource_steps if t[0] not in existing_types]
-        if not needed_types:
-            log.info(f"阶段 {stage_id} 所有资源已存在（profile_id={res_profile_id}），跳过生成")
-            return
-        resource_steps = needed_types
-        log.info(f"阶段 {stage_id} 缺失资源类型: {[t[0] for t in needed_types]}，开始生成")
-    else:
-        log.info(f"阶段 {stage_id} 强制重新生成全部资源（profile_id={res_profile_id}）")
-
-    async def _send_gen_progress(step_key: str, step_name: str, idx: int, total: int, status: str = "running"):
-        """发送资源生成进度通知"""
-        try:
-            pct = round(progress_base + (idx / total) * progress_range)
-            await notification_manager.send_notification(
-                user_id=user_id,
-                notification_type="resource_generation",
-                title="📚 资源生成中" if status == "running" else "✅ 资源生成完成",
-                content=f"正在生成{step_name}..." if status == "running" else "本阶段资源已全部生成",
-                data={
-                    "step": step_key,
-                    "step_name": step_name,
-                    "progress": pct,
-                    "status": status,
-                    "stage_id": stage_id,
-                },
-            )
-        except Exception:
-            pass  # 通知失败不影响生成
-
-    log.info(f"为用户 {user_id} 阶段 {stage_id} 生成资源: topic='{stage_topic}'")
-
-    total = len(resource_steps)
-    for idx, (res_type, display_name) in enumerate(resource_steps, 1):
-        await _send_gen_progress(res_type, display_name, idx, total, "running")
-
-        async with AsyncSessionLocal() as db:
-            from app.models.upsert import upsert as mysql_upsert
-
-            try:
-                if res_type == "document":
-                    doc_agent = DocumentAgent(db)
-                    doc_result = await doc_agent.run(stage_topic, user_id=user_id)
-                    await mysql_upsert(db, LearningResource.__table__, values={
-                        "user_id": user_id, "profile_id": res_profile_id, "stage_id": stage_id,
-                        "resource_type": "document", "topic": stage_topic, "content": doc_result,
-                    })
-                    await db.commit()
-
-                elif res_type == "mindmap":
-                    mm_agent = MindmapAgent(db)
-                    mm_result = await mm_agent.run(stage_topic, user_id=user_id)
-                    mindmap_md = mm_result.get("mindmap_markdown", "") if isinstance(mm_result, dict) else ""
-                    mindmap_html = mm_result.get("mindmap_html", "") if isinstance(mm_result, dict) else ""
-                    await mysql_upsert(db, LearningResource.__table__, values={
-                        "user_id": user_id, "profile_id": res_profile_id, "stage_id": stage_id,
-                        "resource_type": "mindmap", "topic": stage_topic,
-                        "content": {"mindmap_markdown": mindmap_md, "mindmap_html": mindmap_html},
-                    })
-                    await db.commit()
-
-                elif res_type == "code":
-                    code_agent = CodeAgent(db)
-                    code_result = await code_agent.run(stage_topic, user_id=user_id)
-                    await mysql_upsert(db, LearningResource.__table__, values={
-                        "user_id": user_id, "profile_id": res_profile_id, "stage_id": stage_id,
-                        "resource_type": "code", "topic": stage_topic, "content": code_result,
-                    })
-                    await db.commit()
-
-                elif res_type == "question":
-                    question_agent = QuestionAgent(db)
-                    q_result = await question_agent.run(stage_topic, user_id=user_id)
-                    await mysql_upsert(db, LearningResource.__table__, values={
-                        "user_id": user_id, "profile_id": res_profile_id, "stage_id": stage_id,
-                        "resource_type": "question", "topic": stage_topic, "content": q_result,
-                    })
-                    await db.commit()
-
-                elif res_type == "ppt_video":
-                    from app.agents.ppt_video_agent import PptVideoAgent
-                    pv_agent = PptVideoAgent(db)
-                    pv_result = await pv_agent.run(topic=stage_topic, stage_id=stage_id, user_id=user_id)
-                    await mysql_upsert(db, LearningResource.__table__, values={
-                        "user_id": user_id, "profile_id": res_profile_id, "stage_id": stage_id,
-                        "resource_type": "ppt_video", "topic": stage_topic, "content": pv_result,
-                    })
-                    await db.commit()
-
-                elif res_type == "reading_material":
-                    from app.agents.reading_material_agent import ReadingMaterialAgent
-                    rm_agent = ReadingMaterialAgent(db)
-                    rm_result = await rm_agent.run(stage_topic, user_id=user_id)
-                    await mysql_upsert(db, LearningResource.__table__, values={
-                        "user_id": user_id, "profile_id": res_profile_id, "stage_id": stage_id,
-                        "resource_type": "reading_material", "topic": stage_topic, "content": rm_result,
-                    })
-                    await db.commit()
-
-                elif res_type == "glossary":
-                    from app.agents.glossary_agent import GlossaryAgent
-                    gl_agent = GlossaryAgent(db)
-                    gl_result = await gl_agent.run(stage_topic, user_id=user_id)
-                    await mysql_upsert(db, LearningResource.__table__, values={
-                        "user_id": user_id, "profile_id": res_profile_id, "stage_id": stage_id,
-                        "resource_type": "glossary", "topic": stage_topic, "content": gl_result,
-                    })
-                    await db.commit()
-
-                elif res_type == "knowledge_link":
-                    from app.agents.knowledge_graph_agent import KnowledgeGraphAgent
-                    kl_agent = KnowledgeGraphAgent(db, scope="stage")
-                    kl_result = await kl_agent.run(stage_topic, user_id=user_id)
-                    await mysql_upsert(db, LearningResource.__table__, values={
-                        "user_id": user_id, "profile_id": res_profile_id, "stage_id": stage_id,
-                        "resource_type": "knowledge_link", "topic": stage_topic, "content": kl_result,
-                    })
-                    await db.commit()
-
-                elif res_type == "summary":
-                    from app.agents.summary_agent import SummaryAgent
-                    sm_agent = SummaryAgent(db)
-                    sm_result = await sm_agent.run(stage_topic, user_id=user_id)
-                    await mysql_upsert(db, LearningResource.__table__, values={
-                        "user_id": user_id, "profile_id": res_profile_id, "stage_id": stage_id,
-                        "resource_type": "summary", "topic": stage_topic, "content": sm_result,
-                    })
-                    await db.commit()
-
-            except Exception as e:
-                log.error(f"阶段 {stage_id} {display_name}生成失败: {e}")
-
-    # 发送完成通知
-    await _send_gen_progress("done", "完成", total, total, "completed")
-
-    # ============ 资源质量评估 ============
-    try:
-        from app.agents.resource_quality_agent import ResourceQualityAgent
-        quality_agent = ResourceQualityAgent(db=None)
-        for res_type, _ in resource_steps:
-            async with AsyncSessionLocal() as q_db:
-                res_result = await q_db.execute(
-                    select(LearningResource).where(
-                        LearningResource.user_id == user_id,
-                        LearningResource.stage_id == stage_id,
-                        LearningResource.resource_type == res_type,
-                    ).order_by(LearningResource.created_at.desc()).limit(1)
-                )
-                res_record = res_result.scalar_one_or_none()
-                if res_record and not (isinstance(res_record.content, dict) and res_record.content.get("quality_score")):
-                    quality = await quality_agent.run(
-                        topic=stage_topic,
-                        resource_type=res_type,
-                        content=res_record.content,
-                        user_id=user_id
-                    )
-                    updated_content = dict(res_record.content) if isinstance(res_record.content, dict) else {"content": res_record.content}
-                    updated_content["quality_score"] = quality
-                    res_record.content = updated_content
-                    await q_db.commit()
-                    log.info(f"阶段 {stage_id} 资源 {res_type} 质量评估完成: {quality.get('overall_score')}分")
-    except Exception as e:
-        log.error(f"阶段 {stage_id} 资源质量评估失败: {e}")
-
-    log.info(f"阶段 {stage_id} 资源生成完成")
 
 
 # ==================== 阶段完成 & 按阶段生成资源 ====================
@@ -2242,19 +1833,25 @@ async def generate_stage_resources(
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ):
-    """为指定阶段运行 Supervisor 学习环（按需增量生成资源）
+    """为指定阶段运行 Supervisor 学习环（按需增量 / force 补生成）
 
-    触发时机：学生进入某个学习阶段时。画像确认后不再一次性全量生成。
+    - 不传 resource_types：增量——已有且达标的跳过，按画像补齐缺口
+    - 传 resource_types（如 ["ppt_video"]）：force 模式，只做这些类型
+      （画像「看文档」跳过视频后，用户可随时点名补生成）
     """
     from app.workflows.stage_workflow import run_stage_workflow
 
-    log.info(f"学生 {current_user.id} 请求为阶段 {request.stage_id} 生成资源（Supervisor 学习环）")
+    force_tools = request.resource_types or None
+    mode = f"force={force_tools}" if force_tools else "incremental"
+    log.info(f"学生 {current_user.id} 请求阶段 {request.stage_id} 生成资源（Supervisor，{mode}）")
     try:
         final = await run_stage_workflow(
             db=db,
             user_id=current_user.id,
             stage_id=request.stage_id,
             profile_id=request.profile_id,
+            force_tools=force_tools,
+            progress_user_id=current_user.id,
         )
     except Exception as e:
         log.error(f"阶段 {request.stage_id} Supervisor 学习环失败: {e}", exc_info=True)
@@ -2269,6 +1866,7 @@ async def generate_stage_resources(
         "generated": final.generated,
         "quality_scores": final.quality_scores,
         "regen_counts": final.regen_counts,
+        "force_tools": final.force_tools,
         "messages": final.messages[-20:],  # 最近 20 条协作消息日志
     }
 

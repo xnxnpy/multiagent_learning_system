@@ -45,6 +45,8 @@ class SupervisorAgent(BaseAgent):
             regen_counts=kwargs.get("regen_counts") or {},
             knowledge_base_hits=kwargs.get("knowledge_base_hits") or [],
             fix_hints=kwargs.get("fix_hints") or [],
+            force_tools=kwargs.get("force_tools"),
+            force_mode=bool(kwargs.get("force_mode")),
         )
 
     # ── 决策 ───────────────────────────────────────────────
@@ -58,6 +60,8 @@ class SupervisorAgent(BaseAgent):
         regen_counts: Dict[str, int],
         knowledge_base_hits: List[Dict[str, str]],
         fix_hints: List[str],
+        force_tools: Optional[List[str]] = None,
+        force_mode: bool = False,
     ) -> Dict[str, Any]:
         """产出一个经白名单校验的决策。LLM 失败时回退 default_plan。"""
         # 上下文截断：过长 JSON 容易触发讯飞 400 RequestParamsError
@@ -76,6 +80,7 @@ class SupervisorAgent(BaseAgent):
             {"id": h.get("evidence_id", f"E{i+1}"), "text": str(h.get("text", ""))[:180]}
             for i, h in enumerate(knowledge_base_hits[:3])
         ]
+        force = list(force_tools or [])
         prompt = self._load_prompt(self.PROMPT_PATH).format(
             profile=json.dumps(compact_profile, ensure_ascii=False),
             stage=json.dumps(compact_stage, ensure_ascii=False),
@@ -84,6 +89,8 @@ class SupervisorAgent(BaseAgent):
                     "generated_tools": list(generated.keys()),
                     "quality_scores": quality_scores,
                     "regen_counts": regen_counts,
+                    "force_tools": force,
+                    "force_mode": force_mode,
                 },
                 ensure_ascii=False,
             ),
@@ -99,15 +106,54 @@ class SupervisorAgent(BaseAgent):
             raw = extract_json(response)
             decision = self.validate(raw)
             if decision:
-                log.info(f"Supervisor 决策: tool={decision['tool']}, reasoning={decision['reasoning'][:60]}")
-                return decision
+                # force 约束：优先/只做 force_tools，禁止 LLM 绕开
+                decision = self._apply_force(decision, force, force_mode)
+                if decision:
+                    log.info(f"Supervisor 决策: tool={decision['tool']}, reasoning={decision['reasoning'][:60]}")
+                    return decision
             log.warning(f"Supervisor 决策校验失败，回退默认计划: {raw}")
         except Exception as e:
             log.warning(f"Supervisor LLM 决策失败，回退默认计划: {e}")
 
         return self.default_plan(
-            profile, stage, generated, quality_scores, regen_counts, fix_hints
+            profile, stage, generated, quality_scores, regen_counts, fix_hints,
+            force_tools=force, force_mode=force_mode,
         )
+
+    @staticmethod
+    def _apply_force(
+        decision: Dict[str, Any],
+        force_tools: List[str],
+        force_mode: bool,
+    ) -> Optional[Dict[str, Any]]:
+        """force 模式下改写/否决 LLM 决策，保证点名资源一定生成"""
+        if force_mode:
+            if not force_tools:
+                return {
+                    "reasoning": "用户点名资源已全部完成",
+                    "action": "done",
+                    "tool": None,
+                    "params": {},
+                }
+            target = force_tools[0]
+            if decision.get("action") == "generate" and decision.get("tool") == target:
+                return decision
+            return {
+                "reasoning": f"用户点名补生成 {target}，优先执行",
+                "action": "generate",
+                "tool": target,
+                "params": decision.get("params") or {"fix_hints": [], "use_grounding": True},
+            }
+        # 非 force：若 LLM 选了 force 列表外的工具但 force 非空，强制先做 force
+        if force_tools and decision.get("action") == "generate" and decision.get("tool") not in force_tools:
+            target = force_tools[0]
+            return {
+                "reasoning": f"用户点名 {target} 未完成，优先执行",
+                "action": "generate",
+                "tool": target,
+                "params": decision.get("params") or {"fix_hints": [], "use_grounding": True},
+            }
+        return decision
 
     def validate(self, raw: Any) -> Optional[Dict[str, Any]]:
         """决策 schema + 白名单校验；非法返回 None"""
@@ -152,9 +198,28 @@ class SupervisorAgent(BaseAgent):
         quality_scores: Dict[str, float],
         regen_counts: Dict[str, int],
         fix_hints: List[str],
+        force_tools: Optional[List[str]] = None,
+        force_mode: bool = False,
     ) -> Dict[str, Any]:
-        """按画像适配的固定优先级生成计划；全部达标则 done"""
+        """按画像适配的固定优先级生成计划；全部达标则 done
+
+        force_tools：用户点名要生成的类型（画像跳过后补生成 / 单资源重生）。
+        force_mode=True 时只做 force_tools，做完立即 done。
+        """
+        force = list(force_tools or [])
         threshold = DEFAULT_QUALITY_THRESHOLD
+
+        # ── force 优先：点名资源必须先做 ──
+        if force:
+            tool = force[0]
+            return self._gen(tool, f"用户点名补生成/重生成 {tool}（覆盖画像偏好）")
+        if force_mode:
+            return {
+                "reasoning": "用户点名资源已全部完成",
+                "action": "done",
+                "tool": None,
+                "params": {},
+            }
 
         def _needs(tool: str) -> bool:
             score = quality_scores.get(tool)
@@ -178,7 +243,7 @@ class SupervisorAgent(BaseAgent):
         # 画像适配的扩展资源
         style = str(profile.get("learning_style", "") or "")
         coding = str(profile.get("coding_ability", "") or "")
-        recommended = stage.get("recommended_resources") or []
+        recommended = stage.get("recommended_resources") or stage.get("recommended_resource_types") or []
 
         adaptive_order: List[str] = []
         if "视频" in style:
@@ -199,6 +264,9 @@ class SupervisorAgent(BaseAgent):
         for tool in adaptive_order:
             if _needs(tool):
                 return self._gen(tool, f"按画像/阶段推荐生成 {tool}")
+
+        # 缺口收尾：画像未点名、阶段也未推荐，但仍缺失的类型不自动铺满——
+        # 留给用户 force 补生成（如「看文档」学生日后要点视频）。
 
         return {
             "reasoning": "本阶段资源已齐备且质量达标",

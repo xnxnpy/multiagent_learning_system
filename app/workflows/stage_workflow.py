@@ -28,8 +28,7 @@ from app.agents.supervisor_agent import SupervisorAgent, MAX_REGEN
 TOOL_TIMEOUT_SECONDS = 300
 PLAN_TIMEOUT_SECONDS = 60
 
-# 资源生成器分发表（与 student.py 的 _RESOURCE_GENERATORS 对齐，但独立维护）
-# 每个生成器签名: async (db, user_id, topic, stage_id) -> content
+# 每个生成器签名: async (db, user_id, topic, stage_id) -> content — 见 _dispatch_tool
 
 
 class StageState(BaseModel):
@@ -47,6 +46,13 @@ class StageState(BaseModel):
     generated: Dict[str, Any] = Field(default_factory=dict)      # tool -> 摘要
     quality_scores: Dict[str, float] = Field(default_factory=dict)
     regen_counts: Dict[str, int] = Field(default_factory=dict)
+
+    # 用户显式点名要生成的工具（画像偏好跳过后按需补生成 / 单资源重生）
+    force_tools: List[str] = Field(default_factory=list)
+    # force 模式：只做 force_tools，做完即结束，不再按画像扩展
+    force_mode: bool = False
+    # 进度接收者（教师代操作时与 user_id 不同）
+    progress_user_id: Optional[int] = None
 
     decision: Optional[Dict[str, Any]] = None
     tool_result: Optional[Dict[str, Any]] = None
@@ -76,16 +82,17 @@ def _log_msg(state: StageState, sender: str, receiver: str, mtype: str, content:
     })
 
 
-async def _notify_progress(user_id: int, step_name: str, progress: int, status: str = "running") -> None:
+async def _notify_progress(state: StageState, step_name: str, progress: int, status: str = "running") -> None:
     """推送节点级进度到前端（懒加载，避免循环导入）"""
     try:
         from app.api.v1.student import send_agent_progress
         await send_agent_progress(
-            user_id,
+            state.progress_user_id or state.user_id,
             step="stage_workflow",
             step_name=step_name,
             progress=progress,
             status=status,
+            stage_id=state.stage_id,
         )
     except Exception as e:
         log.debug(f"进度推送失败（不影响流程）: {e}")
@@ -96,7 +103,7 @@ async def _notify_progress(user_id: int, step_name: str, progress: int, status: 
 
 async def supervisor_plan_node(state: StageState) -> Dict[str, Any]:
     """思考节点：LLM 决策下一步调用哪个工具（输出经白名单校验）"""
-    await _notify_progress(state.user_id, "Supervisor · 正在分析画像并决策下一步工具", 10)
+    await _notify_progress(state, "Supervisor · 正在分析画像并决策下一步工具", 10)
     supervisor = SupervisorAgent(state.db)
 
     # 仅在本轮需要 grounding 时检索（plan 后由 act 使用）
@@ -112,6 +119,8 @@ async def supervisor_plan_node(state: StageState) -> Dict[str, Any]:
                 regen_counts=state.regen_counts,
                 knowledge_base_hits=state.grounding,
                 fix_hints=state.fix_hints,
+                force_tools=state.force_tools,
+                force_mode=state.force_mode,
             ),
             timeout=PLAN_TIMEOUT_SECONDS,
         )
@@ -120,12 +129,14 @@ async def supervisor_plan_node(state: StageState) -> Dict[str, Any]:
         decision = supervisor.default_plan(
             state.profile, state.stage, state.generated,
             state.quality_scores, state.regen_counts, state.fix_hints,
+            force_tools=state.force_tools, force_mode=state.force_mode,
         )
     except Exception as e:
         log.warning(f"Supervisor 规划异常，使用默认计划: {e}")
         decision = supervisor.default_plan(
             state.profile, state.stage, state.generated,
             state.quality_scores, state.regen_counts, state.fix_hints,
+            force_tools=state.force_tools, force_mode=state.force_mode,
         )
 
     result["decision"] = decision
@@ -155,7 +166,7 @@ async def act_node(state: StageState) -> Dict[str, Any]:
     }.get(tool_name, tool_name)
     reasoning = str(decision.get("reasoning", ""))[:80]
     await _notify_progress(
-        user_id,
+        state,
         f"Supervisor 决策 → {tool_label} Agent（{reasoning}）",
         30,
     )
@@ -256,7 +267,7 @@ async def quality_gate_node(state: StageState) -> Dict[str, Any]:
     """质量守门员：确定性谓词——分数阈值 + 重做次数上限"""
     result = state.tool_result
     if not result or result.get("error"):
-        await _notify_progress(state.user_id, "资源生成失败，Supervisor 将重新规划", 50, "failed")
+        await _notify_progress(state, "资源生成失败，Supervisor 将重新规划", 50, "failed")
         return {"status": "failed"}
 
     tool = result["tool"]
@@ -290,12 +301,10 @@ async def quality_gate_node(state: StageState) -> Dict[str, Any]:
     regen = dict(state.regen_counts)
 
     await _notify_progress(
-        state.user_id,
+        state,
         f"质量评估 {tool}：{score} 分（阈值 {threshold}）",
         70,
     )
-
-    messages_delta: List[Dict[str, Any]] = []
 
     if score < threshold and regen.get(tool, 0) < MAX_REGEN:
         # 不达标：记录重做次数 + 结构化扣分点，回环给 Supervisor
@@ -315,10 +324,13 @@ async def quality_gate_node(state: StageState) -> Dict[str, Any]:
     except Exception as e:
         log.warning(f"资源 {tool} ChromaDB 索引失败（不影响主流程）: {e}")
 
+    # 本轮 force 任务完成，从队列移除
+    force_tools = [t for t in state.force_tools if t != tool]
     _log_msg(state, "quality_gate", "supervisor", "accept", f"{tool} {score}分 达标")
     return {
         "quality_scores": scores,
         "regen_counts": regen,
+        "force_tools": force_tools,
         "fix_hints": [],
         "error": None,
     }
@@ -553,6 +565,51 @@ def _summarize_content(tool: str, content: Dict[str, Any]) -> Dict[str, Any]:
 # ── 图构建与入口 ───────────────────────────────────────────
 
 
+# 白名单校验补生成工具名
+def _sanitize_force_tools(force_tools: Optional[List[str]]) -> List[str]:
+    from app.agents.supervisor_agent import TOOLS as SUPERVISOR_TOOLS
+    if not force_tools:
+        return []
+    seen: List[str] = []
+    for t in force_tools:
+        name = str(t or "").strip()
+        if name in SUPERVISOR_TOOLS and name not in seen:
+            seen.append(name)
+    return seen
+
+
+async def load_existing_resources(
+    db: AsyncSession,
+    user_id: int,
+    profile_id: Optional[int],
+    stage_id: int,
+) -> tuple[Dict[str, Any], Dict[str, float]]:
+    """读取该阶段已有资源 → (generated 摘要, quality_scores)，供增量规划"""
+    from sqlalchemy import select
+    from app.models import LearningResource
+
+    q = select(LearningResource).where(
+        LearningResource.user_id == user_id,
+        LearningResource.stage_id == stage_id,
+    )
+    if profile_id:
+        q = q.where(LearningResource.profile_id == profile_id)
+    result = await db.execute(q)
+    rows = result.scalars().all()
+
+    generated: Dict[str, Any] = {}
+    quality_scores: Dict[str, float] = {}
+    for row in rows:
+        content = row.content if isinstance(row.content, dict) else {}
+        generated[row.resource_type] = _summarize_content(row.resource_type, content)
+        qs = content.get("quality_score")
+        if isinstance(qs, dict) and qs.get("overall_score") is not None:
+            quality_scores[row.resource_type] = float(qs["overall_score"])
+        elif isinstance(qs, (int, float)):
+            quality_scores[row.resource_type] = float(qs)
+    return generated, quality_scores
+
+
 def build_stage_graph():
     """构建阶段学习状态图"""
     workflow = StateGraph(StageState)
@@ -600,14 +657,29 @@ async def run_stage_workflow(
     stage_id: int,
     profile_id: Optional[int] = None,
     progress_cb=None,
+    force_tools: Optional[List[str]] = None,
+    progress_user_id: Optional[int] = None,
 ) -> StageState:
     """为指定阶段运行 Supervisor 学习环（真 LangGraph ainvoke）
 
     Args:
         progress_cb: 可选回调 async (state: StageState) -> None，用于推送进度
+        force_tools: 用户显式要求生成/重生的资源类型（如 ["ppt_video"]）。
+            非空时进入 force 模式：只做这些工具，做完即结束。
+            画像偏好跳过的资源（如「看文档」不生成视频）由此按需补生成。
+        progress_user_id: 进度卡片接收者（教师代操作时传教师 ID）
     """
     # ── 组装初始状态 ──
     profile, stage, topic = await _load_context(db, user_id, profile_id, stage_id)
+    forced = _sanitize_force_tools(force_tools)
+
+    existing_generated, existing_scores = await load_existing_resources(
+        db, user_id, profile_id or None, stage_id
+    )
+    # force 的类型：从已有结果中剔除，强制本轮重做
+    for t in forced:
+        existing_generated.pop(t, None)
+        existing_scores.pop(t, None)
 
     initial = StageState(
         user_id=user_id,
@@ -617,8 +689,14 @@ async def run_stage_workflow(
         profile=profile,
         stage=stage,
         topic=topic,
+        generated=existing_generated,
+        quality_scores=existing_scores,
+        force_tools=forced,
+        force_mode=bool(forced),
+        progress_user_id=progress_user_id or user_id,
     )
-    _log_msg(initial, "system", "supervisor", "start", f"阶段 {stage_id} 学习环启动")
+    mode_label = f"force={forced}" if forced else "incremental"
+    _log_msg(initial, "system", "supervisor", "start", f"阶段 {stage_id} 学习环启动（{mode_label}）")
 
     graph = get_stage_graph()
 
@@ -634,7 +712,8 @@ async def run_stage_workflow(
         final_state.status = "completed"
     log.info(
         f"阶段 {stage_id} 学习环结束：status={final_state.status}, "
-        f"生成={list(final_state.generated.keys())}, 质量={final_state.quality_scores}"
+        f"生成={list(final_state.generated.keys())}, 质量={final_state.quality_scores}, "
+        f"force剩余={final_state.force_tools}"
     )
     if progress_cb:
         try:

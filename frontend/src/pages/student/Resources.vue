@@ -147,7 +147,24 @@
               <el-tag type="info" size="small">{{ store.resources.ppt_video.pages_count }} 页</el-tag>
             </div>
           </div>
-          <el-empty v-else description="暂无教学视频，请先生成" />
+          <!-- 画像偏好跳过后的按需补生成入口 -->
+          <div v-else class="missing-resource-card">
+            <div class="gate-icon">🎬</div>
+            <div class="gate-info">
+              <div class="gate-title">本阶段尚未生成教学视频</div>
+              <div class="gate-detail">
+                Supervisor 按你的画像学习风格做了取舍（未优先生成视频）。需要时可点名补生成。
+              </div>
+            </div>
+            <el-button
+              type="primary"
+              size="small"
+              :loading="regeneratingType === 'video'"
+              @click="handleRegenerateSingle('video')"
+            >
+              按需生成视频
+            </el-button>
+          </div>
         </div>
       </el-tab-pane>
 
@@ -568,15 +585,7 @@
       </el-tab-pane>
     </el-tabs>
 
-    <!-- Agent 协作可视化 -->
-    <AgentCollaboration
-      v-if="store.generating"
-      :agents="agentStatusList"
-      :is-running="store.generating"
-      style="margin-top: 24px;"
-    />
-
-    <!-- Workflow Dialog (legacy) — 绑定 appStore 后台任务的真实进度 -->
+    <!-- Workflow Dialog — 绑定 appStore 后台任务的真实进度 -->
     <el-dialog v-model="showWorkflow" title="资源生成进度" width="500px" :close-on-click-modal="false">
       <el-progress :percentage="wfTask?.progress || 0" :stroke-width="16" />
       <p class="workflow-step">{{ wfTask?.detail || 'Supervisor 学习环编排中…' }}</p>
@@ -597,7 +606,6 @@ import { useLearningPathStore } from '@/stores/learningPathStore'
 import { useAppStore } from '@/stores/appStore'
 import { renderMath } from '@/utils/renderMath'
 import { renderMd } from '@/utils/renderMarkdown'
-import AgentCollaboration from '@/components/AgentCollaboration.vue'
 import KnowledgeGraph from '@/components/KnowledgeGraph.vue'
 import MermaidDiagram from '@/components/MermaidDiagram.vue'
 import Artplayer from 'artplayer'
@@ -741,8 +749,8 @@ async function handleRegenerateSingle(resourceType: string) {
     return
   }
   await ElMessageBox.confirm(
-    `确定要重新生成「${store.getTabLabel?.(resourceType) || resourceType}」吗？旧资源将被删除。`,
-    '确认重新生成',
+    `确定要${store.resources.ppt_video && (resourceType === 'video' || resourceType === 'ppt_video') ? '重新生成' : '生成'}「${store.getTabLabel?.(resourceType) || resourceType}」吗？Supervisor 将强制补做该类型。`,
+    'Supervisor 补生成',
     { confirmButtonText: '确定', cancelButtonText: '取消', type: 'warning' }
   )
   regeneratingType.value = resourceType
@@ -918,44 +926,6 @@ const hasAnyData = computed(() =>
   store.resources.reading_material || store.resources.glossary ||
   store.resources.knowledge_link || store.resources.summary
 )
-
-const agentStatusList = computed(() => {
-  const steps = store.workflowState?.steps_history || []
-  const currentStep = store.workflowState?.current_step || ''
-
-  const agents = [
-    { key: 'build_profile', name: '画像构建 Agent', description: '抽取学生特征（专业、年级、目标等）' },
-    { key: 'generate_path', name: '路径规划 Agent', description: '根据画像规划个性化学习路径' },
-    { key: 'generate_knowledge_graph', name: '知识图谱 Agent', description: '基于学习路径生成全局知识图谱' },
-    { key: 'generate_document', name: '文档生成 Agent', description: '生成 Markdown 学习文档 + AI 配图' },
-    { key: 'generate_ppt_video', name: 'PPT 视频 Agent', description: '生成 PPT 教学视频' },
-    { key: 'generate_mindmap', name: '思维导图 Agent', description: '生成 Markdown 思维导图' },
-    { key: 'generate_questions', name: '题库生成 Agent', description: '生成选择题、填空题、编程题、案例分析题' },
-    { key: 'generate_code', name: '代码实操 Agent', description: '生成可运行的代码示例' },
-    { key: 'generate_reading', name: '拓展阅读 Agent', description: '生成拓展阅读材料' },
-    { key: 'generate_glossary', name: '术语词汇 Agent', description: '生成术语词汇卡片' },
-    { key: 'generate_knowledge_link', name: '知识图谱 Agent', description: '生成知识点关联图' },
-    { key: 'generate_summary', name: '学习总结 Agent', description: '生成学习总结报告' },
-    { key: 'quality_evaluate', name: '质量评估 Agent', description: '评估所有资源质量' },
-  ]
-
-  return agents.map(agent => {
-    const stepInfo = steps.find((s: any) => s.step === agent.key)
-    let status: string = 'waiting'
-
-    if (stepInfo) {
-      status = stepInfo.status === 'skipped' ? 'skipped' : stepInfo.status
-    } else if (currentStep === agent.key) {
-      status = 'running'
-    } else if (steps.length > 0) {
-      const currentIndex = agents.findIndex(a => a.key === currentStep)
-      const agentIndex = agents.findIndex(a => a.key === agent.key)
-      if (agentIndex < currentIndex) status = 'completed'
-    }
-
-    return { ...agent, status }
-  })
-})
 
 const questions = computed<Question[]>(() => store.resources.questions?.questions || [])
 
@@ -1384,6 +1354,20 @@ onMounted(() => {
 .gate-info { flex: 1; }
 .gate-title { font-weight: 600; font-size: 14px; color: #9A3412; }
 .gate-detail { font-size: var(--text-xs); color: #C2410C; margin-top: 2px; }
+
+/* 画像偏好跳过后按需补生成 */
+.missing-resource-card {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  padding: 16px 20px;
+  margin-bottom: 16px;
+  background: #EFF6FF;
+  border: 1px solid #93C5FD;
+  border-radius: var(--radius-md);
+}
+.missing-resource-card .gate-title { color: #1D4ED8; }
+.missing-resource-card .gate-detail { color: #1E40AF; }
 
 .section-title {
   font-size: var(--text-xl);

@@ -145,8 +145,9 @@ export const studentAPI = {
     return request.post('/v1/student/learn/start')
   },
 
-  generateStageResources: (data: { stage_id: number; profile_id?: number }) => {
+  generateStageResources: (data: { stage_id: number; profile_id?: number; resource_types?: string[] }) => {
     // Supervisor 学习环：同步等待生成完成（可能数分钟）
+    // resource_types 非空 = force 补生成（画像跳过的类型可按需点名）
     return request.post('/v1/student/learn/stage/generate', data, { timeout: 600000 })
   },
 

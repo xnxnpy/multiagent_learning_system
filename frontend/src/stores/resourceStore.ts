@@ -1,8 +1,7 @@
 import { defineStore } from 'pinia'
 import { ref, reactive } from 'vue'
-import type { ResourceBundle, CodeResult, WorkflowState } from '@/types'
+import type { ResourceBundle, CodeResult } from '@/types'
 import request from '@/utils/axios'
-import { createWorkflowWebSocket } from '@/utils/websocket'
 
 const emptyBundle = (): ResourceBundle => ({
   document: null,
@@ -26,12 +25,9 @@ export const useResourceStore = defineStore('resource', () => {
 
   const resources = reactive<ResourceBundle>(emptyBundle())
   const loading = ref(false)
-  const generating = ref(false)
   const currentTopic = ref('')
   const currentStageIndex = ref<number | null>(null)
-  const workflowSessionId = ref<string | null>(null)
   const codeResult = ref<CodeResult | null>(null)
-  const workflowState = ref<WorkflowState | null>(null)
 
   // ── Load resources from backend (DB → Redis → API) ─
 
@@ -69,18 +65,6 @@ export const useResourceStore = defineStore('resource', () => {
     }
   }
 
-  function assignResults(docRes: any, qRes: any, codeRes: any, mmRes: any, kgRes: any) {
-    if (docRes) resources.document = docRes
-    if (qRes) resources.questions = qRes
-    if (codeRes) resources.code = codeRes
-    if (mmRes) {
-      resources.mindmap = mmRes.mindmap
-      resources.mindmap_html = mmRes.mindmap_html
-      resources.mindmap_markdown = mmRes.mindmap_markdown || null
-    }
-    if (kgRes) resources.knowledge_graph = kgRes
-  }
-
   // ── Stage-aware loading ────────────────────────────
 
   async function loadForStage(stageIndex: number, stages?: any[]) {
@@ -111,74 +95,6 @@ export const useResourceStore = defineStore('resource', () => {
     await loadFromDB(undefined, stageId)
   }
 
-  // ── Workflow ───────────────────────────────────────
-
-  async function startWorkflow() {
-    const res = await request.post('/v1/student/learn/start', {})
-    workflowSessionId.value = res.session_id
-    return res.session_id
-  }
-
-  function runWorkflow(
-    sessionId: string,
-    callbacks?: {
-      onProgress?: (state: WorkflowState) => void
-      onComplete?: () => void
-      onError?: (err: Error) => void
-    }
-  ) {
-    generating.value = true
-    const token = localStorage.getItem('token') || ''
-    const ws = createWorkflowWebSocket(token)
-    let finished = false
-
-    ws.on('message', async (data: any) => {
-      switch (data.type) {
-        case 'step':
-          workflowState.value = data.data as WorkflowState
-          callbacks?.onProgress?.(data.data as WorkflowState)
-          break
-        case 'complete':
-          if (finished) break
-          finished = true
-          ws.close()
-          await loadFromDB()
-          generating.value = false
-          callbacks?.onComplete?.()
-          break
-        case 'error':
-          if (finished) break
-          finished = true
-          ws.close()
-          generating.value = false
-          callbacks?.onError?.(new Error(data.message))
-          break
-      }
-    })
-
-    ws.on('error', () => {
-      if (!finished) {
-        finished = true
-        generating.value = false
-        callbacks?.onError?.(new Error('WebSocket 连接失败'))
-      }
-    })
-
-    ws.on('close', () => {
-      if (!finished) {
-        finished = true
-        generating.value = false
-      }
-    })
-
-    ws.connect(token).then(() => {
-      ws.send({ type: 'start', session_id: sessionId })
-    }).catch(() => {
-      generating.value = false
-      callbacks?.onError?.(new Error('WebSocket 连接失败'))
-    })
-  }
-
   // ── Actions ────────────────────────────────────────
 
   async function submitAnswers(answers: Record<number, string>, topic?: string) {
@@ -203,25 +119,18 @@ export const useResourceStore = defineStore('resource', () => {
   function clearResources() {
     Object.assign(resources, emptyBundle())
     codeResult.value = null
-    workflowState.value = null
-    workflowSessionId.value = null
   }
 
   return {
     resources,
     loading,
-    generating,
     currentTopic,
     currentStageIndex,
-    workflowSessionId,
     codeResult,
-    workflowState,
     fetchResources,
     loadFromDB,
     loadForStage,
     clearResources,
-    startWorkflow,
-    runWorkflow,
     submitAnswers,
     runCode,
   }

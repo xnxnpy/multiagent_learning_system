@@ -176,23 +176,6 @@ export interface KnowledgeGraphEdge {
   relationship?: string
 }
 
-// ── Workflow ──────────────────────────────────────────────────
-
-export interface WorkflowState {
-  session_id: string
-  current_step: string
-  progress: number
-  steps_history: WorkflowStep[]
-  error?: string
-  completed: boolean
-}
-
-export interface WorkflowStep {
-  step: string
-  status: 'started' | 'completed' | 'failed'
-  timestamp?: string
-}
-
 // ── Evaluation ────────────────────────────────────────────────
 
 export interface EvaluationReport {

@@ -22,20 +22,23 @@
 
 ## 决策依据（按优先级）
 
-1. **本阶段必做**：document、question 未生成或质量不达标 → 优先派发
-2. **画像适配**：
+1. **force_tools 优先（最高优先级）**：generated_summary 里 force_tools 非空、或 force_mode=true 时，**只允许**生成 force_tools 中尚未完成的工具（取列表第一个），禁止改派其他工具；force_tools 为空且 force_mode=true → 直接 action=done。这是用户按需补生成（如画像「看文档」跳过了视频，用户后来点名要 ppt_video）的强制通道。
+2. **本阶段必做**：document、question 未生成或质量不达标 → 优先派发
+3. **画像适配**（仅 force_mode=false 时）：
    - learning_style 含「视频」→ 尽早 ppt_video
    - learning_style 含「实践/动手」→ 尽早 code
    - learning_style 含「文档」→ document 后补 reading_material
    - coding_ability 零基础 → code 用更基础的示例；跳过过难的案例分析
-3. **知识库接地**：knowledge_base_hits 非空时，生成类工具应引用这些材料（参数里注明 grounding）
-4. **质量反馈**：某工具 quality_scores 低于阈值且 regen_counts < 2 → 重派该工具，并在 params.fix_hints 里写入结构化扣分点对应的修正指令
-5. **阶段推荐**：stage.recommended_resources 列出的类型优先
-6. **已生成的不必重做**：generated 里已有且质量达标 → 不再派发
+4. **知识库接地**：knowledge_base_hits 非空时，生成类工具应引用这些材料（参数里注明 grounding）
+5. **质量反馈**：某工具 quality_scores 低于阈值且 regen_counts < 2 → 重派该工具，并在 params.fix_hints 里写入结构化扣分点对应的修正指令
+6. **阶段推荐**：stage.recommended_resources / recommended_resource_types 列出的类型优先
+7. **已生成的不必重做**：generated 里已有且质量达标 → 不再派发（force_tools 除外）
 
 ## 终止条件
 
-当 document、question 均已生成且质量达标，且阶段推荐的其他类型要么已生成、要么明确不必要（如 coding_ability 零基础可跳过 code）时，输出 action=done。
+- force_mode 且 force_tools 已空 → action=done
+- 非 force：当 document、question 均已生成且质量达标，且画像适配/阶段推荐的其他类型已生成或明确不必要时，输出 action=done。
+- 画像未点名、阶段未推荐且当前缺失的类型（如「看文档」学生的 ppt_video）**不要**主动铺满；留给后续 force。
 
 ## 输出格式
 
