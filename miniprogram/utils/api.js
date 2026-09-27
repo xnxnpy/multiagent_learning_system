@@ -53,32 +53,11 @@ const API = {
     WS_STATUS: '/tutor/ws/status',
     DELETE_SESSION: '/tutor/session/{session_id}'
   },
-  TEACHER: {
-    COURSES: '/teacher/courses',
-    COURSE: '/teacher/courses/{course_id}',
-    COURSE_EXPORT: '/teacher/courses/{course_id}/export',
-    KNOWLEDGE_UPLOAD: '/teacher/knowledge/upload',
-    KNOWLEDGE_DOCUMENTS: '/teacher/knowledge/documents',
-    KNOWLEDGE_CLEAR: '/teacher/knowledge',
-    KNOWLEDGE_STATS: '/teacher/knowledge/stats',
-    KNOWLEDGE_GRAPH_GENERATE: '/teacher/knowledge/graph/generate',
-    KNOWLEDGE_GRAPH: '/teacher/knowledge/graph',
-    RESOURCES_PENDING: '/teacher/resources',
-    RESOURCE: '/teacher/resources/{review_id}',
-    RESOURCE_REVIEW: '/teacher/resources/{review_id}/review',
-    STUDENT_RESOURCES: '/teacher/students/resources',
-    STUDENT_REGENERATE: '/teacher/students/{student_id}/resources/{resource_type}/regenerate',
-    STUDENT_REEVALUATE: '/teacher/students/{student_id}/resources/{resource_type}/reevaluate',
-    CLASS_STATS: '/teacher/analytics/class-stats',
-    CLASS_EXPORT: '/teacher/analytics/export',
-    STUDENT_PROGRESS: '/teacher/students/progress',
-    ADJUST_PATH: '/teacher/students/{student_id}/adjust-path',
-    ASSIGNMENTS: '/teacher/assignments',
-    ASSIGNMENT: '/teacher/assignments/{assignment_id}',
-    ASSIGNMENT_SUBMISSIONS: '/teacher/assignments/{assignment_id}/submissions',
-    ASSIGN_ASSIGNMENT: '/teacher/assignments/{assignment_id}/assign',
-    UPDATE_ASSIGNMENT: '/teacher/assignments/{assignment_id}',
-    DELETE_ASSIGNMENT: '/teacher/assignments/{assignment_id}'
+  KNOWLEDGE: {
+    UPLOAD: '/knowledge/upload',
+    DOCUMENTS: '/knowledge/documents',
+    STATS: '/knowledge/stats',
+    DELETE: '/knowledge/documents/{doc_id}'
   },
   ADMIN: {
     USERS: '/admin/users',

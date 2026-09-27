@@ -9,7 +9,6 @@ Page({
     tabNames: ['用户管理', '系统配置', '模型管理', '内容安全', '系统监控', '数据备份'],
     
     users: [],
-    courses: [],
     systemLogs: [],
     systemStats: {},
     searchKeyword: ''
@@ -87,29 +86,6 @@ Page({
     }
   },
 
-  async loadCourses() {
-    try {
-      const result = await request({
-        url: API.TEACHER.COURSES,
-        method: 'GET',
-        data: { page: 1, page_size: 50 }
-      })
-
-      const courses = (result.items || []).map(course => ({
-        id: course.id,
-        title: course.title,
-        description: course.description || '',
-        teacher: '',
-        students: 0,
-        status: course.id ? 'active' : 'completed',
-        createdAt: course.created_at ? new Date(course.created_at).toLocaleDateString() : ''
-      }))
-
-      this.setData({ courses })
-    } catch (err) {
-      console.error('加载课程失败:', err)
-    }
-  },
 
   async loadSystemLogs() {
     try {
@@ -272,71 +248,6 @@ Page({
     }
   },
 
-  async addCourse() {
-    wx.showModal({
-      title: '添加课程',
-      editable: true,
-      placeholderText: '请输入课程名称',
-      success: async (res) => {
-        if (res.confirm && res.content) {
-          try {
-            await request({
-              url: API.TEACHER.COURSES,
-              method: 'POST',
-              data: { title: res.content }
-            })
-            wx.showToast({ title: '添加成功', icon: 'success' })
-            await this.loadCourses()
-          } catch (err) {
-            wx.showToast({ title: '添加失败', icon: 'none' })
-          }
-        }
-      }
-    })
-  },
-
-  async editCourse(e) {
-    const id = e.currentTarget.dataset.id
-    wx.showToast({ title: `编辑课程 ${id}`, icon: 'none' })
-  },
-
-  async deleteCourse(e) {
-    const id = e.currentTarget.dataset.id
-    wx.showModal({
-      title: '确认删除',
-      content: '确定要删除该课程吗？',
-      success: async (res) => {
-        if (res.confirm) {
-          try {
-            await request({
-              url: `${API.TEACHER.COURSE.replace('{course_id}', id)}`,
-              method: 'DELETE'
-            })
-            wx.showToast({ title: '删除成功', icon: 'success' })
-            await this.loadCourses()
-          } catch (err) {
-            wx.showToast({ title: '删除失败', icon: 'none' })
-          }
-        }
-      }
-    })
-  },
-
-  async toggleCourseStatus(e) {
-    const id = e.currentTarget.dataset.id
-    const status = e.currentTarget.dataset.status
-    try {
-      await request({
-        url: `${API.TEACHER.COURSE.replace('{course_id}', id)}`,
-        method: 'PUT',
-        data: { is_active: status === 'active' ? false : true }
-      })
-      wx.showToast({ title: '状态已更新', icon: 'success' })
-      await this.loadCourses()
-    } catch (err) {
-      wx.showToast({ title: '操作失败', icon: 'none' })
-    }
-  },
 
   async clearLogs() {
     wx.showModal({

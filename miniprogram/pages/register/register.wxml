@@ -22,17 +22,11 @@
     </view>
 
     <view class="form-item">
-      <text class="form-label">用户角色 <text class="required">*</text></text>
+      <text class="form-label">用户角色</text>
       <view class="role-options">
-        <view
-          class="role-option {{selectedRole === item.value ? 'active' : ''}} {{item.value === 'teacher' ? 'role-option-teacher' : ''}}"
-          wx:for="{{roles}}"
-          wx:key="value"
-          data-value="{{item.value}}"
-          bindtap="selectRole"
-        >
-          <text class="role-icon">{{item.icon}}</text>
-          <text class="role-label">{{item.label}}</text>
+        <view class="role-option active">
+          <text class="role-icon">📚</text>
+          <text class="role-label">学生</text>
         </view>
       </view>
     </view>

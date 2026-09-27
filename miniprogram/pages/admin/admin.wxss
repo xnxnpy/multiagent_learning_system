@@ -147,11 +147,6 @@
   color: #1890ff;
 }
 
-.td.role.teacher {
-  background: #f6ffed;
-  color: #52c41a;
-}
-
 .td.role.admin {
   background: #fff7e6;
   color: #fa8c16;

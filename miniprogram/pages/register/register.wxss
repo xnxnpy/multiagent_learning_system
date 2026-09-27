@@ -132,11 +132,7 @@
   box-shadow: 0 2rpx 8rpx rgba(176, 81, 44, 0.12);
 }
 
-.role-option.active.role-option-teacher {
-  border-color: var(--color-teacher);
-  background: var(--color-teacher-pale);
-  box-shadow: 0 2rpx 8rpx rgba(61, 107, 79, 0.12);
-}
+
 
 .role-icon {
   font-size: 48rpx;
@@ -153,10 +149,7 @@
   color: var(--color-student);
   font-weight: 700;
 }
-.role-option.active.role-option-teacher .role-label {
-  color: var(--color-teacher);
-  font-weight: 700;
-}
+
 
 /* ---------- 用户协议 ---------- */
 .agreement-item {

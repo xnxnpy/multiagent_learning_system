@@ -6,7 +6,7 @@ Page({
     backups: [],
     isCreating: false,
     stats: {
-      total_users: 0, total_students: 0, total_teachers: 0,
+      total_users: 0, total_students: 0,
       total_profiles: 0, total_learning_paths: 0, total_resources: 0
     },
     systemStats: {

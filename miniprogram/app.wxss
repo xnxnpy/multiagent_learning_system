@@ -17,10 +17,6 @@ page {
   --color-student-soft: #D97757;
   --color-student-pale: #FBF1EA;
 
-  --color-teacher: #3D6B4F;
-  --color-teacher-soft: #D9E5DE;
-  --color-teacher-pale: #EEF4F0;
-
   --color-admin: #70293C;
   --color-admin-soft: #E9D5DC;
   --color-admin-pale: #F5E9ED;
@@ -325,7 +321,6 @@ page {
   background: var(--color-primary);
 }
 .card-accent.card-accent-student::before { background: var(--color-student); }
-.card-accent.card-accent-teacher::before { background: var(--color-teacher); }
 .card-accent.card-accent-admin::before { background: var(--color-admin); }
 
 /* ── 辅助工具类 ─────────────────────────────────── */
