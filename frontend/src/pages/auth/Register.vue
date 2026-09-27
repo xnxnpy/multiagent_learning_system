@@ -30,11 +30,20 @@
 
         <!-- 角色预览卡片（非玻璃拟态） -->
         <div class="role-preview">
-          <div class="role-card role-card--student active">
+          <div class="role-card role-card--student" :class="{ active: form.role === 'student' }"
+               @click="form.role = 'student'">
             <div class="role-card__dot"></div>
             <div class="role-card__body">
               <div class="role-card__label">学生端</div>
               <div class="role-card__desc">专属学习路径 · 多模态资源 · AI 辅导 · 个人知识库</div>
+            </div>
+          </div>
+          <div class="role-card role-card--teacher" :class="{ active: form.role === 'teacher' }"
+               @click="form.role = 'teacher'">
+            <div class="role-card__dot"></div>
+            <div class="role-card__body">
+              <div class="role-card__label">教师端</div>
+              <div class="role-card__desc">课程管理 · 资源审核 · 班级学情</div>
             </div>
           </div>
         </div>
@@ -81,6 +90,11 @@
                 <el-radio-button value="student" class="role-radio__btn role-radio__btn--student">
                   <span class="role-radio__label">
                     <span class="r-dot"></span>学生
+                  </span>
+                </el-radio-button>
+                <el-radio-button value="teacher" class="role-radio__btn role-radio__btn--teacher">
+                  <span class="role-radio__label">
+                    <span class="r-dot"></span>教师
                   </span>
                 </el-radio-button>
               </el-radio-group>
@@ -139,7 +153,7 @@ const form = reactive({
   email: '',
   password: '',
   confirmPassword: '',
-  role: 'student' as 'student',
+  role: 'student' as 'student' | 'teacher',
 })
 
 const validateConfirm = (_rule: any, value: string, callback: any) => {
@@ -538,5 +552,14 @@ async function handleRegister() {
   .form-wrap { max-width: 100%; }
   .form-title { font-size: 28px; }
   .submit-btn { height: 48px; }
+}
+.role-card--teacher::before { background: #3D6B4F; }
+.role-card--teacher .role-card__dot {
+  background: rgba(61, 107, 79, 0.14);
+}
+.role-card--teacher .role-card__dot::after { background: #3D6B4F; }
+.role-radio__btn--teacher :deep(.el-radio-button__original-radio:checked + .el-radio-button__inner) {
+  background: #3D6B4F !important;
+  box-shadow: 0 4px 14px rgba(61, 107, 79, 0.28) !important;
 }
 </style>

@@ -22,7 +22,7 @@ const routes: RouteRecordRaw[] = [
   {
     path: '/student',
     component: () => import('@/layouts/StudentLayout.vue'),
-    meta: { requiresAuth: true, roles: ['student', 'admin'] },
+    meta: { requiresAuth: true, roles: ['student', 'teacher', 'admin'] },
     children: [
       {
         path: '',
@@ -82,6 +82,47 @@ const routes: RouteRecordRaw[] = [
         path: 'knowledge',
         name: 'StudentKnowledge',
         component: () => import('@/pages/student/Knowledge.vue')
+      }
+    ]
+  },
+  {
+    path: '/teacher',
+    component: () => import('@/layouts/TeacherLayout.vue'),
+    meta: { requiresAuth: true, roles: ['teacher', 'admin'] },
+    children: [
+      {
+        path: '',
+        redirect: '/teacher/courses'
+      },
+      {
+        path: 'courses',
+        name: 'TeacherCourses',
+        component: () => import('@/pages/teacher/Courses.vue')
+      },
+      {
+        path: 'resources',
+        name: 'TeacherResources',
+        component: () => import('@/pages/teacher/Resources.vue')
+      },
+      {
+        path: 'analytics',
+        name: 'TeacherAnalytics',
+        component: () => import('@/pages/teacher/Analytics.vue')
+      },
+      {
+        path: 'knowledge',
+        name: 'TeacherKnowledge',
+        component: () => import('@/pages/teacher/Knowledge.vue')
+      },
+      {
+        path: 'assignments',
+        name: 'TeacherAssignments',
+        component: () => import('@/pages/teacher/Assignments.vue')
+      },
+      {
+        path: 'profile',
+        name: 'TeacherProfile',
+        component: () => import('@/pages/auth/Profile.vue')
       }
     ]
   },
@@ -171,7 +212,7 @@ router.beforeEach((to, from, next) => {
   if (to.meta.roles && userRole && Array.isArray(to.meta.roles) && !to.meta.roles.includes(userRole)) {
     const roleRoutes: Record<string, string> = {
       student: '/student',
-      teacher: '/student', // 教师端已移除，旧账号并入学生端
+      teacher: '/teacher',
       admin: '/admin'
     }
     next(roleRoutes[userRole] || '/login')
@@ -181,7 +222,7 @@ router.beforeEach((to, from, next) => {
   if ((to.path === '/' || to.path === '/login' || to.path === '/register') && token && userRole) {
     const roleRoutes: Record<string, string> = {
       student: '/student',
-      teacher: '/student',
+      teacher: '/teacher',
       admin: '/admin'
     }
     next(roleRoutes[userRole] || '/')

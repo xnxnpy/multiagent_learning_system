@@ -15,7 +15,7 @@
         <nav class="nav-links">
           <a href="#features" class="nav-link">核心能力</a>
           <a href="#agents" class="nav-link">智能体</a>
-          <a href="#portals" class="nav-link">入口</a>
+          <a href="#portals" class="nav-link">三端入口</a>
           <a href="#about" class="nav-link">关于</a>
         </nav>
         <div class="nav-actions">
@@ -113,14 +113,14 @@
       </div>
     </section>
 
-    <!-- 角色入口（编辑风：左侧色条 + 角色专属配色） -->
+    <!-- 角色三端入口（编辑风：左侧色条 + 角色专属配色） -->
     <section class="section section--alt" id="portals" ref="portalsRef">
       <div class="section-header anim-reveal" :class="{ 'anim-visible': portalsVisible }">
-        <span class="eyebrow">PORTALS · 角色入口</span>
+        <span class="eyebrow">PORTALS · 三端协同</span>
         <h2 class="section-title">面向不同角色的专属工作台</h2>
-        <p class="section-desc">学生自主学习，管理员运维治理，智能体平台贯穿学习全流程</p>
+        <p class="section-desc">学生、教师、管理员各司其职，智能体平台贯穿教学全流程</p>
       </div>
-      <div class="portals-grid portals-grid--two">
+      <div class="portals-grid">
         <a
           class="portal-card portal-card--student anim-reveal"
           :class="{ 'anim-visible': portalsVisible }"
@@ -152,7 +152,7 @@
         </a>
 
         <a
-          class="portal-card portal-card--admin anim-reveal"
+          class="portal-card portal-card--teacher anim-reveal"
           :class="{ 'anim-visible': portalsVisible }"
           style="--delay: 0.15s"
           @click="$router.push('/login')"
@@ -160,9 +160,38 @@
           <div class="portal-accent"></div>
           <div class="portal-head">
             <div class="portal-icon">
-              <el-icon><Management /></el-icon>
+              <el-icon><Notebook /></el-icon>
             </div>
 
+          </div>
+          <h3 class="portal-title">教师教研中心</h3>
+          <p class="portal-desc">
+            课程管理与资源审核，班级学情全景分析，智能体辅助生成教学材料，
+            让备课效率成倍提升。
+          </p>
+          <ul class="portal-list">
+            <li><span class="tick">✓</span> 课程创建 · 班级管理</li>
+            <li><span class="tick">✓</span> 学生学情多维分析</li>
+            <li><span class="tick">✓</span> 教学资源审核发布</li>
+            <li><span class="tick">✓</span> 知识库上传 · 知识图谱</li>
+          </ul>
+          <div class="portal-foot">
+            <span>进入教师端</span>
+            <el-icon><ArrowRight /></el-icon>
+          </div>
+        </a>
+
+        <a
+          class="portal-card portal-card--admin anim-reveal"
+          :class="{ 'anim-visible': portalsVisible }"
+          style="--delay: 0.25s"
+          @click="$router.push('/login')"
+        >
+          <div class="portal-accent"></div>
+          <div class="portal-head">
+            <div class="portal-icon">
+              <el-icon><Management /></el-icon>
+            </div>
           </div>
           <h3 class="portal-title">管理运营中心</h3>
           <p class="portal-desc">
@@ -266,7 +295,7 @@
           </p>
           <p class="para">
             技术层采用 LangGraph 多智能体编排、14 Agent 专业分工、Neo4j 全局知识图谱、
-            ChromaDB 向量检索、Docker 安全代码沙箱、多模态生成引擎、双端 RBAC 权限体系，
+            ChromaDB 向量检索、Docker 安全代码沙箱、多模态生成引擎、三端 RBAC 权限体系，
             默认采用 Spark Ultra-32K（画像 / 辅导 / 评估）与 Spark X2-Flash（其余 11 个智能体）
             双模型组合，兼顾推理深度与响应效率，为学生提供精准、高效、可追踪的个性化学习体验。
           </p>
@@ -336,7 +365,7 @@
               <h5>产品</h5>
               <a href="#features">核心能力</a>
               <a href="#agents">智能体矩阵</a>
-              <a href="#portals">入口</a>
+              <a href="#portals">三端入口</a>
             </div>
             <div class="footer-col">
               <h5>角色</h5>
@@ -528,7 +557,7 @@ const techStack = [
   { icon: Collection, label: 'ChromaDB 向量检索', desc: 'RAG 检索增强 · 语义匹配 · 可溯源引用', color: '#70293C', bg: '#F5E9ED' },
   { icon: Monitor, label: 'Docker 代码沙箱', desc: '安全隔离环境 · 实时代码运行 · 结果可视化', color: '#4E598C', bg: '#EFF0F8' },
   { icon: VideoCamera, label: '多模态生成引擎', desc: '文档·导图·PPT·视频·代码·术语表 · 10+ 产物', color: '#B0512C', bg: '#FBF0E9' },
-  { icon: Management, label: '双端角色权限体系', desc: '学生端 · 管理端 · 细粒度 RBAC', color: '#8B5E3C', bg: '#FAF3EC' },
+  { icon: Management, label: '三端角色权限体系', desc: '学生端 · 教师端 · 管理端 · 细粒度 RBAC', color: '#8B5E3C', bg: '#FAF3EC' },
 ]
 </script>
 
@@ -1518,4 +1547,8 @@ const techStack = [
   .footer-links { grid-template-columns: 1fr; }
   .footer-bottom { flex-direction: column; align-items: flex-start; }
 }
+.portal-card--teacher .portal-accent { background: var(--color-teacher); }
+.portal-card--teacher .portal-icon { background: var(--color-teacher-pale); color: var(--color-teacher); }
+.portal-card--teacher .tick { background: var(--color-teacher-pale); color: var(--color-teacher); }
+.portal-card--teacher .portal-foot { color: var(--color-teacher); }
 </style>

@@ -63,8 +63,10 @@ Page({
 
       switch (user.role) {
         case 'student':
-        case 'teacher': // 教师端已移除，旧账号并入学生端
           wx.switchTab({ url: '/pages/profile/profile' })
+          break
+        case 'teacher':
+          wx.navigateTo({ url: '/pages/teacher/teacher' })
           break
         case 'admin':
           wx.navigateTo({ url: '/pages/admin/admin' })

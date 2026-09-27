@@ -10,6 +10,8 @@
     "pages/resource/resource",
     "pages/tutor/tutor",
     "pages/report/report",
+    "pages/teacher/teacher",
+    "pages/teacher/knowledge",
     "pages/wrong-book/wrong-book",
     "pages/admin/admin",
     "pages/admin/config",

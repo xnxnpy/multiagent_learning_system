@@ -50,7 +50,7 @@
         <!-- 底部小提示 -->
         <div class="brand-foot">
           <span class="foot-dot"></span>
-          <span>支持学生端 · 管理端</span>
+          <span>支持学生端 · 教师端 · 管理端</span>
         </div>
       </div>
     </div>
@@ -160,6 +160,7 @@ async function handleLogin() {
 
     const roleRedirects: Record<string, string> = {
       student: '/student',
+      teacher: '/teacher',
       admin: '/admin',
     }
     router.push(roleRedirects[res.user.role] || '/student')

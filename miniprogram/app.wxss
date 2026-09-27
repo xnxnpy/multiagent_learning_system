@@ -13,6 +13,10 @@ page {
   --color-primary-faint: #F5F5FA;
 
   /* ── 辅色：各角色专属暖调 ──────────────────────────── */
+  --color-teacher: #3D6B4F;
+  --color-teacher-soft: #D9E5DE;
+  --color-teacher-pale: #EEF4F0;
+  --color-teacher);
   --color-student: #B0512C;
   --color-student-soft: #D97757;
   --color-student-pale: #FBF1EA;
@@ -348,3 +352,4 @@ page {
   color: var(--color-text-muted);
   font-weight: 600;
 }
+.card-accent.card-accent-teacher::before { background: var(--color-teacher); }

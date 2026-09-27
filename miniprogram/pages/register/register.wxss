@@ -226,3 +226,12 @@
   text-underline-offset: 3rpx;
   text-decoration-thickness: 1rpx;
 }
+.role-option.active.role-option-teacher {
+  border-color: var(--color-teacher);
+  background: var(--color-teacher-pale);
+  box-shadow: 0 2rpx 8rpx rgba(61, 107, 79, 0.12);
+}
+.role-option.active.role-option-teacher .role-label {
+  color: var(--color-teacher);
+  font-weight: 700;
+}
