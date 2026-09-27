@@ -17,6 +17,7 @@ const menuItems = [
   { key: 'users', label: '用户管理' },
   { key: 'config', label: '系统配置' },
   { key: 'models', label: '模型管理' },
+  { key: 'knowledge', label: '知识库运维' },
   { key: 'content-security', label: '内容安全审核' },
   { key: 'logs', label: '日志查看' },
   { key: 'backup', label: '数据备份' },

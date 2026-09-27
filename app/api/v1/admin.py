@@ -1145,3 +1145,131 @@ async def admin_clear_knowledge_uploads(
     await db.commit()
     log.info(f"管理员 {current_user.id} 清空知识库上传材料 {len(docs)} 份")
     return {"message": f"已清空 {len(docs)} 份上传材料（个人资源与笔记索引未动）", "deleted": len(docs)}
+
+
+def _chroma_count(where: Optional[Dict[str, Any]] = None) -> int:
+    """按条件统计向量块数量；不支持 where 时退化为全量"""
+    from app.vectorstore.chroma_store import vector_store
+    coll = vector_store.get_collection()
+    if coll is None:
+        return 0
+    try:
+        if where is None:
+            return coll.count()
+        try:
+            return coll.count(where=where)
+        except TypeError:
+            got = coll.get(where=where)
+            return len(got.get("ids") or [])
+    except Exception as e:
+        log.warning(f"Chroma 统计失败: {e}")
+        return 0
+
+
+@router.get("/knowledge/stats")
+async def admin_knowledge_stats(
+    current_user: User = Depends(require_admin),
+):
+    """向量库分区统计：个人资源 / 笔记 / 上传材料 / 无主（历史共享）"""
+    from app.vectorstore.chroma_store import vector_store
+
+    total = _chroma_count()
+    uploads = _chroma_count({"source": "student_upload"})
+    notes = _chroma_count({"resource_type": "note"})
+    resources = _chroma_count({"source": {"$in": ["grounded", "llm_generated"]}})
+    # 无主：既非上传、也非笔记、也非达标资源（旧教师教材等）
+    owned = uploads + notes + resources
+    legacy = max(total - owned, 0)
+
+    # 无主块再细分（尽量精确：user_id 缺失）
+    legacy_exact = 0
+    try:
+        coll = vector_store.get_collection()
+        if coll is not None:
+            got = coll.get(include=["metadatas"])
+            metas = got.get("metadatas") or []
+            legacy_exact = sum(
+                1 for m in metas
+                if m
+                and m.get("user_id") is None
+                and m.get("source") != "student_upload"
+                and m.get("resource_type") != "note"
+            )
+    except Exception as e:
+        log.warning(f"无主块精确统计失败，用估算值: {e}")
+
+    return {
+        "total": total,
+        "personal_resources": resources,
+        "personal_notes": notes,
+        "uploads": uploads,
+        "legacy_shared": legacy_exact or legacy,
+        "estimated_overflow": max(legacy - legacy_exact, 0) if legacy_exact else 0,
+    }
+
+
+@router.post("/knowledge/clear-user/{user_id}")
+async def admin_clear_user_index(
+    user_id: int,
+    current_user: User = Depends(require_admin),
+    db: AsyncSession = Depends(get_db),
+):
+    """按用户清理其全部向量索引（资源 + 笔记 + 上传）及上传文档元数据"""
+    from app.models import KnowledgeDocument
+    from app.vectorstore.chroma_store import vector_store
+
+    user = (await db.execute(select(User).where(User.id == user_id))).scalar_one_or_none()
+    if not user:
+        raise HTTPException(status_code=404, detail="用户不存在")
+
+    deleted = 0
+    try:
+        deleted = vector_store.delete_documents_by_filter({"user_id": user_id})
+    except Exception as e:
+        log.error(f"清理用户 {user_id} 向量索引失败: {e}")
+        raise HTTPException(status_code=500, detail=f"清理向量索引失败: {e}")
+
+    docs = (await db.execute(
+        select(KnowledgeDocument).where(KnowledgeDocument.uploaded_by == user_id)
+    )).scalars().all()
+    for d in docs:
+        await db.delete(d)
+    await db.commit()
+
+    log.info(f"管理员 {current_user.id} 清理用户 {user_id} 索引：向量约 {deleted}，文档 {len(docs)} 份")
+    return {
+        "message": f"已清理用户 {user_id} 的个人索引（向量块约 {deleted if deleted >= 0 else '全部'}，上传文档 {len(docs)} 份）",
+        "vector_deleted": deleted,
+        "documents_deleted": len(docs),
+    }
+
+
+@router.delete("/knowledge/legacy-shared")
+async def admin_clear_legacy_shared(
+    current_user: User = Depends(require_admin),
+):
+    """清理历史无主向量块（user_id 缺失且非上传/笔记/资源）—— 旧教师共享教材"""
+    from app.vectorstore.chroma_store import vector_store
+
+    coll = vector_store.get_collection()
+    if coll is None:
+        return {"message": "向量库不可用", "deleted": 0}
+    try:
+        got = coll.get(include=["metadatas"])
+        ids = got.get("ids") or []
+        metas = got.get("metadatas") or []
+        victim = [
+            i for i, m in zip(ids, metas)
+            if m
+            and m.get("user_id") is None
+            and m.get("source") != "student_upload"
+            and m.get("resource_type") != "note"
+            and m.get("source") not in ("grounded", "llm_generated")
+        ]
+        if victim:
+            coll.delete(ids=victim)
+        log.info(f"管理员 {current_user.id} 清理历史无主块 {len(victim)} 个")
+        return {"message": f"已清理历史无主块 {len(victim)} 个", "deleted": len(victim)}
+    except Exception as e:
+        log.error(f"清理无主块失败: {e}")
+        raise HTTPException(status_code=500, detail=str(e))

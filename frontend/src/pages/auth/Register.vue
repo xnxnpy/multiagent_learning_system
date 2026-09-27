@@ -139,7 +139,7 @@ const form = reactive({
   email: '',
   password: '',
   confirmPassword: '',
-  role: 'student' as 'student' | 'teacher',
+  role: 'student' as 'student',
 })
 
 const validateConfirm = (_rule: any, value: string, callback: any) => {
@@ -316,7 +316,6 @@ async function handleRegister() {
 }
 .role-card.active::before { opacity: 1; }
 .role-card--student::before { background: #B0512C; }
-.role-card--teacher::before { background: #3D6B4F; }
 .role-card__dot {
   width: 30px; height: 30px; border-radius: 9px;
   display: flex; align-items: center; justify-content: center;
@@ -329,10 +328,6 @@ async function handleRegister() {
   background: rgba(176, 81, 44, 0.12);
 }
 .role-card--student .role-card__dot::after { background: #B0512C; }
-.role-card--teacher .role-card__dot {
-  background: rgba(61, 107, 79, 0.14);
-}
-.role-card--teacher .role-card__dot::after { background: #3D6B4F; }
 
 .role-card__body { flex: 1; min-width: 0; }
 .role-card__label {
@@ -466,10 +461,6 @@ async function handleRegister() {
 .role-radio__btn--student :deep(.el-radio-button__original-radio:checked + .el-radio-button__inner) {
   background: #B0512C !important;
   box-shadow: 0 4px 14px rgba(176, 81, 44, 0.28) !important;
-}
-.role-radio__btn--teacher :deep(.el-radio-button__original-radio:checked + .el-radio-button__inner) {
-  background: #3D6B4F !important;
-  box-shadow: 0 4px 14px rgba(61, 107, 79, 0.28) !important;
 }
 .role-radio__label {
   display: inline-flex; align-items: center; gap: 7px;

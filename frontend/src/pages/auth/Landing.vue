@@ -15,7 +15,7 @@
         <nav class="nav-links">
           <a href="#features" class="nav-link">核心能力</a>
           <a href="#agents" class="nav-link">智能体</a>
-          <a href="#portals" class="nav-link">三端入口</a>
+          <a href="#portals" class="nav-link">入口</a>
           <a href="#about" class="nav-link">关于</a>
         </nav>
         <div class="nav-actions">
@@ -113,14 +113,14 @@
       </div>
     </section>
 
-    <!-- 角色三端入口（编辑风：左侧色条 + 角色专属配色） -->
+    <!-- 角色入口（编辑风：左侧色条 + 角色专属配色） -->
     <section class="section section--alt" id="portals" ref="portalsRef">
       <div class="section-header anim-reveal" :class="{ 'anim-visible': portalsVisible }">
-        <span class="eyebrow">PORTALS · 三端协同</span>
+        <span class="eyebrow">PORTALS · 角色入口</span>
         <h2 class="section-title">面向不同角色的专属工作台</h2>
-        <p class="section-desc">学生、教师、管理员各司其职，智能体平台贯穿教学全流程</p>
+        <p class="section-desc">学生自主学习，管理员运维治理，智能体平台贯穿学习全流程</p>
       </div>
-      <div class="portals-grid">
+      <div class="portals-grid portals-grid--two">
         <a
           class="portal-card portal-card--student anim-reveal"
           :class="{ 'anim-visible': portalsVisible }"
@@ -143,7 +143,7 @@
             <li><span class="tick">✓</span> 学习画像 · 多档案切换</li>
             <li><span class="tick">✓</span> 知识图谱驱动的路径规划</li>
             <li><span class="tick">✓</span> 10+ 种资源一键生成</li>
-            <li><span class="tick">✓</span> 流式辅导 · 代码沙箱</li>
+            <li><span class="tick">✓</span> 个人知识库上传 · 流式辅导</li>
           </ul>
           <div class="portal-foot">
             <span>进入学生端</span>
@@ -152,39 +152,9 @@
         </a>
 
         <a
-          class="portal-card portal-card--teacher anim-reveal"
-          :class="{ 'anim-visible': portalsVisible }"
-          style="--delay: 0.15s"
-          @click="$router.push('/login')"
-        >
-          <div class="portal-accent"></div>
-          <div class="portal-head">
-            <div class="portal-icon">
-              <el-icon><Notebook /></el-icon>
-            </div>
-
-          </div>
-          <h3 class="portal-title">教师教研中心</h3>
-          <p class="portal-desc">
-            课程管理与资源审核，班级学情全景分析，智能体辅助生成教学材料，
-            让备课效率成倍提升。
-          </p>
-          <ul class="portal-list">
-            <li><span class="tick">✓</span> 课程创建 · 班级管理</li>
-            <li><span class="tick">✓</span> 学生学情多维分析</li>
-            <li><span class="tick">✓</span> 教学资源审核发布</li>
-            <li><span class="tick">✓</span> 知识图谱构建维护</li>
-          </ul>
-          <div class="portal-foot">
-            <span>进入教师端</span>
-            <el-icon><ArrowRight /></el-icon>
-          </div>
-        </a>
-
-        <a
           class="portal-card portal-card--admin anim-reveal"
           :class="{ 'anim-visible': portalsVisible }"
-          style="--delay: 0.25s"
+          style="--delay: 0.15s"
           @click="$router.push('/login')"
         >
           <div class="portal-accent"></div>
@@ -197,7 +167,7 @@
           <h3 class="portal-title">管理运营中心</h3>
           <p class="portal-desc">
             用户与权限管理，模型配置与切换，内容安全审核，系统日志与备份，
-            全平台数据可视化大屏。
+            知识库材料治理。
           </p>
           <ul class="portal-list">
             <li><span class="tick">✓</span> 多角色用户管理</li>
@@ -296,7 +266,7 @@
           </p>
           <p class="para">
             技术层采用 LangGraph 多智能体编排、14 Agent 专业分工、Neo4j 全局知识图谱、
-            ChromaDB 向量检索、Docker 安全代码沙箱、多模态生成引擎、三端 RBAC 权限体系，
+            ChromaDB 向量检索、Docker 安全代码沙箱、多模态生成引擎、双端 RBAC 权限体系，
             默认采用 Spark Ultra-32K（画像 / 辅导 / 评估）与 Spark X2-Flash（其余 11 个智能体）
             双模型组合，兼顾推理深度与响应效率，为学生提供精准、高效、可追踪的个性化学习体验。
           </p>
@@ -366,12 +336,11 @@
               <h5>产品</h5>
               <a href="#features">核心能力</a>
               <a href="#agents">智能体矩阵</a>
-              <a href="#portals">三端入口</a>
+              <a href="#portals">入口</a>
             </div>
             <div class="footer-col">
               <h5>角色</h5>
               <a @click="$router.push('/login')">学生端</a>
-              <a @click="$router.push('/login')">教师端</a>
               <a @click="$router.push('/login')">管理端</a>
             </div>
             <div class="footer-col">
@@ -559,7 +528,7 @@ const techStack = [
   { icon: Collection, label: 'ChromaDB 向量检索', desc: 'RAG 检索增强 · 语义匹配 · 可溯源引用', color: '#70293C', bg: '#F5E9ED' },
   { icon: Monitor, label: 'Docker 代码沙箱', desc: '安全隔离环境 · 实时代码运行 · 结果可视化', color: '#4E598C', bg: '#EFF0F8' },
   { icon: VideoCamera, label: '多模态生成引擎', desc: '文档·导图·PPT·视频·代码·术语表 · 10+ 产物', color: '#B0512C', bg: '#FBF0E9' },
-  { icon: Management, label: '三端角色权限体系', desc: '学生端 · 教师端 · 管理端 · 细粒度 RBAC', color: '#8B5E3C', bg: '#FAF3EC' },
+  { icon: Management, label: '双端角色权限体系', desc: '学生端 · 管理端 · 细粒度 RBAC', color: '#8B5E3C', bg: '#FAF3EC' },
 ]
 </script>
 
@@ -1002,7 +971,8 @@ const techStack = [
   line-height: 1.7;
 }
 
-/* ═══════════════ 三端入口卡片 ═══════════════ */
+/* ═══════════════ 角色入口卡片 ═══════════════ */
+.portals-grid--two { grid-template-columns: repeat(2, minmax(0, 1fr)); max-width: 960px; margin-left: auto; margin-right: auto; }
 .portals-grid {
   display: grid;
   grid-template-columns: repeat(3, 1fr);
@@ -1034,7 +1004,6 @@ const techStack = [
 }
 .portal-card:hover .portal-accent { width: 6px; opacity: 1; }
 .portal-card--student .portal-accent { background: var(--color-student); }
-.portal-card--teacher .portal-accent { background: var(--color-teacher); }
 .portal-card--admin .portal-accent { background: var(--color-admin); }
 
 .portal-head {
@@ -1052,7 +1021,6 @@ const techStack = [
 }
 .portal-card:hover .portal-icon { transform: scale(1.08) rotate(-4deg); }
 .portal-card--student .portal-icon { background: var(--color-student-pale); color: var(--color-student); }
-.portal-card--teacher .portal-icon { background: var(--color-teacher-pale); color: var(--color-teacher); }
 .portal-card--admin .portal-icon { background: var(--color-admin-pale); color: var(--color-admin); }
 
 .portal-kbd {
@@ -1108,7 +1076,6 @@ const techStack = [
   flex-shrink: 0;
 }
 .portal-card--student .tick { background: var(--color-student-pale); color: var(--color-student); }
-.portal-card--teacher .tick { background: var(--color-teacher-pale); color: var(--color-teacher); }
 .portal-card--admin .tick { background: var(--color-admin-pale); color: var(--color-admin); }
 
 .portal-foot {
@@ -1123,7 +1090,6 @@ const techStack = [
   transition: all 0.28s var(--ease-editing);
 }
 .portal-card--student .portal-foot { color: var(--color-student); }
-.portal-card--teacher .portal-foot { color: var(--color-teacher); }
 .portal-card--admin .portal-foot { color: var(--color-admin); }
 .portal-foot .el-icon { transition: transform 0.3s var(--ease-editing); }
 .portal-card:hover .portal-foot .el-icon { transform: translateX(4px); }

@@ -139,6 +139,18 @@ export const adminAPI = {
   clearKnowledgeUploads: () => {
     return request.delete('/v1/admin/knowledge/clear-uploads')
   },
+
+  getKnowledgeStats: () => {
+    return request.get('/v1/admin/knowledge/stats')
+  },
+
+  clearUserKnowledgeIndex: (userId: number) => {
+    return request.post(`/v1/admin/knowledge/clear-user/${userId}`)
+  },
+
+  clearLegacyShared: () => {
+    return request.delete('/v1/admin/knowledge/legacy-shared')
+  },
 }
 
 export const studentAPI = {
