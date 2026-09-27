@@ -126,6 +126,19 @@ export const adminAPI = {
   deleteBackup: (backupName: string) => {
     return request.delete(`/v1/admin/backups/${encodeURIComponent(backupName)}`)
   },
+
+  // 知识库上传材料运维（不动学生资源/笔记索引）
+  getKnowledgeUploads: (params?: { page?: number; page_size?: number }) => {
+    return request.get('/v1/admin/knowledge/documents', { params })
+  },
+
+  deleteKnowledgeUpload: (id: number) => {
+    return request.delete(`/v1/admin/knowledge/documents/${id}`)
+  },
+
+  clearKnowledgeUploads: () => {
+    return request.delete('/v1/admin/knowledge/clear-uploads')
+  },
 }
 
 export const studentAPI = {
@@ -262,131 +275,25 @@ export const studentAPI = {
   getProfileChatHistory: (profileId: number) => {
     return request.get(`/v1/student/profiles/${profileId}/chat-history`)
   },
-}
 
-export const teacherAPI = {
-  getCourses: (params?: { page?: number; page_size?: number; search?: string }) => {
-    return request.get('/v1/teacher/courses', { params })
-  },
-
-  getCourse: (id: number) => {
-    return request.get(`/v1/teacher/courses/${id}`)
-  },
-
-  createCourse: (data: any) => {
-    return request.post('/v1/teacher/courses', data)
-  },
-
-  updateCourse: (id: number, data: any) => {
-    return request.put(`/v1/teacher/courses/${id}`, data)
-  },
-
-  deleteCourse: (id: number) => {
-    return request.delete(`/v1/teacher/courses/${id}`)
-  },
-
-  exportCourseReport: (id: number) => {
-    return request.get(`/v1/teacher/courses/${id}/export`, { responseType: 'blob' })
-  },
-
-  getResources: () => {
-    return request.get('/v1/teacher/resources')
-  },
-
-  getPendingResources: (params?: any) => {
-    return request.get('/v1/teacher/resources', { params })
-  },
-
-  reviewResource: (id: number, data: { action?: string; approved?: boolean; comment?: string; feedback?: string }) => {
-    return request.put(`/v1/teacher/resources/${id}/review`, data)
-  },
-
+  // ── 个人知识库（材料上传）──
   uploadKnowledge: (formData: FormData) => {
-    return request.post('/v1/teacher/knowledge/upload', formData, {
+    return request.post('/v1/knowledge/upload', formData, {
       headers: { 'Content-Type': 'multipart/form-data' },
-      timeout: 300000
+      timeout: 300000,
     })
   },
 
   getKnowledgeDocuments: (params?: { page?: number; page_size?: number }) => {
-    return request.get('/v1/teacher/knowledge/documents', { params })
+    return request.get('/v1/knowledge/documents', { params })
   },
 
   getKnowledgeStats: () => {
-    return request.get('/v1/teacher/knowledge/stats')
+    return request.get('/v1/knowledge/stats')
   },
 
-  clearKnowledge: () => {
-    return request.delete('/v1/teacher/knowledge')
-  },
-
-  generateKnowledgeGraph: () => {
-    return request.post('/v1/teacher/knowledge/graph/generate')
-  },
-
-  getKnowledgeGraph: () => {
-    return request.get('/v1/teacher/knowledge/graph')
-  },
-
-  getAnalytics: () => {
-    return request.get('/v1/teacher/analytics')
-  },
-
-  getClassStats: () => {
-    return request.get('/v1/teacher/analytics/class-stats')
-  },
-
-  exportClassReport: () => {
-    return request.get('/v1/teacher/analytics/export', { responseType: 'blob' })
-  },
-
-  getStudentProgress: (studentId?: number) => {
-    return request.get('/v1/teacher/students/progress', { params: { student_id: studentId } })
-  },
-
-  adjustStudentPath: (studentId: number | string, data: any) => {
-    return request.post(`/v1/teacher/students/${studentId}/adjust-path`, data)
-  },
-
-  getAllStudentResources: () => {
-    return request.get('/v1/teacher/students/resources')
-  },
-
-  regenerateStudentResource: (studentId: number, resourceType: string, data: { stage_id: number }) => {
-    return request.post(`/v1/teacher/students/${studentId}/resources/${resourceType}/regenerate`, data)
-  },
-
-  reevaluateStudentResource: (studentId: number, resourceType: string, data: { stage_id: number }) => {
-    return request.post(`/v1/teacher/students/${studentId}/resources/${resourceType}/reevaluate`, data)
-  },
-
-  // 作业管理
-  getAssignments: (params?: { page?: number; page_size?: number; status?: string }) => {
-    return request.get('/v1/teacher/assignments', { params })
-  },
-
-  getAssignment: (id: number) => {
-    return request.get(`/v1/teacher/assignments/${id}`)
-  },
-
-  createAssignment: (data: { title: string; description: string; due_date?: string; target_students?: number[] }) => {
-    return request.post('/v1/teacher/assignments', data)
-  },
-
-  updateAssignment: (id: number, data: any) => {
-    return request.put(`/v1/teacher/assignments/${id}`, data)
-  },
-
-  deleteAssignment: (id: number) => {
-    return request.delete(`/v1/teacher/assignments/${id}`)
-  },
-
-  assignStudents: (id: number, student_ids: number[]) => {
-    return request.put(`/v1/teacher/assignments/${id}/assign`, { student_ids })
-  },
-
-  getAssignmentSubmissions: (id: number) => {
-    return request.get(`/v1/teacher/assignments/${id}/submissions`)
+  deleteKnowledgeDocument: (id: number) => {
+    return request.delete(`/v1/knowledge/documents/${id}`)
   },
 }
 

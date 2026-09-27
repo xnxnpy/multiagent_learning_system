@@ -30,20 +30,11 @@
 
         <!-- 角色预览卡片（非玻璃拟态） -->
         <div class="role-preview">
-          <div class="role-card role-card--student" :class="{ active: form.role === 'student' }"
-               @click="form.role = 'student'">
+          <div class="role-card role-card--student active">
             <div class="role-card__dot"></div>
             <div class="role-card__body">
               <div class="role-card__label">学生端</div>
-              <div class="role-card__desc">专属学习路径 · 多模态资源 · AI 辅导</div>
-            </div>
-          </div>
-          <div class="role-card role-card--teacher" :class="{ active: form.role === 'teacher' }"
-               @click="form.role = 'teacher'">
-            <div class="role-card__dot"></div>
-            <div class="role-card__body">
-              <div class="role-card__label">教师端</div>
-              <div class="role-card__desc">课程管理 · 资源审核 · 班级学情</div>
+              <div class="role-card__desc">专属学习路径 · 多模态资源 · AI 辅导 · 个人知识库</div>
             </div>
           </div>
         </div>
@@ -85,16 +76,11 @@
               <el-input v-model="form.email" placeholder="your@email.com" :prefix-icon="Message" class="field-input" />
             </el-form-item>
 
-            <el-form-item label="角色选择" prop="role" class="field-item">
+            <el-form-item label="角色" prop="role" class="field-item">
               <el-radio-group v-model="form.role" class="role-radio">
                 <el-radio-button value="student" class="role-radio__btn role-radio__btn--student">
                   <span class="role-radio__label">
                     <span class="r-dot"></span>学生
-                  </span>
-                </el-radio-button>
-                <el-radio-button value="teacher" class="role-radio__btn role-radio__btn--teacher">
-                  <span class="role-radio__label">
-                    <span class="r-dot"></span>教师
                   </span>
                 </el-radio-button>
               </el-radio-group>

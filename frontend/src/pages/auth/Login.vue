@@ -160,7 +160,7 @@ async function handleLogin() {
 
     const roleRedirects: Record<string, string> = {
       student: '/student',
-      teacher: '/teacher',
+      teacher: '/student', // 教师端已移除
       admin: '/admin',
     }
     router.push(roleRedirects[res.user.role] || '/student')

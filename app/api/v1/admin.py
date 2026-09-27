@@ -1033,3 +1033,115 @@ async def get_tts_voices(
         "current_voice": ppt_video_config.TTS_VOICE,
         "voices": [{"id": k, "name": v["name"], "gender": v["gender"]} for k, v in TTS_VOICES.items()],
     }
+
+
+# ── 知识库运维（学生上传材料的治理，不触碰个人资源/笔记索引）──
+
+
+@router.get("/knowledge/documents")
+async def admin_list_knowledge_documents(
+    page: int = Query(1, ge=1),
+    page_size: int = Query(20, ge=1, le=100),
+    current_user: User = Depends(require_admin),
+    db: AsyncSession = Depends(get_db),
+):
+    """全量学生知识库文档（含上传者）"""
+    from app.models import KnowledgeDocument
+
+    total = (await db.execute(
+        select(func.count(KnowledgeDocument.id))
+    )).scalar() or 0
+    rows = await db.execute(
+        select(KnowledgeDocument)
+        .order_by(KnowledgeDocument.created_at.desc())
+        .offset((page - 1) * page_size)
+        .limit(page_size)
+    )
+    docs = rows.scalars().all()
+    uploader_ids = {d.uploaded_by for d in docs}
+    names: Dict[int, str] = {}
+    if uploader_ids:
+        users = await db.execute(
+            select(User.id, User.username, User.real_name).where(User.id.in_(uploader_ids))
+        )
+        for uid, uname, rname in users.all():
+            names[uid] = rname or uname or str(uid)
+    return {
+        "total": total,
+        "page": page,
+        "page_size": page_size,
+        "items": [
+            {
+                "id": d.id,
+                "filename": d.filename,
+                "file_size": d.file_size,
+                "file_type": d.file_type,
+                "status": d.status,
+                "chunk_count": d.chunk_count,
+                "error_message": d.error_message,
+                "uploaded_by": d.uploaded_by,
+                "uploader": names.get(d.uploaded_by, str(d.uploaded_by)),
+                "created_at": d.created_at.isoformat() if d.created_at else None,
+            }
+            for d in docs
+        ],
+    }
+
+
+@router.delete("/knowledge/documents/{doc_id}")
+async def admin_delete_knowledge_document(
+    doc_id: int,
+    current_user: User = Depends(require_admin),
+    db: AsyncSession = Depends(get_db),
+):
+    """删除任意学生上传的知识库文档（含向量块）"""
+    from app.models import KnowledgeDocument
+
+    doc = (await db.execute(
+        select(KnowledgeDocument).where(KnowledgeDocument.id == doc_id)
+    )).scalar_one_or_none()
+    if not doc:
+        raise HTTPException(status_code=404, detail="文档不存在")
+    try:
+        from app.vectorstore.chroma_store import vector_store
+        vector_store.delete_documents_by_filter({
+            "doc_key": f"user{doc.uploaded_by}_kbdoc{doc.id}"
+        })
+    except Exception as e:
+        log.warning(f"管理员删除向量块失败（继续删元数据）: {e}")
+    await db.delete(doc)
+    await db.commit()
+    return {"message": "已删除"}
+
+
+@router.delete("/knowledge/clear-uploads")
+async def admin_clear_knowledge_uploads(
+    current_user: User = Depends(require_admin),
+    db: AsyncSession = Depends(get_db),
+):
+    """清空全部上传材料（只动 student_upload 索引与 KnowledgeDocument，不动资源/笔记）"""
+    from app.models import KnowledgeDocument
+
+    docs = (await db.execute(select(KnowledgeDocument))).scalars().all()
+    try:
+        from app.vectorstore.chroma_store import vector_store
+        for d in docs:
+            try:
+                vector_store.delete_documents_by_filter({
+                    "doc_key": f"user{d.uploaded_by}_kbdoc{d.id}"
+                })
+            except Exception:
+                pass
+        # 兜底：按 source 清掉历史无主上传块
+        try:
+            vector_store.delete_documents_by_filter({"source": "student_upload"})
+        except Exception:
+            pass
+    except Exception as e:
+        log.warning(f"清理上传向量块异常: {e}")
+
+    for d in docs:
+        await db.delete(d)
+    await db.commit()
+    log.info(f"管理员 {current_user.id} 清空知识库上传材料 {len(docs)} 份")
+    return {"message": f"已清空 {len(docs)} 份上传材料（个人资源与笔记索引未动）", "deleted": len(docs)}

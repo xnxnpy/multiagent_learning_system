@@ -10,8 +10,7 @@ Page({
     realName: '',
     selectedRole: 'student',
     roles: [
-      { value: 'student', label: '学生', icon: '📚' },
-      { value: 'teacher', label: '教师', icon: '👨‍🏫' }
+      { value: 'student', label: '学生', icon: '📚' }
     ],
     agreementChecked: false,
     isSubmitting: false

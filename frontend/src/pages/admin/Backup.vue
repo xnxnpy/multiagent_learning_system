@@ -117,6 +117,24 @@
           <el-button type="warning" :loading="cacheLoading" @click="handleClearCache" style="width: 100%">
             <el-icon><DeleteFilled /></el-icon> 清理缓存
           </el-button>
+          <el-divider />
+          <p class="kb-hint">知识库上传材料：仅清学生上传的文档索引，不动资源与笔记。</p>
+          <div class="kb-row">
+            <span>上传材料：{{ kbTotal }} 份</span>
+            <el-button size="small" @click="fetchKbCount">刷新</el-button>
+          </div>
+          <el-popconfirm
+            title="清空全部学生上传材料？资源/笔记索引不受影响。"
+            confirm-button-text="确定"
+            cancel-button-text="取消"
+            @confirm="handleClearKb"
+          >
+            <template #reference>
+              <el-button type="danger" plain :loading="kbClearing" style="width: 100%; margin-top: 8px">
+                清空上传材料
+              </el-button>
+            </template>
+          </el-popconfirm>
         </el-card>
       </el-col>
 
@@ -209,6 +227,8 @@ const deletingName = ref('')
 
 const cacheTarget = ref('all')
 const logDays = ref(7)
+const kbTotal = ref(0)
+const kbClearing = ref(false)
 
 const sysStats = reactive({
   users_count: 0,
@@ -346,6 +366,28 @@ const handleClearCache = async () => {
   }
 }
 
+const fetchKbCount = async () => {
+  try {
+    const res: any = await adminAPI.getKnowledgeUploads({ page: 1, page_size: 1 })
+    kbTotal.value = res?.total || 0
+  } catch {
+    kbTotal.value = 0
+  }
+}
+
+const handleClearKb = async () => {
+  kbClearing.value = true
+  try {
+    const res: any = await adminAPI.clearKnowledgeUploads()
+    ElMessage.success(res?.message || '已清空')
+    await fetchKbCount()
+  } catch (e: any) {
+    ElMessage.error(e?.response?.data?.detail || '清空失败')
+  } finally {
+    kbClearing.value = false
+  }
+}
+
 const handleCleanLogs = async () => {
   logCleanLoading.value = true
   try {
@@ -363,6 +405,7 @@ const handleCleanLogs = async () => {
 onMounted(() => {
   fetchSystemStats()
   fetchBackups()
+  fetchKbCount()
 })
 </script>
 
@@ -452,6 +495,19 @@ onMounted(() => {
   font-size: 13px;
   margin: 0 0 16px;
   line-height: 1.6;
+}
+
+.kb-hint {
+  font-size: 12px;
+  color: var(--color-text-secondary, #8A8FA3);
+  margin: 0 0 8px;
+  line-height: 1.5;
+}
+.kb-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  font-size: 13px;
 }
 
 .backup-result {

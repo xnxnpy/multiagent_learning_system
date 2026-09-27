@@ -25,6 +25,7 @@ const menuItems = [
   { key: 'question-bank', label: '题库' },
   { key: 'wrong-book', label: '错题本' },
   { key: 'notes', label: '学习笔记' },
+  { key: 'knowledge', label: '我的知识库' },
   { key: 'tutor', label: '智能辅导' },
   { key: 'report', label: '学习报告' },
   { key: 'notifications', label: '通知' },
