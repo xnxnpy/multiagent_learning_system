@@ -130,7 +130,11 @@ class WebSocketClient {
   }
 }
 
-const WS_BASE_URL = import.meta.env.VITE_WS_BASE_URL || 'ws://localhost:8000'
+// 同源优先（Docker/Nginx 反代）：VITE_WS_BASE_URL 显式配置则覆盖
+// 本地开发未配置时走当前 host（Vite 已代理 /api 含 WS）
+const WS_BASE_URL =
+  import.meta.env.VITE_WS_BASE_URL ||
+  `${location.protocol === 'https:' ? 'wss' : 'ws'}://${location.host}`
 
 export const createTutorWebSocket = (token: string) => {
   return new WebSocketClient(`${WS_BASE_URL}/api/v1/tutor/ws/chat`, {
