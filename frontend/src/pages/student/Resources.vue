@@ -7,16 +7,6 @@
           <el-icon><MagicStick /></el-icon>
           {{ hasAnyData ? 'Supervisor 重新编排本阶段' : '智能生成本阶段资源' }}
         </el-button>
-        <el-popconfirm
-          title="重新生成会替换当前阶段的资源（答题历史保留），确定继续吗？"
-          confirm-button-text="确定重新生成"
-          cancel-button-text="取消"
-          @confirm="handleRegenerate"
-        >
-          <template #reference>
-            <el-button :loading="store.loading">重新生成全部资源</el-button>
-          </template>
-        </el-popconfirm>
       </div>
       <div class="action-right">
         <el-tag v-if="store.currentTopic" type="info" size="large" effect="plain">
@@ -468,7 +458,24 @@
               </el-table>
             </div>
           </div>
-          <el-empty v-else description="暂无代码示例，请先生成" />
+          <!-- 画像偏好跳过后的按需补生成入口 -->
+          <div v-else class="missing-resource-card">
+            <div class="gate-icon">💻</div>
+            <div class="gate-info">
+              <div class="gate-title">本阶段尚未生成代码示例</div>
+              <div class="gate-detail">
+                Supervisor 按你的画像与阶段缺口做了取舍。需要时可点名补生成。
+              </div>
+            </div>
+            <el-button
+              type="primary"
+              size="small"
+              :loading="regeneratingType === 'code'"
+              @click="handleRegenerateSingle('code')"
+            >
+              按需生成代码
+            </el-button>
+          </div>
         </div>
       </el-tab-pane>
 
@@ -1108,37 +1115,6 @@ async function confirmWizard() {
   } finally {
     generatingAll.value = false
   }
-}
-
-async function handleRegenerate() {
-  // 清除答题记录
-  submittedAnswers.value = {}
-  Object.keys(answers).forEach(k => delete answers[k])
-  Object.keys(codeResults.value).forEach(k => delete codeResults.value[k])
-  selectedQuestionIdx.value = 0
-
-  // 优先使用阶段级重新生成
-  if (store.currentStageIndex !== null && pathStore.learningPath?.stages) {
-    const stageId = pathStore.learningPath.stages[store.currentStageIndex]?.stage_id
-    if (stageId !== undefined) {
-      try {
-        await pathStore.generateStageResources(stageId, true)
-        ElMessage.success('资源已重新生成')
-        return
-      } catch {
-        ElMessage.error('重新生成失败，请重试')
-        return
-      }
-    }
-  }
-  // fallback：无阶段信息时用旧的逐类型生成
-  const topic = store.currentTopic || pathStore.getStageTopic()
-  if (!topic) {
-    ElMessage.warning('请先确定学习主题')
-    return
-  }
-  await store.fetchResources(topic, true)
-  ElMessage.success('资源已重新生成')
 }
 
 function selectQuestion(idx: number) {

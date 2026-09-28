@@ -479,7 +479,10 @@ onUnmounted(() => {
 /* ── Menu ───────────────────────── */
 
 .sidebar-menu {
-  flex: 1;
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow-y: auto;
+  overflow-x: hidden;
   border-right: none !important;
   background: transparent !important;
   padding: 4px 12px;
@@ -493,7 +496,7 @@ onUnmounted(() => {
   letter-spacing: 0.08em;
   color: var(--color-text-faint);
   text-transform: uppercase;
-  padding: 14px 14px 6px;
+  padding: 12px 14px 4px;
   user-select: none;
 }
 
@@ -506,12 +509,12 @@ onUnmounted(() => {
 
 .sidebar-menu :deep(.el-menu-item) {
   color: var(--color-text-body);
-  font-size: 14px;
+  font-size: 13.5px;
   font-weight: var(--weight-medium);
-  margin: 3px 0;
+  margin: 2px 0;
   border-radius: 10px;
-  height: 42px;
-  line-height: 42px;
+  height: 38px;
+  line-height: 38px;
   padding: 0 14px !important;
   transition: all 0.2s var(--ease-editing);
   position: relative;
@@ -556,15 +559,17 @@ onUnmounted(() => {
 .portal-teacher .sidebar-menu :deep(.el-menu-item.is-active) { --portal-accent: var(--color-teacher); --portal-accent-pale: var(--color-teacher-pale); }
 .portal-admin   .sidebar-menu :deep(.el-menu-item.is-active) { --portal-accent: var(--color-admin); --portal-accent-pale: var(--color-admin-pale); }
 
-.sidebar-grow { flex: 0.5; }
+.sidebar-grow { flex: 0 0 auto; height: 0; }
 
 /* ── User card ──────────────────── */
 
 .sidebar-footer {
+  flex: 0 0 auto;
   padding: 12px;
   border-top: 1px solid var(--color-border-light);
   position: relative;
   z-index: 1;
+  background: inherit;
 }
 
 .user-card {

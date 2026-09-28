@@ -18,14 +18,14 @@ import AppLayout from './AppLayout.vue'
 import TutorFloatingButton from '@/components/tutor/TutorFloatingButton.vue'
 import WorkflowBubble from '@/components/WorkflowBubble.vue'
 
-/** 分节导航：对齐演示结构（学习中心 / 资源与练习 / 辅导与报告） */
+/** 分节导航：对齐演示结构 */
 const menuItems = [
   // 学习中心
   { key: 'profile', label: '学习画像', group: '学习中心' },
   { key: 'learning-path', label: '学习路径', group: '学习中心' },
-  { key: 'resources', label: '学习资源', group: '学习中心' },
   { key: 'knowledge', label: '我的知识库', group: '学习中心' },
-  // 资源与练习
+  // 资源与练习（资源类聚在一起）
+  { key: 'resources', label: '学习资源', group: '资源与练习' },
   { key: 'question-bank', label: '题库', group: '资源与练习' },
   { key: 'wrong-book', label: '错题本', group: '资源与练习' },
   { key: 'notes', label: '学习笔记', group: '资源与练习' },
