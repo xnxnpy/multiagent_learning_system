@@ -355,7 +355,7 @@ Page({
 
     this.setData({ isGenerating: true, currentAgent: '文档Agent', stageId })
 
-    const agents = ['文档Agent', '视频Agent', '题库Agent', '代码Agent', '思维导图Agent', '阅读材料Agent', '术语词汇Agent', '知识关联Agent', '学习总结Agent']
+    const agents = ['文档 Tool', '视频 Tool', '题库 Tool', '代码 Tool', '思维导图 Tool', '阅读 Tool', '术语 Tool', '关联图 Tool', '总结 Tool']
     let index = 0
 
     const interval = setInterval(() => {
@@ -1015,7 +1015,7 @@ Page({
     const { filteredResources } = this.data
     if (!filteredResources || !filteredResources.length) return null
     const typeMap = {
-      document: 'document', questions: 'questions', code: 'code',
+      document: 'document', questions: 'question', code: 'code',
       mindmap: 'mindmap', video: 'video', reading_material: 'reading_material',
       glossary: 'glossary', knowledge_link: 'knowledge_link', summary: 'summary'
     }
@@ -1037,14 +1037,14 @@ Page({
     }
 
     const typeMap = {
-      document: 'document', questions: 'questions', code: 'code',
+      document: 'document', questions: 'question', code: 'code',
       mindmap: 'mindmap', video: 'ppt_video', reading_material: 'reading_material',
       glossary: 'glossary', knowledge_link: 'knowledge_link', summary: 'summary'
     }
 
     wx.showModal({
       title: '确认重新生成',
-      content: `确定要重新生成该类型资源吗？`,
+      content: `将通过 Supervisor 强制重新生成该类型资源（自动质量评估）。`,
       success: async (res) => {
         if (res.confirm) {
           this.setData({ regeneratingType: resourceType })

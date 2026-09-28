@@ -9,7 +9,7 @@
     <view class="topic-tag placeholder" wx:else>选择学习主题开始</view>
     <button wx:if="{{currentTopic}}" class="regen-btn-sm" bindtap="generateResources" disabled="{{isGenerating}}">
       <text class="btn-icon">{{isGenerating ? '⏳' : (hasResources ? '↻' : '✨')}}</text>
-      <text class="btn-text">{{isGenerating ? '生成中' : (hasResources ? '重新生成' : '生成')}}</text>
+      <text class="btn-text">{{isGenerating ? '生成中' : (hasResources ? 'Supervisor 编排' : '智能生成')}}</text>
     </button>
   </view>
 
@@ -64,7 +64,14 @@
         bindtouchend="onMindmapEnd"
       ></canvas>
     </scroll-view>
-    <view wx:if="{{mindmaps.length === 0}}" class="empty-inline">暂无思维导图，请先生成</view>
+    <view wx:if="{{mindmaps.length === 0}}" class="missing-card">
+      <text class="mc-icon">🗺️</text>
+      <view class="mc-body">
+        <text class="mc-title">本阶段尚未生成思维导图</text>
+        <text class="mc-desc">可按需补生成（Supervisor force）</text>
+      </view>
+      <button class="mc-btn" size="mini" bindtap="regenerateSingle" data-type="mindmap">按需生成</button>
+    </view>
   </view>
 
   <!-- 知识关联 Canvas -->
@@ -91,7 +98,14 @@
         bindtouchend="onKgEnd"
       ></canvas>
     </scroll-view>
-    <view wx:if="{{knowledgeLinks.length === 0}}" class="empty-inline">暂无知识关联图，请先生成</view>
+    <view wx:if="{{knowledgeLinks.length === 0}}" class="missing-card">
+      <text class="mc-icon">🔗</text>
+      <view class="mc-body">
+        <text class="mc-title">本阶段尚未生成知识关联图</text>
+        <text class="mc-desc">展示知识点前后置关系</text>
+      </view>
+      <button class="mc-btn" size="mini" bindtap="regenerateSingle" data-type="knowledge_link">按需生成</button>
+    </view>
   </view>
 
   <!-- 内容区 -->
@@ -130,7 +144,14 @@
         <view class="list-toolbar">
           <view class="regen-btn" bindtap="regenerateSingle" data-type="document">重新生成</view>
         </view>
-        <view wx:if="{{documents.length === 0}}" class="empty-inline">暂无文档，请先生成</view>
+        <view wx:if="{{documents.length === 0}}" class="missing-card">
+      <text class="mc-icon">📄</text>
+      <view class="mc-body">
+        <text class="mc-title">本阶段尚未生成学习文档</text>
+        <text class="mc-desc">可按需补生成讲义文档</text>
+      </view>
+      <button class="mc-btn" size="mini" bindtap="regenerateSingle" data-type="document">按需生成</button>
+    </view>
         <view class="res-card" wx:for="{{documents}}" wx:key="id">
           <view class="res-head">
             <view class="res-icon">📄</view>
@@ -179,7 +200,14 @@
         <view class="list-toolbar">
           <view class="regen-btn" bindtap="regenerateSingle" data-type="video">重新生成</view>
         </view>
-        <view wx:if="{{videos.length === 0}}" class="empty-inline">暂无教学视频，请先生成</view>
+        <view wx:if="{{videos.length === 0}}" class="missing-card">
+      <text class="mc-icon">🎬</text>
+      <view class="mc-body">
+        <text class="mc-title">本阶段尚未生成教学视频</text>
+        <text class="mc-desc">画像取舍后可点名补生成</text>
+      </view>
+      <button class="mc-btn" size="mini" bindtap="regenerateSingle" data-type="video">按需生成</button>
+    </view>
         <view class="res-card" wx:for="{{videos}}" wx:key="id">
           <view class="res-head">
             <view class="res-icon">🎬</view>
@@ -195,7 +223,7 @@
             <view class="play-emoji">▶</view>
             <text class="video-ph-title">{{item.title}}</text>
             <text class="video-ph-meta">时长 {{item.duration}} · {{item.pagesCount}} 页</text>
-            <text class="video-ph-tip">视频暂未生成，请重新生成</text>
+            <text class="video-ph-tip">视频暂未生成，可点「按需生成」</text>
           </view>
           <view class="res-foot">
             <view class="res-tags">
@@ -358,7 +386,14 @@
           </view>
         </view>
 
-        <view wx:if="{{exercises.length === 0}}" class="empty-inline">暂无练习题目，请先生成</view>
+        <view wx:if="{{exercises.length === 0}}" class="missing-card">
+      <text class="mc-icon">📝</text>
+      <view class="mc-body">
+        <text class="mc-title">本阶段尚未生成练习题目</text>
+        <text class="mc-desc">优先围绕薄弱点出题</text>
+      </view>
+      <button class="mc-btn" size="mini" bindtap="regenerateSingle" data-type="questions">按需生成</button>
+    </view>
       </block>
 
       <!-- ========== Tab 4: 代码示例 ========== -->
@@ -374,7 +409,14 @@
         <view class="list-toolbar">
           <view class="regen-btn" bindtap="regenerateSingle" data-type="code">重新生成</view>
         </view>
-        <view wx:if="{{codeExamples.length === 0}}" class="empty-inline">暂无代码示例，请先生成</view>
+        <view wx:if="{{codeExamples.length === 0}}" class="missing-card">
+      <text class="mc-icon">💻</text>
+      <view class="mc-body">
+        <text class="mc-title">本阶段尚未生成代码示例</text>
+        <text class="mc-desc">可按需补生成代码练习</text>
+      </view>
+      <button class="mc-btn" size="mini" bindtap="regenerateSingle" data-type="code">按需生成</button>
+    </view>
         <view class="res-card code-card" wx:for="{{codeExamples}}" wx:key="id">
           <view class="res-head">
             <view class="res-icon">💻</view>
@@ -423,7 +465,14 @@
         <view class="list-toolbar">
           <view class="regen-btn" bindtap="regenerateSingle" data-type="reading_material">重新生成</view>
         </view>
-        <view wx:if="{{readingMaterials.length === 0}}" class="empty-inline">暂无拓展阅读材料，请先生成</view>
+        <view wx:if="{{readingMaterials.length === 0}}" class="missing-card">
+      <text class="mc-icon">📚</text>
+      <view class="mc-body">
+        <text class="mc-title">本阶段尚未生成拓展阅读</text>
+        <text class="mc-desc">可按需补充延伸阅读</text>
+      </view>
+      <button class="mc-btn" size="mini" bindtap="regenerateSingle" data-type="reading_material">按需生成</button>
+    </view>
         <view class="res-card" wx:for="{{readingMaterials}}" wx:key="id">
           <view class="res-head">
             <view class="res-icon">📖</view>
@@ -457,7 +506,14 @@
         <view class="list-toolbar">
           <view class="regen-btn" bindtap="regenerateSingle" data-type="glossary">重新生成</view>
         </view>
-        <view wx:if="{{glossaries.length === 0}}" class="empty-inline">暂无术语词汇，请先生成</view>
+        <view wx:if="{{glossaries.length === 0}}" class="missing-card">
+      <text class="mc-icon">📖</text>
+      <view class="mc-body">
+        <text class="mc-title">本阶段尚未生成术语词汇</text>
+        <text class="mc-desc">可按需生成术语卡片</text>
+      </view>
+      <button class="mc-btn" size="mini" bindtap="regenerateSingle" data-type="glossary">按需生成</button>
+    </view>
         <view class="glossary-list">
           <view class="glossary-card" wx:for="{{glossaries}}" wx:key="id">
             <view class="glossary-term">{{item.term}}</view>
@@ -487,7 +543,14 @@
         <view class="list-toolbar">
           <view class="regen-btn" bindtap="regenerateSingle" data-type="summary">重新生成</view>
         </view>
-        <view wx:if="{{summaries.length === 0}}" class="empty-inline">暂无学习总结，请先生成</view>
+        <view wx:if="{{summaries.length === 0}}" class="missing-card">
+      <text class="mc-icon">📋</text>
+      <view class="mc-body">
+        <text class="mc-title">本阶段尚未生成学习总结</text>
+        <text class="mc-desc">学完可一键生成归纳</text>
+      </view>
+      <button class="mc-btn" size="mini" bindtap="regenerateSingle" data-type="summary">按需生成</button>
+    </view>
         <view class="res-card" wx:for="{{summaries}}" wx:key="id">
           <view class="res-head">
             <view class="res-icon">📊</view>
