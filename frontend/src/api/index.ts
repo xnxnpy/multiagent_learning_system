@@ -365,6 +365,10 @@ export const teacherAPI = {
     return request.delete('/v1/teacher/knowledge')
   },
 
+  deleteKnowledgeDocument: (id: number) => {
+    return request.delete(`/v1/teacher/knowledge/documents/${id}`)
+  },
+
   generateKnowledgeGraph: () => {
     return request.post('/v1/teacher/knowledge/graph/generate')
   },

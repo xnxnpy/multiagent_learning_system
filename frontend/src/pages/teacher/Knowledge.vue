@@ -1,4 +1,4 @@
-﻿<template>
+<template>
   <div class="page-container">
     <el-row :gutter="24">
       <!-- 左列：上传 + 统计 -->
@@ -90,14 +90,14 @@
               <el-icon><RefreshRight /></el-icon> 刷新
             </el-button>
             <el-popconfirm
-              title="确定要清空知识库吗？此操作不可恢复！"
+              title="清空共享教材？仅删除教师上传的教材索引，学生资源与个人知识库不受影响。"
               confirm-button-text="确定"
               cancel-button-text="取消"
               @confirm="handleClear"
             >
               <template #reference>
                 <el-button class="action-btn" type="danger" plain>
-                  <el-icon><Delete /></el-icon> 清空知识库
+                  <el-icon><Delete /></el-icon> 清空共享教材
                 </el-button>
               </template>
             </el-popconfirm>
@@ -138,6 +138,11 @@
                 {{ row.completed_at ? new Date(row.completed_at).toLocaleString() : new Date(row.created_at).toLocaleString() }}
               </template>
             </el-table-column>
+            <el-table-column label="操作" width="70">
+              <template #default="{ row }">
+                <el-button size="small" link type="danger" @click="handleDeleteDoc(row)">删除</el-button>
+              </template>
+            </el-table-column>
           </el-table>
           <el-pagination
             v-if="docStats.total > 20"
@@ -171,7 +176,7 @@
 
 <script setup lang="ts">
 import { ref, reactive, onMounted } from 'vue'
-import { ElMessage } from 'element-plus'
+import { ElMessage, ElMessageBox } from 'element-plus'
 import { teacherAPI } from '@/api'
 import { UploadFilled, Upload, Document, Grid, RefreshRight, Delete, Share, Close, Loading } from '@element-plus/icons-vue'
 import KnowledgeGraph from '@/components/KnowledgeGraph.vue'
@@ -257,8 +262,24 @@ const fetchDocuments = async () => {
 const handleRefresh = () => { fetchStats(); fetchDocuments(); ElMessage.success('已刷新') }
 
 const handleClear = async () => {
-  try { await teacherAPI.clearKnowledge(); ElMessage.success('知识库已清空'); fetchStats(); fetchDocuments() }
-  catch { ElMessage.error('清空失败') }
+  try {
+    const res: any = await teacherAPI.clearKnowledge()
+    ElMessage.success(res?.message || '共享教材已清空')
+    fetchStats(); fetchDocuments()
+  } catch { ElMessage.error('清空失败') }
+}
+
+const handleDeleteDoc = async (row: any) => {
+  try {
+    await ElMessageBox.confirm(`删除「${row.filename}」及其向量索引？`, '删除确认', { type: 'warning' })
+  } catch { return }
+  try {
+    await teacherAPI.deleteKnowledgeDocument(row.id)
+    ElMessage.success('已删除')
+    fetchStats(); fetchDocuments()
+  } catch (e: any) {
+    ElMessage.error(e?.response?.data?.detail || '删除失败')
+  }
 }
 
 const generateGraph = async () => {
