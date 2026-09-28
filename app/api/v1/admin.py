@@ -1273,3 +1273,88 @@ async def admin_clear_legacy_shared(
     except Exception as e:
         log.error(f"清理无主块失败: {e}")
         raise HTTPException(status_code=500, detail=str(e))
+
+
+
+@router.get("/learning-analytics")
+async def admin_learning_analytics(
+    current_user: User = Depends(require_admin),
+    db: AsyncSession = Depends(get_db),
+):
+    """学习活动分析大屏数据：阶段分布 / 日活 / 时段 / 风险学生"""
+    from datetime import date, timedelta as td, datetime as dt
+    from app.models import LearningRecord, StudentProfile, QuestionItem
+
+    # 用户
+    total_users = (await db.execute(select(func.count(User.id)))).scalar() or 0
+    total_students = (await db.execute(
+        select(func.count(User.id)).where(User.role == "student")
+    )).scalar() or 0
+
+    # 近14天日活（有学习记录的用户数）
+    since = date.today() - td(days=13)
+    recs = (await db.execute(
+        select(LearningRecord.user_id, LearningRecord.created_at, LearningRecord.resource_type, LearningRecord.duration_seconds)
+        .where(LearningRecord.created_at >= dt.combine(since, dt.min.time()))
+    )).all()
+
+    daily = []
+    day_set = {}
+    for uid, created, rtype, dur in recs:
+        if not created:
+            continue
+        d = created.date().isoformat()
+        day_set.setdefault(d, set()).add(uid)
+    for i in range(14):
+        d = (date.today() - td(days=13 - i)).isoformat()
+        daily.append({"date": d, "active_users": len(day_set.get(d, set()))})
+
+    # 时段分布
+    hour_counts = [0] * 24
+    stage_types: dict = {}
+    for uid, created, rtype, dur in recs:
+        if created:
+            hour_counts[created.hour] += 1
+        stage_types[rtype] = stage_types.get(rtype, 0) + 1
+
+    # 风险学生：近7天正确率 <50% 且答题>=3，或错题>=5
+    risk = 0
+    students = (await db.execute(
+        select(User.id).where(User.role == "student").limit(300)
+    )).scalars().all()
+    week = date.today() - td(days=7)
+    for sid in students:
+        qs = (await db.execute(
+            select(LearningRecord.correct).where(
+                LearningRecord.user_id == sid,
+                LearningRecord.resource_type == "question",
+                LearningRecord.created_at >= dt.combine(week, dt.min.time()),
+            )
+        )).scalars().all()
+        wrong = (await db.execute(
+            select(func.count(QuestionItem.id)).where(
+                QuestionItem.user_id == sid,
+                QuestionItem.wrong_book_status == "active",
+            )
+        )).scalar() or 0
+        if wrong >= 5:
+            risk += 1
+        elif len(qs) >= 3 and (sum(1 for c in qs if c) / len(qs)) < 0.5:
+            risk += 1
+
+    # 需求类型占比（记录类型）
+    total_evt = sum(stage_types.values()) or 1
+    type_share = [
+        {"name": k, "value": round(v / total_evt * 100, 1)}
+        for k, v in sorted(stage_types.items(), key=lambda x: -x[1])[:8]
+    ]
+
+    return {
+        "total_users": total_users,
+        "total_students": total_students,
+        "risk_students": risk,
+        "daily_active": daily,
+        "hour_distribution": [{"hour": h, "count": hour_counts[h]} for h in range(24)],
+        "type_share": type_share,
+        "stage_distribution": type_share,
+    }

@@ -15,6 +15,7 @@ from app.models.knowledge_document import KnowledgeDocument
 from app.models.question_item import QuestionItem
 from app.models.study_note import StudyNote
 from app.models.discovery_item import DiscoveryItem
+from app.models.plaza_post import PlazaPost, PlazaLike
 
 __all__ = [
     "Base",
@@ -40,4 +41,6 @@ __all__ = [
     "QuestionItem",
     "StudyNote",
     "DiscoveryItem",
+    "PlazaPost",
+    "PlazaLike",
 ]

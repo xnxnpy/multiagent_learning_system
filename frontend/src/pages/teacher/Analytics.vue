@@ -1,4 +1,4 @@
-﻿<template>
+<template>
   <div class="page-container">
     <!-- 统计卡片 -->
     <el-row :gutter="20" class="stats-row">
@@ -108,6 +108,44 @@
       </el-col>
     </el-row>
 
+    <!-- 干预中心 -->
+    <el-card class="page-card" shadow="never" style="margin-top: 8px;">
+      <template #header>
+        <div class="card-header">
+          <h2 class="card-header__title">干预中心 · 风险学生</h2>
+          <el-button size="small" @click="loadIntervention" :loading="ivLoading">刷新</el-button>
+        </div>
+      </template>
+      <el-table :data="intervention" v-loading="ivLoading" size="small" max-height="360">
+        <el-table-column label="学生" width="120">
+          <template #default="{ row }">{{ row.real_name }} <span style="color:#909399;font-size:12px">{{ row.username }}</span></template>
+        </el-table-column>
+        <el-table-column label="风险" width="80">
+          <template #default="{ row }">
+            <el-tag size="small" :type="row.risk_level === 'high' ? 'danger' : row.risk_level === 'medium' ? 'warning' : 'success'">
+              {{ row.risk_level === 'high' ? '高' : row.risk_level === 'medium' ? '中' : '低' }}
+            </el-tag>
+          </template>
+        </el-table-column>
+        <el-table-column label="正确率" width="80">
+          <template #default="{ row }">{{ row.accuracy != null ? row.accuracy + '%' : '-' }}</template>
+        </el-table-column>
+        <el-table-column label="错题" width="60" prop="wrong_active" />
+        <el-table-column label="7天时长" width="90">
+          <template #default="{ row }">{{ row.study_minutes_7d }} 分</template>
+        </el-table-column>
+        <el-table-column label="原因与建议" min-width="260">
+          <template #default="{ row }">
+            <div style="font-size:12px;line-height:1.5">
+              <div>⚠️ {{ (row.reasons || []).join('；') || '—' }}</div>
+              <div style="color:#3D6B4F">💡 {{ (row.suggestions || []).join('；') || '—' }}</div>
+            </div>
+          </template>
+        </el-table-column>
+      </el-table>
+      <el-empty v-if="!ivLoading && !intervention.length" description="暂无学生数据" :image-size="60" />
+    </el-card>
+
     <!-- 调整路径对话框 -->
     <el-dialog
       v-model="pathModalVisible"
@@ -193,6 +231,19 @@ const pathModalVisible = ref(false)
 const currentStudent = ref<StudentProgress | null>(null)
 const newStages = ref<Array<{title: string; description: string; knowledge_points_str: string; estimated_hours: number}>>([])
 const adjustReason = ref('')
+const ivLoading = ref(false)
+const intervention = ref<any[]>([])
+
+async function loadIntervention() {
+  ivLoading.value = true
+  try {
+    intervention.value = await teacherAPI.getInterventionStudents()
+  } catch {
+    intervention.value = []
+  } finally {
+    ivLoading.value = false
+  }
+}
 
 const stats = reactive<Stats>({
   total_students: 0,
@@ -318,6 +369,7 @@ const exportAllReport = async () => {
 
 onMounted(() => {
   fetchStats()
+  loadIntervention()
 })
 </script>
 

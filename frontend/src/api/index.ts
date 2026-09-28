@@ -151,6 +151,10 @@ export const adminAPI = {
   clearLegacyShared: () => {
     return request.delete('/v1/admin/knowledge/legacy-shared')
   },
+
+  getLearningAnalytics: () => {
+    return request.get('/v1/admin/learning-analytics')
+  },
 }
 
 export const studentAPI = {
@@ -375,6 +379,10 @@ export const teacherAPI = {
 
   getKnowledgeGraph: () => {
     return request.get('/v1/teacher/knowledge/graph')
+  },
+
+  getInterventionStudents: () => {
+    return request.get('/v1/intervention/students')
   },
 
   getAnalytics: () => {

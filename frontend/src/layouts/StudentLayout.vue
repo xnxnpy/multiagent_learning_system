@@ -27,6 +27,7 @@ const menuItems = [
   { key: 'notes', label: '学习笔记' },
   { key: 'knowledge', label: '我的知识库' },
   { key: 'discovery', label: '学习发现' },
+  { key: 'plaza', label: '学习广场' },
   { key: 'tutor', label: '智能辅导' },
   { key: 'report', label: '学习报告' },
   { key: 'notifications', label: '通知' },

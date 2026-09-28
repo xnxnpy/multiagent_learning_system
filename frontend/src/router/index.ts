@@ -87,6 +87,11 @@ const routes: RouteRecordRaw[] = [
         path: 'discovery',
         name: 'StudentDiscovery',
         component: () => import('@/pages/student/Discovery.vue')
+      },
+      {
+        path: 'plaza',
+        name: 'StudentPlaza',
+        component: () => import('@/pages/student/Plaza.vue')
       }
     ]
   },
@@ -169,6 +174,11 @@ const routes: RouteRecordRaw[] = [
         path: 'knowledge',
         name: 'AdminKnowledge',
         component: () => import('@/pages/admin/Knowledge.vue')
+      },
+      {
+        path: 'analytics',
+        name: 'AdminAnalytics',
+        component: () => import('@/pages/admin/Analytics.vue')
       },
       {
         path: 'logs',
