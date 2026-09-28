@@ -113,7 +113,13 @@
           title="当前为示例图谱（生成失败时的兜底），请重新生成"
           style="margin-bottom: 8px"
         />
-        <KnowledgeGraph v-if="knowledgeGraphData" :graphData="knowledgeGraphData" />
+        <KnowledgeGraph
+          v-if="knowledgeGraphData"
+          :graphData="knowledgeGraphData"
+          :masteryMap="masteryMap"
+          @practice="onGraphPractice"
+          @resources="onGraphResources"
+        />
         <el-empty v-else-if="!kgLoading" description="暂无知识图谱，点击上方按钮生成" :image-size="80" />
         <div v-else class="kg-loading">
           <el-icon class="is-loading" :size="18"><Loading /></el-icon>
@@ -172,6 +178,30 @@ const loading = ref(false)
 const autoGenerating = ref(false)
 const knowledgeGraphData = ref<any>(null)
 const kgLoading = ref(false)
+const masteryMap = ref<Record<string, number>>({})
+
+async function loadMasteryMap() {
+  try {
+    const report: any = await request.get('/v1/student/evaluation/report')
+    const kps = report?.knowledge_points || []
+    const map: Record<string, number> = {}
+    for (const kp of kps) {
+      const key = kp.topic || kp.name || kp.knowledge_point
+      if (key && kp.mastery != null) map[String(key)] = Number(kp.mastery)
+    }
+    masteryMap.value = map
+  } catch {
+    masteryMap.value = {}
+  }
+}
+
+function onGraphPractice(_node: any) {
+  router.push('/student/question-bank')
+}
+
+function onGraphResources(_node: any) {
+  router.push('/student/resources')
+}
 
 const totalStages = computed(() => pathStore.learningPath?.stages?.length || 0)
 const allCompleted = computed(() => pathStore.completedStages.length >= totalStages.value && totalStages.value > 0)
@@ -294,8 +324,9 @@ onMounted(async () => {
       await pathStore.fetchStageResources(stageId)
     }
 
-    // 加载知识图谱
+    // 加载知识图谱 + 掌握度（着色/详情用）
     await loadKnowledgeGraph()
+    await loadMasteryMap()
 
     // 如果没有路径，提示用户去完成画像（由工作流统一生成路径+资源）
     if (!pathStore.learningPath) {
@@ -314,6 +345,7 @@ watch(() => pathStore.currentStage, async () => {
   }
   // 切换阶段时重新加载该阶段的知识图谱
   await loadKnowledgeGraph()
+  await loadMasteryMap()
 })
 </script>
 
