@@ -426,6 +426,14 @@ Page({
     wx.navigateTo({ url: '/pages/my-learning/my-learning' })
   },
 
+  goToKnowledge() {
+    wx.navigateTo({ url: '/pages/knowledge/knowledge' })
+  },
+
+  goToWrongBook() {
+    wx.navigateTo({ url: '/pages/wrong-book/wrong-book' })
+  },
+
   goToNotifications() {
     wx.navigateTo({ url: '/pages/notifications/notifications' })
   },

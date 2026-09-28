@@ -9,43 +9,37 @@
 ### 学生端（Web + 微信小程序）
 - **多画像管理** -- 支持创建、切换、归档、恢复多个学习画像（专业/年级/目标/风格等）
 - **画像对话构建** -- 通过 WebSocket 流式对话，ProfileAgent 自动提取并更新学生画像
-- **学习路径生成** -- LearningPathAgent 根据画像生成分阶段学习计划，支持增量优化
+- **学习路径生成** -- LearningPathAgent 根据画像生成分阶段学习计划，支持增量优化；支持一句话需求重新规划
+- **Supervisor 学习环** -- 真 LangGraph 状态图（plan → act → observe → quality_gate），失败回环重规划、质量不达标自动重做
+- **资源生成向导** -- 生成前配置薄弱知识点优先、视频风格（讲解动画/科技风/治愈系等）、资源类型
 - **9 类资源自动生成** -- 学习文档、PPT 教学视频、思维导图、练习题目、代码示例、拓展阅读、术语词汇、知识关联图、学习总结
-- **资源按需生成** -- 按学习阶段按需触发，支持单资源重新生成
-- **资源质量门控** -- ResourceQualityAgent 自动评分，低于阈值的资源不展示
-- **智能辅导 (Tutor)** -- RAG 检索增强 + 流式对话，支持多轮上下文
-- **学习评估** -- EvaluationAgent 自动触发（累积行为/正确率下降/学习时长），生成评估报告并增量更新路径
+- **资源按需生成 / force 补生成** -- 画像跳过的类型（如视频）可随时点名补生成；单资源重生统一走 Supervisor
+- **资源质量门控** -- ResourceQualityAgent 自动评分，低于阈值回环重做
+- **题库 + 错题本** -- 题库分页筛选、页内作答判分；错题自动入本，重练定位到具体题目
+- **智能辅导 (Tutor)** -- RAG 检索增强 + ReAct 五层防幻觉 + 流式对话，支持多轮上下文
+- **学习评估 + AI 周报** -- EvaluationAgent 评估报告；近 7 天 AI 学习周报生成，支持追问
+- **学习发现** -- 联网检索外部视频/文章/论文/仓库，一键收藏进个人库
+- **学习广场** -- 发帖分享笔记速查表，点赞互动
+- **个人知识库** -- 上传 PDF/DOCX/TXT/MD 材料，按用户隔离索引，辅导与生成可检索引用
+- **知识图谱可视化** -- 节点可点击查看详情（掌握度着色、前置/后续跳转、去练习）
 - **学习进度汇总** -- 阶段完成率、答题正确率、连续学习天数、近 7 天统计
-- **行为追踪** -- 记录资源浏览、答题、代码执行、阶段完成等事件
-- **作业系统** -- 查看分配的作业、提交作业、查看批改结果
-- **语音识别 (ASR)** -- 讯飞语音转文本
-- **案例展示** -- 从数据库查询真实系统数据进行展示
-- **错题本** -- 自动收集答错的题目，方便复习巩固
-- **知识图谱可视化** -- Canvas 绘制可交互的知识图谱
-- **思维导图渲染** -- 原生 Canvas 渲染思维导图，支持缩放和拖拽
-- **Mermaid 流程图** -- 通过 mermaid.ink 在线渲染流程图
-- **视频播放** -- PPT 教学视频在线播放
-- **个人知识库** -- 上传 PDF/DOCX/TXT/MD 材料，按用户隔离索引，辅导与资源生成可检索引用
+- **行为追踪 / 作业 / ASR / 案例展示 / 思维导图 / Mermaid / 视频播放** -- 同前
 
 ### 教师端（Web + 微信小程序）
 - **课程管理** -- 创建/编辑/删除课程，维护知识树结构，导出 CSV 报表
-- **知识库管理** -- 上传 PDF/DOCX/TXT/MD 文档，自动分块向量化
-- **资源审核与代重生** -- 审核 AI 资源；为学生重新生成/评估资源
-- **班级学情统计** -- 学生活跃、正确率、进度与路径调整
+- **学生看板四指标** -- 平均掌握度 / 最长连续学习 / 累计学时 / 任务完成率
+- **班级学情** -- 学生进度表、正确率、路径调整
+- **干预中心** -- 风险学生识别（正确率/错题/沉默）+ 干预原因与建议
+- **共享知识库** -- 上传教材自动切片向量化（全员可检索）；清理只动共享层，不碰学生数据
+- **资源审核与代重生** -- 审核 AI 资源；为学生重新生成/评估资源（Supervisor force）
 - **作业管理** -- 创建/分配/批改作业
 
 ### 管理员端（Web + 微信小程序）
 - **用户管理** -- 增删改查用户，支持分页搜索和角色筛选
-- **系统配置** -- 应用名、调试模式、JWT 过期时间、质量阈值、PPT 视频页数、TTS 音色等
-- **模型管理** -- 查看/切换 Agent 文本模型、图片模型、视频模型、TTS 音色
-- **模型提供商管理** -- 讯飞星火、Qwen-Image、Stable Diffusion
-- **系统监控** -- CPU/内存/磁盘使用率
-- **日志管理** -- 分页查看系统日志，清理过期日志
-- **数据备份与恢复** -- 一键备份数据库 + ChromaDB，列出/删除/恢复备份
-- **缓存清理** -- Redis / ChromaDB 缓存清理
-- **知识库运维** -- 查看/删除学生上传材料，安全清空上传索引（不动资源与笔记）
-- **内容安全审核** -- 查看/审核资源内容
-- **敏感词过滤** -- 开关控制、词库管理（按类别增删）、过滤日志
+- **系统配置 / 模型管理 / 日志 / 备份恢复** -- 同前
+- **知识库运维** -- 分区统计（资源/笔记/上传/无主）、按用户清理索引、安全清空上传材料
+- **学习分析大屏** -- 日活趋势、24h 时段分布、需求类型占比、风险学生 KPI
+- **内容安全 / 敏感词过滤** -- 同前
 
 ---
 
@@ -98,69 +92,85 @@
 
 ---
 
-## 快速启动
+## 快速启动（两种部署方式）
 
-### 环境要求
+| 方式 | 适用 | 说明 |
+|------|------|------|
+| **A. 本地开发** | 开发调试 | `run.bat` / 手动起前后端，依赖本机 MySQL、Redis、FFmpeg |
+| **B. Docker Compose** | 部署上线 | 一条命令起 MySQL + Redis + 后端 + 前端（Nginx） |
+
+---
+
+### 方式 A：本地开发
+
+#### 环境要求
 - Python 3.11+
 - Node.js 18+
 - MySQL 8.0
 - Redis 5+
 - 微信开发者工具 (小程序开发)
-- (可选) Neo4j 5+
-- (可选) Playwright (PPT 视频生成需要)
-- (可选) FFmpeg (PPT 视频合成需要)
+- (可选) Neo4j 5+、Playwright、FFmpeg（PPT 视频需要）
 
-### 1. 克隆项目
+#### A1. 克隆项目
 ```bash
 git clone https://github.com/xnxnpy/ai-resgen-learning-multiagent-system.git
 cd ai-resgen-learning-multiagent-system
 ```
 
-### 2. 后端启动
+#### A2. 后端启动
 ```bash
-# 创建 conda 环境
 conda create -n multi_agent python=3.11
 conda activate multi_agent
-
-# 安装依赖
 pip install -r requirements.txt
-
-# 配置环境变量（可选，有默认值）
-cp .env.example .env
-# 编辑 .env 文件
-
-# 创建管理员账号
+cp .env.example .env   # 按需修改密钥与数据库
+playwright install chromium
 python scripts/create_admin.py --username admin --password admin123
-
-# 启动后端
 python main.py
-# 或
-uvicorn main:app --host 0.0.0.0 --port 8000 --reload
 ```
 
-### 3. Web 前端启动
+#### A3. Web 前端
 ```bash
-cd frontend
-npm install
-npm run dev
+cd frontend && npm install && npm run dev
+# http://localhost:3000
 ```
 
-### 4. 微信小程序启动
-1. 打开微信开发者工具
-2. 导入 `miniprogram/` 目录
-3. AppID: `wx08363c06216a3c12`（或使用测试号）
-4. 在微信开发者工具中勾选「不校验合法域名」（开发阶段）
-5. 修改 `miniprogram/utils/request.js` 中的 `BASE_URL` 为后端地址
+#### A4. 微信小程序
+1. 微信开发者工具导入 `miniprogram/`
+2. 修改 `miniprogram/utils/request.js` 中 `BASE_URL` 指向本机后端
+3. 开发阶段勾选「不校验合法域名」
 
-### 5. 访问
-- Web 前端: http://localhost:3000
-- 后端 API: http://localhost:8000
-- API 文档 (Swagger): http://localhost:8000/docs
-- 健康检查: http://localhost:8000/health
-- 微信小程序: 通过微信开发者工具预览
+#### A5. Windows 一键
+双击 `run.bat` 自动安装依赖并启动前后端。
 
-### 6. 一键启动（Windows）
-双击项目根目录下的 `run.bat`，自动安装依赖并启动前后端服务。
+#### A6. 访问
+- Web: http://localhost:3000
+- API / Swagger: http://localhost:8000/docs
+
+---
+
+### 方式 B：Docker 部署（推荐上线）
+
+```bash
+# 1. 配置环境变量（至少改 SECRET / JWT / 讯飞密钥）
+cp .env.example .env
+
+# 2. 构建并启动（MySQL + Redis + 后端 + 前端 Nginx）
+docker compose up -d --build
+
+# 3. 创建管理员（容器内执行一次）
+docker compose exec backend python scripts/create_admin.py --username admin --password admin123
+```
+
+| 服务 | 地址 |
+|------|------|
+| **Web 前端** | http://localhost:8080 |
+| **API / Swagger** | http://localhost:8000/docs |
+| MySQL | localhost:3306 |
+| Redis | localhost:6379 |
+
+- 可选 Neo4j：`docker compose --profile neo4j up -d`
+- 数据卷：MySQL / Redis / Chroma 持久化；代码热更新可挂载 `./data` `./logs`
+- WebSocket 与 API 均走前端 Nginx 同源反代（`/api/`），无需额外配置
 
 ---
 
@@ -170,6 +180,9 @@ npm run dev
 ai-resgen-learning-multiagent-system/
 ├── main.py                          # FastAPI 入口，lifespan 管理
 ├── requirements.txt                 # Python 依赖
+├── Dockerfile                       # 后端镜像（FFmpeg + Playwright）
+├── docker-compose.yml               # MySQL + Redis + 后端 + 前端 一键部署
+├── .dockerignore
 ├── app/
 │   ├── __init__.py
 │   ├── agents/                      # 14 个 AI Agent
@@ -192,9 +205,13 @@ ai-resgen-learning-multiagent-system/
 │   ├── api/v1/                      # API 路由层
 │   │   ├── __init__.py              # 路由注册
 │   │   ├── auth.py                  # 认证接口
-│   │   ├── student.py               # 学生端接口
-│   │   ├── teacher.py               # 教师端接口
-│   │   ├── admin.py                 # 管理员端接口
+│   │   ├── student.py               # 学生端接口（含周报/生成向导）
+│   │   ├── teacher.py               # 教师端接口（看板/干预/共享知识库）
+│   │   ├── admin.py                 # 管理员端（含知识库运维/学习分析）
+│   │   ├── knowledge.py             # 学生个人知识库
+│   │   ├── discovery.py             # 学习发现（外部检索+收藏）
+│   │   ├── plaza.py                 # 学习广场
+│   │   ├── intervention.py          # 教师干预中心
 │   │   ├── tutor.py                 # 智能辅导 WebSocket
 │   │   ├── tutor_stream.py          # 辅导流式端点
 │   │   ├── notification.py          # 通知系统
@@ -282,12 +299,14 @@ ai-resgen-learning-multiagent-system/
 │       └── subtitle_generator.py    # 字幕生成
 ├── frontend/                        # Vue 3 Web 前端
 │   ├── package.json
+│   ├── Dockerfile                   # 多阶段构建 → Nginx
+│   ├── nginx.conf                   # 静态站 + /api 与 WS 反代
 │   └── src/
 │       ├── pages/
 │       │   ├── auth/                # 登录/注册/落地页/个人信息
-│       │   ├── student/             # 学生端 7 个页面
+│       │   ├── student/             # 学生端（画像/路径/资源/题库/错题/笔记/知识库/发现/广场…）
 │       │   ├── teacher/             # 教师端 5 个页面
-│       │   └── admin/               # 管理员端 9 个页面
+│       │   └── admin/               # 管理员端（用户/配置/模型/知识库运维/分析/备份…）
 │       ├── api/                     # API 封装
 │       ├── components/              # 公共组件
 │       ├── composables/             # 组合式函数
@@ -352,7 +371,9 @@ ai-resgen-learning-multiagent-system/
 │   ├── resource_quality_prompt.txt  # 资源质量评估
 │   └── tutor_prompt.txt             # 智能辅导
 ├── tests/                           # 测试
-└── run.bat                         # Windows 一键启动脚本
+├── run.bat                          # Windows 本地一键启动
+├── Dockerfile                       # 后端镜像
+└── docker-compose.yml               # Docker 一键部署
 ```
 
 ---
@@ -365,7 +386,9 @@ ai-resgen-learning-multiagent-system/
 | 学习路径 | pages/path/path | 学习路径展示、阶段管理 |
 | 学习资源 | pages/resource/resource | 资源浏览、答题、代码运行 |
 | 智能辅导 | pages/tutor/tutor | RAG 智能辅导对话 |
-| 学习报告 | pages/report/report | 评估报告、进度统计 |
+| 学习报告 | pages/report/report | 评估报告、AI 周报、进度统计 |
+
+其他入口：错题本、我的知识库、教师端（课程/知识库）、管理端。
 
 ---
 
@@ -389,8 +412,11 @@ ai-resgen-learning-multiagent-system/
 系统通过 `scripts/create_admin.py` 创建管理员。用户可通过注册接口创建 student/teacher/admin 角色账号。
 
 ```bash
-# 创建管理员
+# 本地创建管理员
 python scripts/create_admin.py --username admin --password admin123
+
+# Docker 环境
+docker compose exec backend python scripts/create_admin.py --username admin --password admin123
 ```
 
 ---

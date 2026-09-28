@@ -33,6 +33,28 @@
       </view>
     </view>
 
+    <!-- AI 学习周报 -->
+    <view class="section-card">
+      <view class="card-header">
+        <text class="card-title">AI 学习周报</text>
+        <button class="mini-btn" size="mini" bindtap="generateWeekly" disabled="{{weeklyLoading}}">
+          {{weeklyLoading ? '生成中…' : (weeklyContent ? '重新生成' : '生成周报')}}
+        </button>
+      </view>
+      <view wx:if="{{weeklyContent}}" class="weekly-box">
+        <rich-text nodes="{{weeklyHtml}}"></rich-text>
+        <view class="ask-row">
+          <input class="ask-input" placeholder="对周报追问…" value="{{weeklyQuestion}}" bindinput="onWeeklyInput" confirm-type="send" bindconfirm="askWeekly" />
+          <button class="mini-btn" size="mini" bindtap="askWeekly" disabled="{{weeklyChatLoading}}">提问</button>
+        </view>
+        <view wx:for="{{weeklyChat}}" wx:key="index" class="chat-line {{item.role}}">
+          <text class="chat-role">{{item.role === 'user' ? '我' : 'AI'}}</text>
+          <text class="chat-content">{{item.content}}</text>
+        </view>
+      </view>
+      <view wx:else class="weekly-empty">点击「生成周报」查看近 7 天学习总结</view>
+    </view>
+
     <!-- 知识点掌握列表 -->
     <view class="section-card">
       <view class="card-header">

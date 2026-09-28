@@ -27,6 +27,7 @@ const API = {
     CODE_RUN: '/student/code/run',
     EVALUATION_RUN: '/student/evaluation/run',
     EVALUATION_REPORT: '/student/evaluation/report',
+    WEEKLY_REPORT: '/student/evaluation/weekly-report',
     LEARN_START: '/student/learn/start',
     LEARN_STATE: '/student/learn/state/{session_id}',
     WORKFLOW_WS: '/student/ws/workflow',

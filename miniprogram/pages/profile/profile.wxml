@@ -35,6 +35,14 @@
       <text class="menu-icon">📚</text>
       <text class="menu-text">我的学习</text>
     </view>
+    <view class="menu-item" bindtap="goToKnowledge">
+      <text class="menu-icon">🗂️</text>
+      <text class="menu-text">知识库</text>
+    </view>
+    <view class="menu-item" bindtap="goToWrongBook">
+      <text class="menu-icon">📕</text>
+      <text class="menu-text">错题本</text>
+    </view>
   </view>
 
   <scroll-view scroll-y class="main-content">

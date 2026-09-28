@@ -1,0 +1,48 @@
+<view class="container">
+  <view class="page-header">
+    <text class="page-title">我的知识库</text>
+    <text class="page-desc">上传材料仅本人可检索，辅导与资源生成可引用</text>
+  </view>
+
+  <view class="stats-row">
+    <view class="stat-card">
+      <text class="stat-value">{{stats.total_documents || 0}}</text>
+      <text class="stat-label">文档</text>
+    </view>
+    <view class="stat-card">
+      <text class="stat-value">{{stats.total_chunks || 0}}</text>
+      <text class="stat-label">知识碎片</text>
+    </view>
+    <view class="stat-card">
+      <text class="stat-value warn">{{stats.failed || 0}}</text>
+      <text class="stat-label">失败</text>
+    </view>
+  </view>
+
+  <button class="upload-btn" bindtap="chooseAndUpload" disabled="{{uploading}}">
+    {{uploading ? '上传中…' : '上传材料（PDF/TXT/MD/DOCX）'}}
+  </button>
+
+  <view class="section-title">已上传文档</view>
+  <view wx:if="{{loading}}" class="loading">加载中…</view>
+  <view wx:elif="{{!documents.length}}" class="empty">还没有上传过材料</view>
+
+  <view wx:for="{{documents}}" wx:key="id" class="doc-item">
+    <view class="doc-main">
+      <text class="doc-name">{{item.filename}}</text>
+      <text class="doc-meta">
+        {{item.file_type}} · {{item.chunk_count}} 分块 ·
+        <text class="{{item.status === 'completed' ? 'ok' : item.status === 'failed' ? 'bad' : ''}}">
+          {{item.status === 'completed' ? '完成' : item.status === 'failed' ? '失败' : '处理中'}}
+        </text>
+      </text>
+    </view>
+    <text class="doc-del" bindtap="onDelete" data-id="{{item.id}}" data-name="{{item.filename}}">删除</text>
+  </view>
+
+  <view wx:if="{{total > 20}}" class="pager">
+    <button size="mini" disabled="{{page <= 1}}" bindtap="onPrev">上一页</button>
+    <text class="page-num">{{page}} / {{Math.ceil(total / 20) || 1}}</text>
+    <button size="mini" disabled="{{page * 20 >= total}}" bindtap="onNext">下一页</button>
+  </view>
+</view>

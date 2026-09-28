@@ -142,8 +142,9 @@
           <ul class="portal-list">
             <li><span class="tick">✓</span> 学习画像 · 多档案切换</li>
             <li><span class="tick">✓</span> 知识图谱驱动的路径规划</li>
-            <li><span class="tick">✓</span> 10+ 种资源一键生成</li>
-            <li><span class="tick">✓</span> 个人知识库上传 · 流式辅导</li>
+            <li><span class="tick">✓</span> 生成向导 · 10+ 资源</li>
+            <li><span class="tick">✓</span> 个人知识库 · 学习发现 · 广场</li>
+            <li><span class="tick">✓</span> 流式辅导 · AI 周报</li>
           </ul>
           <div class="portal-foot">
             <span>进入学生端</span>
@@ -171,9 +172,9 @@
           </p>
           <ul class="portal-list">
             <li><span class="tick">✓</span> 课程创建 · 班级管理</li>
-            <li><span class="tick">✓</span> 学生学情多维分析</li>
+            <li><span class="tick">✓</span> 学生看板 · 干预中心</li>
             <li><span class="tick">✓</span> 教学资源审核发布</li>
-            <li><span class="tick">✓</span> 知识库上传 · 知识图谱</li>
+            <li><span class="tick">✓</span> 共享知识库 · 知识图谱</li>
           </ul>
           <div class="portal-foot">
             <span>进入教师端</span>
@@ -200,6 +201,7 @@
           </p>
           <ul class="portal-list">
             <li><span class="tick">✓</span> 多角色用户管理</li>
+            <li><span class="tick">✓</span> 知识库运维 · 学习分析大屏</li>
             <li><span class="tick">✓</span> 模型参数灵活配置</li>
             <li><span class="tick">✓</span> 内容安全合规审核</li>
             <li><span class="tick">✓</span> 系统监控 · 数据备份</li>
@@ -217,6 +219,7 @@
       <div class="section-header anim-reveal" :class="{ 'anim-visible': featuresVisible }">
         <span class="eyebrow">CAPABILITIES · 核心能力</span>
         <h2 class="section-title">六大核心能力 · 学习全流程闭环</h2>
+        <!-- 保持标题结构；文案见 features 数组 -->
         <p class="section-desc">画像 → 路径 → 资源 → 学习 → 辅导 → 评估 → 优化循环，越学越精准</p>
       </div>
       <div class="features-grid">
@@ -281,23 +284,23 @@
         >
           <p class="para">
             <span class="dropcap">智</span>学优培是一个基于大模型多模态生成技术构建的高校个性化学习智能体平台。
-            平台采用多智能体架构，通过 LangGraph 工作流编排将「学习画像生成 → 专属路径规划 →
+            平台采用多智能体架构，通过 LangGraph Supervisor 学习环将「学习画像生成 → 专属路径规划 →
             多模态资源生成 → 沉浸式学习 → 智能答疑 → 效果评估 → 优化循环」
-            串联为完整的闭环学习链路，越学越精准。
+            串联为完整的闭环学习链路，越学越精准；支持生成向导、个人知识库、学习发现与社区广场。
           </p>
           <p class="para">
             系统由 14 个专业智能体协同完成教学服务：ProfileAgent 通过对话精准刻画学生学情；
             LearningPathAgent 规划个性化学习路径；Document / Question / Mindmap / PPTVideo /
-            Code / ReadingMaterial / Glossary 等多智能体基于 RAG 检索与多模态生成，
+            Code / ReadingMaterial / Glossary 等多智能体在 Supervisor 调度下基于 RAG 检索与多模态生成，
             产出文档、习题、思维导图、PPT 视频、代码沙箱实战、拓展阅读、术语表等多样化资源；
-            TutorAgent 提供流式辅导答疑；KnowledgeGraphAgent 构建全局结构化知识网络；
-            EvaluationAgent 生成评估报告，驱动画像与路径持续优化。
+            TutorAgent 提供流式辅导答疑；KnowledgeGraphAgent 构建可点击下钻的结构化知识网络；
+            EvaluationAgent 生成评估报告与 AI 周报，驱动画像与路径持续优化。
           </p>
           <p class="para">
             技术层采用 LangGraph 多智能体编排、14 Agent 专业分工、Neo4j 全局知识图谱、
             ChromaDB 向量检索、Docker 安全代码沙箱、多模态生成引擎、三端 RBAC 权限体系，
-            默认采用 Spark Ultra-32K（画像 / 辅导 / 评估）与 Spark X2-Flash（其余 11 个智能体）
-            双模型组合，兼顾推理深度与响应效率，为学生提供精准、高效、可追踪的个性化学习体验。
+            支持本地 run.bat 与 Docker Compose 双部署，默认 Spark 双模型组合，
+            兼顾推理深度与响应效率。
           </p>
         </div>
         <div
@@ -507,21 +510,21 @@ const coreFeatures = [
   {
     icon: MagicStick,
     title: '多模态资源生成',
-    desc: '10+ 智能体协同生成文档、习题、思维导图、PPT 视频、代码、阅读材料、术语表等多样化资源。',
+    desc: '生成向导可配薄弱点与视频风格；Supervisor 学习环协同 10+ 智能体产出文档、习题、导图、PPT 视频、代码等。',
     color: '#70293C',
     bg: '#F5E9ED',
   },
   {
     icon: Document,
     title: '沉浸式学习',
-    desc: '按路径学习文档 / 观看视频 / 在线做题 / 代码沙箱实战，多形式融合的深度学习体验。',
+    desc: '按路径学习文档 / 观看视频 / 题库作答与错题重练 / 代码沙箱实战，多形式融合的深度学习体验。',
     color: '#4E598C',
     bg: '#EFF0F8',
   },
   {
     icon: ChatDotRound,
-    title: '⑤ 智能多模态答疑',
-    desc: '支持文本 / 语音 / 图片多种题型，图片经讯飞 OCR 识别转文字后传入辅导 Agent，苏格拉底式引导辅导，不直接给答案。',
+    title: '智能答疑与周报',
+    desc: '文本/语音/图片多模态辅导，RAG 引用可溯源；近 7 天 AI 学习周报支持追问复盘。',
     color: '#2B2D42',
     bg: '#F4F5FA',
   },
@@ -531,6 +534,13 @@ const coreFeatures = [
     desc: '系统评估学习效果 → 更新学习画像 → 优化学习路径，形成闭环，越学越精准。',
     color: '#8B5E3C',
     bg: '#FAF3EC',
+  },
+  {
+    icon: Reading,
+    title: '知识库与学习发现',
+    desc: '个人/共享知识库上传切片向量化；学习发现联网检索外部资源一键收藏，广场分享笔记。',
+    color: '#3D6B4F',
+    bg: '#EEF4F0',
   },
 ]
 
@@ -552,11 +562,11 @@ const agents = [
 ]
 
 const techStack = [
-  { icon: DataAnalysis, label: '多智能体工作流编排', desc: 'LangGraph · 14 Agent 协同 · 状态持久化', color: '#2B2D42', bg: '#F4F5FA' },
-  { icon: Connection, label: 'Neo4j 全局知识图谱', desc: '知识点结构化关联 · 图谱驱动路径规划', color: '#3D6B4F', bg: '#EEF4F0' },
-  { icon: Collection, label: 'ChromaDB 向量检索', desc: 'RAG 检索增强 · 语义匹配 · 可溯源引用', color: '#70293C', bg: '#F5E9ED' },
-  { icon: Monitor, label: 'Docker 代码沙箱', desc: '安全隔离环境 · 实时代码运行 · 结果可视化', color: '#4E598C', bg: '#EFF0F8' },
-  { icon: VideoCamera, label: '多模态生成引擎', desc: '文档·导图·PPT·视频·代码·术语表 · 10+ 产物', color: '#B0512C', bg: '#FBF0E9' },
+  { icon: DataAnalysis, label: '多智能体工作流编排', desc: 'LangGraph Supervisor 学习环 · 14 Agent 协同', color: '#2B2D42', bg: '#F4F5FA' },
+  { icon: Connection, label: 'Neo4j 全局知识图谱', desc: '知识点关联 · 节点下钻 · 图谱驱动路径', color: '#3D6B4F', bg: '#EEF4F0' },
+  { icon: Collection, label: 'ChromaDB 向量检索', desc: '个人/共享知识库 · RAG 可溯源引用', color: '#70293C', bg: '#F5E9ED' },
+  { icon: Monitor, label: 'Docker 一键部署', desc: 'Compose 双服务 · 本地 run.bat 亦可', color: '#4E598C', bg: '#EFF0F8' },
+  { icon: VideoCamera, label: '多模态生成引擎', desc: '文档·导图·PPT·视频·代码 · 10+ 产物', color: '#B0512C', bg: '#FBF0E9' },
   { icon: Management, label: '三端角色权限体系', desc: '学生端 · 教师端 · 管理端 · 细粒度 RBAC', color: '#8B5E3C', bg: '#FAF3EC' },
 ]
 </script>

@@ -13,6 +13,7 @@
     "pages/teacher/teacher",
     "pages/teacher/knowledge",
     "pages/wrong-book/wrong-book",
+    "pages/knowledge/knowledge",
     "pages/admin/admin",
     "pages/admin/config",
     "pages/admin/models",

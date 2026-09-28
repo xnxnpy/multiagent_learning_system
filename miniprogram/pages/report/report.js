@@ -25,7 +25,13 @@ Page({
       avgDaily: 0
     },
     dailyTrend: [],
-    behaviorPie: []
+    behaviorPie: [],
+    weeklyContent: '',
+    weeklyHtml: '',
+    weeklyLoading: false,
+    weeklyQuestion: '',
+    weeklyChatLoading: false,
+    weeklyChat: []
   },
 
   onLoad() {
@@ -34,6 +40,56 @@ Page({
 
   onShow() {
     this.fetchReport()
+  },
+
+  onWeeklyInput(e) {
+    this.setData({ weeklyQuestion: e.detail.value })
+  },
+
+  async generateWeekly() {
+    this.setData({ weeklyLoading: true })
+    try {
+      const res = await request({
+        url: API.STUDENT.WEEKLY_REPORT,
+        method: 'POST',
+        data: {}
+      })
+      const content = (res && res.content) || ''
+      this.setData({
+        weeklyContent: content,
+        weeklyHtml: markdownToHtml(content),
+        weeklyChat: []
+      })
+      wx.showToast({ title: '周报已生成', icon: 'success' })
+    } catch (e) {
+      wx.showToast({ title: '生成失败', icon: 'none' })
+    } finally {
+      this.setData({ weeklyLoading: false })
+    }
+  },
+
+  async askWeekly() {
+    const q = (this.data.weeklyQuestion || '').trim()
+    if (!q) return
+    if (!this.data.weeklyContent) await this.generateWeekly()
+    const chat = this.data.weeklyChat.concat([{ role: 'user', content: q }])
+    this.setData({ weeklyChat: chat, weeklyQuestion: '', weeklyChatLoading: true })
+    try {
+      const res = await request({
+        url: API.STUDENT.WEEKLY_REPORT,
+        method: 'POST',
+        data: { question: q, history: chat.slice(0, -1) }
+      })
+      this.setData({
+        weeklyChat: chat.concat([{ role: 'assistant', content: (res && res.content) || '（无回复）' }])
+      })
+    } catch (e) {
+      this.setData({
+        weeklyChat: chat.concat([{ role: 'assistant', content: '追问失败，请重试' }])
+      })
+    } finally {
+      this.setData({ weeklyChatLoading: false })
+    }
   },
 
   async fetchReport() {
