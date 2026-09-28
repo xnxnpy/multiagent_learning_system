@@ -1,6 +1,6 @@
 # AI ResGen Learning Multi-Agent System
 
-基于大模型的个性化资源生成与学习多智能体系统 -- 通过多 Agent 协作，为学生自动生成学习路径、文档、题目、代码、思维导图、PPT 视频、知识图谱等全套学习资源，并提供智能辅导和学习评估。
+基于大模型的个性化资源生成与学习多智能体系统 -- 由 4 个核心 Agent（Supervisor 调度、画像、辅导、评估）驱动资源生成 Tool，为学生自动生成学习路径、文档、题目、代码、思维导图、PPT 视频等学习资源，并提供智能辅导和学习评估。
 
 ---
 
@@ -185,23 +185,24 @@ ai-resgen-learning-multiagent-system/
 ├── .dockerignore
 ├── app/
 │   ├── __init__.py
-│   ├── agents/                      # 14 个 AI Agent
-│   │   ├── base.py                  # Agent 基类
-│   │   ├── profile_agent.py         # 画像对话 Agent
-│   │   ├── learning_path_agent.py   # 学习路径 Agent
-│   │   ├── document_agent.py        # 文档生成 Agent
-│   │   ├── question_agent.py        # 题目生成 Agent
-│   │   ├── code_agent.py            # 代码生成/执行 Agent
-│   │   ├── mindmap_agent.py         # 思维导图 Agent
-│   │   ├── ppt_video_agent.py       # PPT 教学视频 Agent
-│   │   ├── reading_material_agent.py# 拓展阅读 Agent
-│   │   ├── glossary_agent.py        # 术语词汇 Agent
-│   │   ├── knowledge_graph_agent.py # 知识图谱 Agent
-│   │   ├── summary_agent.py         # 学习总结 Agent
-│   │   ├── evaluation_agent.py      # 学习评估 Agent
-│   │   ├── resource_quality_agent.py# 资源质量评估 Agent
+│   ├── agents/                      # 智能体与生成工具（目录名 agents/ 为历史沿用）
+│   │   ├── base.py                  # 公共基类
+│   │   ├── supervisor_agent.py      # Supervisor 调度 Agent（学习环决策中枢）
+│   │   ├── profile_agent.py         # 画像构建 Agent
 │   │   ├── tutor_agent.py           # 智能辅导 Agent
-│   │   └── utils.py                 # Agent 工具函数
+│   │   ├── evaluation_agent.py      # 学习评估 Agent
+│   │   ├── learning_path_agent.py   # 路径规划 Tool
+│   │   ├── document_agent.py        # 文档生成 Tool
+│   │   ├── question_agent.py        # 题库生成 Tool
+│   │   ├── code_agent.py            # 代码示例 Tool
+│   │   ├── mindmap_agent.py         # 思维导图 Tool
+│   │   ├── ppt_video_agent.py       # PPT 教学视频 Tool
+│   │   ├── reading_material_agent.py# 拓展阅读 Tool
+│   │   ├── glossary_agent.py        # 术语词汇 Tool
+│   │   ├── knowledge_graph_agent.py # 知识图谱 Tool
+│   │   ├── summary_agent.py         # 学习总结 Tool
+│   │   ├── resource_quality_agent.py# 质量评估 Tool（守门）
+│   │   └── utils.py                 # 解析与提示词工具
 │   ├── api/v1/                      # API 路由层
 │   │   ├── __init__.py              # 路由注册
 │   │   ├── auth.py                  # 认证接口
@@ -286,8 +287,9 @@ ai-resgen-learning-multiagent-system/
 │   ├── vectorstore/                 # 向量存储
 │   │   ├── base.py
 │   │   └── chroma_store.py
-│   ├── workflows/                   # LangGraph 工作流
-│   │   └── graph_builder.py         # 工作流定义 + 管理器
+│   ├── workflows/                   # LangGraph 学习环
+│   │   ├── stage_workflow.py        # Supervisor 阶段学习状态图（plan→act→gate）
+│   │   └── graph_builder.py         # 路径/图谱构建
 │   └── multimodal/                  # 多模态处理
 │       ├── ocr_client.py            # OCR 图片识别 (讯飞)
 │       ├── oss_uploader.py          # 阿里云 OSS 上传
