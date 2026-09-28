@@ -20,7 +20,7 @@
       <!-- 分隔细线 -->
       <div class="sidebar-divider"></div>
 
-      <!-- 导航菜单 -->
+      <!-- 导航菜单（分组分节） -->
       <el-menu
         :default-active="activeMenu"
         :collapse="isCollapsed"
@@ -28,14 +28,22 @@
         class="sidebar-menu"
         @select="handleMenuSelect"
       >
-        <el-menu-item
-          v-for="item in menuItemsWithIcons"
-          :key="item.key"
-          :index="item.key"
-        >
-          <el-icon class="menu-icon"><component :is="item.icon" /></el-icon>
-          <template #title>{{ item.label }}</template>
-        </el-menu-item>
+        <template v-for="(group, gi) in menuGroups" :key="group.name || gi">
+          <div v-if="group.name && !isCollapsed" class="menu-group-title">{{ group.name }}</div>
+          <div
+            v-else-if="group.name && isCollapsed"
+            class="menu-group-divider"
+            :title="group.name"
+          ></div>
+          <el-menu-item
+            v-for="item in group.items"
+            :key="item.key"
+            :index="item.key"
+          >
+            <el-icon class="menu-icon"><component :is="item.icon" /></el-icon>
+            <template #title>{{ item.label }}</template>
+          </el-menu-item>
+        </template>
       </el-menu>
 
       <div class="sidebar-grow"></div>
@@ -140,6 +148,8 @@ import {
   DataAnalysis, DataLine, Document, Notebook,
   Management, View, Setting, Files, Folder,
   UserFilled, Lock, Tools, Histogram, Medal,
+  EditPen, Tickets, Star, Compass, Share, Search,
+  DataBoard, PriceTag, Link, Monitor,
 } from '@element-plus/icons-vue'
 import type { MenuItem } from '@/types'
 
@@ -162,6 +172,14 @@ const ICON_MAP: Record<string, any> = {
   logs: Document,
   backup: View,
   showcase: Medal,
+  // 学生新增
+  'question-bank': Tickets,
+  'wrong-book': Star,
+  notes: EditPen,
+  discovery: Search,
+  plaza: Share,
+  // 管理新增
+  'learning-analytics': DataBoard,
 }
 
 const props = withDefaults(defineProps<{
@@ -187,6 +205,22 @@ const menuItemsWithIcons = computed(() =>
     icon: it.icon || ICON_MAP[it.key] || Document,
   }))
 )
+
+/** 按 group 字段切分连续分组；无 group 则单独成组 */
+const menuGroups = computed(() => {
+  const items = menuItemsWithIcons.value
+  const groups: { name: string; items: typeof items }[] = []
+  for (const it of items) {
+    const g = (it as any).group || ''
+    const last = groups[groups.length - 1]
+    if (last && last.name === g) {
+      last.items.push(it)
+    } else {
+      groups.push({ name: g, items: [it] })
+    }
+  }
+  return groups
+})
 
 const portalAccentColor = computed(() => props.portalColor)
 
@@ -451,6 +485,23 @@ onUnmounted(() => {
   padding: 4px 12px;
   position: relative;
   z-index: 1;
+}
+
+.menu-group-title {
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.08em;
+  color: var(--color-text-faint);
+  text-transform: uppercase;
+  padding: 14px 14px 6px;
+  user-select: none;
+}
+
+.menu-group-divider {
+  height: 1px;
+  margin: 8px 14px;
+  background: var(--color-border-light);
+  opacity: 0.7;
 }
 
 .sidebar-menu :deep(.el-menu-item) {

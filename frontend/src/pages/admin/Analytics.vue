@@ -69,7 +69,24 @@ const kpis = computed(() => [
   { label: '风险学生', value: data.value.risk_students, color: '#DC2626' },
   { label: '今日活跃', value: data.value.daily_active?.slice(-1)?.[0]?.active_users ?? 0, color: '#3D6B4F' },
 ])
-const typeShare = computed(() => data.value.type_share || [])
+const typeShare = computed(() => {
+  const TYPE_LABELS: Record<string, string> = {
+    resource_view: '资源浏览',
+    question: '答题练习',
+    code_execute: '代码运行',
+    stage_start: '开始阶段',
+    stage_complete: '完成阶段',
+    chat_message: '辅导对话',
+    profile_chat: '画像对话',
+    resource_page: '页面访问',
+    wrong_book: '错题重练',
+    note: '学习笔记',
+  }
+  return (data.value.type_share || []).map(s => ({
+    ...s,
+    name: TYPE_LABELS[s.name] || s.name,
+  }))
+})
 
 async function load() {
   loading.value = true

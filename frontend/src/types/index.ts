@@ -322,6 +322,8 @@ export interface MenuItem {
   key: string
   label: string
   icon?: string
+  /** 可选分组标题：相同 group 的连续项归入一组（对齐分节导航） */
+  group?: string
 }
 
 export interface PaginationParams {
