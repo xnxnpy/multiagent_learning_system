@@ -38,7 +38,7 @@ async def list_risk_students(
     since = date.today() - td(days=7)
 
     students = (await db.execute(
-        select(User).where(User.role == "student", User.is_active == True).limit(200)
+        select(User).where(User.role == "student").limit(200)
     )).scalars().all()
 
     out: List[RiskStudent] = []
