@@ -48,8 +48,9 @@
             :class="{ 'anim-visible': pageLoaded }"
             style="--delay: 0.2s"
           >
-            智学优培融合 14 个专业智能体，覆盖学习画像、路径规划、资源生成、
-            智能辅导、知识图谱与学习评估全流程，为每位学生打造专属学习体验。
+            智学优培以 4 个核心 Agent（Supervisor / 画像 / 辅导 / 评估）为中枢，
+            调度文档、习题、视频等资源生成 Tool，覆盖画像、路径、资源、
+            智能辅导、知识图谱与评估全流程，为每位学生打造专属学习体验。
           </p>
           <div
             class="hero-cta anim-fade-up"
@@ -84,8 +85,8 @@
                 <span class="counter">{{ animatedNumbers.agents }}</span>
               </div>
               <div class="stat-meta">
-                <div class="stat-label">协同智能体</div>
-                <div class="stat-sub">专业分工 · 工作流编排</div>
+                <div class="stat-label">核心 Agent</div>
+                <div class="stat-sub">Supervisor 调度 · 决策中枢</div>
               </div>
             </div>
             <div class="stat-divider"></div>
@@ -218,8 +219,7 @@
     <section class="section" id="features" ref="featuresRef">
       <div class="section-header anim-reveal" :class="{ 'anim-visible': featuresVisible }">
         <span class="eyebrow">CAPABILITIES · 核心能力</span>
-        <h2 class="section-title">六大核心能力 · 学习全流程闭环</h2>
-        <!-- 保持标题结构；文案见 features 数组 -->
+        <h2 class="section-title">七大核心能力 · 学习全流程闭环</h2>
         <p class="section-desc">画像 → 路径 → 资源 → 学习 → 辅导 → 评估 → 优化循环，越学越精准</p>
       </div>
       <div class="features-grid">
@@ -245,8 +245,8 @@
     <section class="section section--alt" id="agents" ref="agentsRef">
       <div class="section-header anim-reveal" :class="{ 'anim-visible': agentsVisible }">
         <span class="eyebrow">AGENTS · 智能体矩阵</span>
-        <h2 class="section-title">14 个专业智能体协同工作</h2>
-        <p class="section-desc">每个智能体专注一项任务，通过工作流编排实现端到端学习服务</p>
+        <h2 class="section-title">4 个核心 Agent + 资源生成 Tool</h2>
+        <p class="section-desc">Agent 负责决策与对话；Tool 负责生成与评估，由 Supervisor 学习环统一调度</p>
       </div>
       <div class="agents-grid">
         <div
@@ -261,7 +261,12 @@
             <el-icon><component :is="a.icon" /></el-icon>
           </div>
           <div class="agent-text">
-            <div class="agent-name">{{ a.name }}</div>
+            <div class="agent-name">
+              {{ a.name }}
+              <el-tag size="small" :type="a.kind === 'agent' ? 'primary' : 'warning'" effect="plain" class="kind-tag">
+                {{ a.kind === 'agent' ? 'Agent' : 'Tool' }}
+              </el-tag>
+            </div>
             <div class="agent-desc">{{ a.desc }}</div>
           </div>
 
@@ -289,18 +294,17 @@
             串联为完整的闭环学习链路，越学越精准；支持生成向导、个人知识库、学习发现与社区广场。
           </p>
           <p class="para">
-            系统由 14 个专业智能体协同完成教学服务：ProfileAgent 通过对话精准刻画学生学情；
-            LearningPathAgent 规划个性化学习路径；Document / Question / Mindmap / PPTVideo /
-            Code / ReadingMaterial / Glossary 等多智能体在 Supervisor 调度下基于 RAG 检索与多模态生成，
-            产出文档、习题、思维导图、PPT 视频、代码沙箱实战、拓展阅读、术语表等多样化资源；
-            TutorAgent 提供流式辅导答疑；KnowledgeGraphAgent 构建可点击下钻的结构化知识网络；
-            EvaluationAgent 生成评估报告与 AI 周报，驱动画像与路径持续优化。
+            系统采用「4 Agent + 资源 Tool」架构：Supervisor Agent 作为调度中枢，
+            在 LangGraph 学习环中决策调用；画像构建 Agent 对话刻画学情；
+            智能辅导 Agent 流式答疑；学习评估 Agent 生成报告与周报。
+            文档 / 习题 / 导图 / PPT 视频 / 代码 / 阅读 / 术语 / 质量评估等均为资源生成 Tool，
+            在 Supervisor 调度下基于 RAG 与多模态生成产出可溯源的学习资源；
+            知识图谱节点可点击下钻掌握度与前后置关系。
           </p>
           <p class="para">
-            技术层采用 LangGraph 多智能体编排、14 Agent 专业分工、Neo4j 全局知识图谱、
-            ChromaDB 向量检索、Docker 安全代码沙箱、多模态生成引擎、三端 RBAC 权限体系，
-            支持本地 run.bat 与 Docker Compose 双部署，默认 Spark 双模型组合，
-            兼顾推理深度与响应效率。
+            技术层采用 LangGraph Supervisor 学习环、ChromaDB 向量检索、Neo4j 知识图谱、
+            Docker 安全代码沙箱、三端 RBAC，支持本地 run.bat 与 Docker Compose 双部署，
+            默认 Spark 双模型组合，兼顾推理深度与响应效率。
           </p>
         </div>
         <div
@@ -337,7 +341,7 @@
       <div class="cta-inner anim-reveal" :class="{ 'anim-visible': ctaVisible }">
         <span class="eyebrow cta-eyebrow">GET STARTED · 开启</span>
         <h2 class="cta-title display-serif">开启您的个性化学习之旅</h2>
-        <p class="cta-subtitle">注册账号，让 14 个智能体为您定制专属学习方案</p>
+        <p class="cta-subtitle">注册账号，让核心 Agent 与资源 Tool 为您定制专属学习方案</p>
         <div class="cta-actions">
           <button class="btn-ink btn-ink--light" @click="$router.push('/register')">
             <span>免费注册</span>
@@ -413,7 +417,7 @@ function onScroll() {
 
 /* ── 数字递增动画 ─────────────────────── */
 const animatedNumbers = reactive({ agents: 0, models: 0, outputs: 0 })
-const targetNumbers = { agents: 14, models: 8, outputs: 10 }
+const targetNumbers = { agents: 4, models: 8, outputs: 10 }
 
 function easeOutQuart(t: number) {
   return 1 - Math.pow(1 - t, 4)
@@ -545,24 +549,27 @@ const coreFeatures = [
 ]
 
 const agents = [
-  { icon: DataAnalysis, name: '画像智能体', desc: '对话式学情画像分析', color: '#B0512C', bg: '#FBF0E9' },
-  { icon: MapLocation, name: '路径智能体', desc: '个性化学习路径规划', color: '#3D6B4F', bg: '#EEF4F0' },
-  { icon: Document, name: '文档智能体', desc: '学习文档自动生成', color: '#70293C', bg: '#F5E9ED' },
-  { icon: EditPen, name: '习题智能体', desc: '针对性习题生成练习', color: '#B0512C', bg: '#FBF0E9' },
-  { icon: Connection, name: '思维导图智能体', desc: '知识结构可视化', color: '#3D6B4F', bg: '#EEF4F0' },
-  { icon: VideoCamera, name: 'PPT视频智能体', desc: 'PPT 与视频资源生成', color: '#70293C', bg: '#F5E9ED' },
-  { icon: Monitor, name: '代码智能体', desc: '代码沙箱编程练习', color: '#2B2D42', bg: '#F4F5FA' },
-  { icon: Histogram, name: '知识图谱智能体', desc: '结构化知识网络构建', color: '#B0512C', bg: '#FBF0E9' },
-  { icon: Reading, name: '阅读材料智能体', desc: '拓展阅读材料生成', color: '#3D6B4F', bg: '#EEF4F0' },
-  { icon: Notebook, name: '术语表智能体', desc: '学科术语词典整理', color: '#70293C', bg: '#F5E9ED' },
-  { icon: Collection, name: '资源质量智能体', desc: '资源质量审核把控', color: '#2B2D42', bg: '#F4F5FA' },
-  { icon: Files, name: '总结智能体', desc: '学习内容归纳总结', color: '#B0512C', bg: '#FBF0E9' },
-  { icon: ChatDotRound, name: '辅导智能体', desc: 'RAG 流式辅导答疑', color: '#3D6B4F', bg: '#EEF4F0' },
-  { icon: DataAnalysis, name: '评估智能体', desc: '学习效果评估报告', color: '#70293C', bg: '#F5E9ED' },
+  // —— 4 核心 Agent ——
+  { icon: DataAnalysis, name: 'Supervisor', desc: '学习环调度中枢 · 决策派发', color: '#2B2D42', bg: '#F4F5FA', kind: 'agent' },
+  { icon: DataAnalysis, name: '画像构建 Agent', desc: '对话式学情画像与确认门闩', color: '#B0512C', bg: '#FBF0E9', kind: 'agent' },
+  { icon: ChatDotRound, name: '智能辅导 Agent', desc: 'RAG 流式辅导 · 防幻觉引用', color: '#3D6B4F', bg: '#EEF4F0', kind: 'agent' },
+  { icon: Histogram, name: '学习评估 Agent', desc: '评估报告 · AI 周报追问', color: '#70293C', bg: '#F5E9ED', kind: 'agent' },
+  // —— 资源生成 Tool ——
+  { icon: MapLocation, name: '路径规划 Tool', desc: '个性化学习路径生成', color: '#3D6B4F', bg: '#EEF4F0', kind: 'tool' },
+  { icon: Document, name: '文档 Tool', desc: '学习文档与讲义', color: '#70293C', bg: '#F5E9ED', kind: 'tool' },
+  { icon: EditPen, name: '习题 Tool', desc: '针对性习题生成', color: '#B0512C', bg: '#FBF0E9', kind: 'tool' },
+  { icon: Connection, name: '思维导图 Tool', desc: '知识结构可视化', color: '#3D6B4F', bg: '#EEF4F0', kind: 'tool' },
+  { icon: VideoCamera, name: 'PPT 视频 Tool', desc: 'PPT 与教学视频', color: '#70293C', bg: '#F5E9ED', kind: 'tool' },
+  { icon: Monitor, name: '代码 Tool', desc: '代码沙箱示例', color: '#2B2D42', bg: '#F4F5FA', kind: 'tool' },
+  { icon: Histogram, name: '知识图谱 Tool', desc: '结构化知识网络', color: '#B0512C', bg: '#FBF0E9', kind: 'tool' },
+  { icon: Reading, name: '拓展阅读 Tool', desc: '阅读材料生成', color: '#3D6B4F', bg: '#EEF4F0', kind: 'tool' },
+  { icon: Notebook, name: '术语词汇 Tool', desc: '学科术语词典', color: '#70293C', bg: '#F5E9ED', kind: 'tool' },
+  { icon: Collection, name: '质量评估 Tool', desc: '资源评分与守门', color: '#2B2D42', bg: '#F4F5FA', kind: 'tool' },
+  { icon: Files, name: '学习总结 Tool', desc: '内容归纳总结', color: '#B0512C', bg: '#FBF0E9', kind: 'tool' },
 ]
 
 const techStack = [
-  { icon: DataAnalysis, label: '多智能体工作流编排', desc: 'LangGraph Supervisor 学习环 · 14 Agent 协同', color: '#2B2D42', bg: '#F4F5FA' },
+  { icon: DataAnalysis, label: 'Supervisor 学习环', desc: 'LangGraph 真状态图 · 4 Agent 调度 Tool', color: '#2B2D42', bg: '#F4F5FA' },
   { icon: Connection, label: 'Neo4j 全局知识图谱', desc: '知识点关联 · 节点下钻 · 图谱驱动路径', color: '#3D6B4F', bg: '#EEF4F0' },
   { icon: Collection, label: 'ChromaDB 向量检索', desc: '个人/共享知识库 · RAG 可溯源引用', color: '#70293C', bg: '#F5E9ED' },
   { icon: Monitor, label: 'Docker 一键部署', desc: 'Compose 双服务 · 本地 run.bat 亦可', color: '#4E598C', bg: '#EFF0F8' },
@@ -1253,6 +1260,16 @@ const techStack = [
   color: var(--color-text-ink);
   margin-bottom: 3px;
   line-height: 1.3;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex-wrap: wrap;
+}
+.kind-tag {
+  font-size: 10px;
+  height: 18px;
+  line-height: 16px;
+  padding: 0 6px;
 }
 .agent-desc {
   font-size: 11.5px;
