@@ -1,4 +1,5 @@
 import os
+import tempfile
 from datetime import datetime
 from fastapi import APIRouter, Depends, HTTPException, UploadFile, File, Query
 from app.models import User, Course, ResourceReview, LearningRecord, StudentProfile, LearningResource

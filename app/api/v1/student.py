@@ -12,6 +12,7 @@ from app.workflows.graph_builder import workflow_manager
 from fastapi import HTTPException
 from typing import Optional, List
 import asyncio
+import json
 from sqlalchemy import select, func
 from pydantic import BaseModel, Field
 from datetime import datetime
