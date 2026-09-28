@@ -393,6 +393,10 @@ export const teacherAPI = {
     return request.get('/v1/teacher/analytics/class-stats')
   },
 
+  getAnalyticsBoard: () => {
+    return request.get('/v1/teacher/analytics/board')
+  },
+
   exportClassReport: () => {
     return request.get('/v1/teacher/analytics/export', { responseType: 'blob' })
   },

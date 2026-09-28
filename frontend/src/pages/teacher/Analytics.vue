@@ -40,6 +40,46 @@
       </el-col>
     </el-row>
 
+    <!-- 学生看板四指标 -->
+    <el-row :gutter="20" class="stats-row board-row">
+      <el-col :xs="12" :sm="6">
+        <el-card class="stat-card stat-card--primary" shadow="hover">
+          <div class="stat-card__icon"><el-icon :size="28"><TrendCharts /></el-icon></div>
+          <div class="stat-card__info">
+            <div class="stat-card__value">{{ Math.round((board.avg_mastery || 0) * 100) }}%</div>
+            <div class="stat-card__label">平均掌握度</div>
+          </div>
+        </el-card>
+      </el-col>
+      <el-col :xs="12" :sm="6">
+        <el-card class="stat-card stat-card--success" shadow="hover">
+          <div class="stat-card__icon"><el-icon :size="28"><Calendar /></el-icon></div>
+          <div class="stat-card__info">
+            <div class="stat-card__value">{{ board.max_streak || 0 }} 天</div>
+            <div class="stat-card__label">最长连续学习</div>
+          </div>
+        </el-card>
+      </el-col>
+      <el-col :xs="12" :sm="6">
+        <el-card class="stat-card stat-card--warning" shadow="hover">
+          <div class="stat-card__icon"><el-icon :size="28"><Clock /></el-icon></div>
+          <div class="stat-card__info">
+            <div class="stat-card__value">{{ board.total_study_hours || 0 }} h</div>
+            <div class="stat-card__label">累计学习时长</div>
+          </div>
+        </el-card>
+      </el-col>
+      <el-col :xs="12" :sm="6">
+        <el-card class="stat-card stat-card--danger" shadow="hover">
+          <div class="stat-card__icon"><el-icon :size="28"><Finished /></el-icon></div>
+          <div class="stat-card__info">
+            <div class="stat-card__value">{{ Math.round((board.task_completion || 0) * 100) }}%</div>
+            <div class="stat-card__label">任务完成率</div>
+          </div>
+        </el-card>
+      </el-col>
+    </el-row>
+
     <el-row :gutter="24">
       <!-- 学生进度表格 -->
       <el-col :xs="24" :lg="16">
@@ -205,7 +245,7 @@
 import { ref, reactive, onMounted, h } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import { teacherAPI } from '@/api'
-import { User, UserFilled, Document, Download, RefreshRight, TrendCharts, Delete, Plus } from '@element-plus/icons-vue'
+import { User, UserFilled, Document, Download, RefreshRight, TrendCharts, Delete, Plus, Calendar, Clock, Finished } from '@element-plus/icons-vue'
 
 interface StudentProgress {
   student_id: string
@@ -233,6 +273,17 @@ const newStages = ref<Array<{title: string; description: string; knowledge_point
 const adjustReason = ref('')
 const ivLoading = ref(false)
 const intervention = ref<any[]>([])
+const board = ref<{ avg_mastery: number; max_streak: number; total_study_hours: number; task_completion: number }>({
+  avg_mastery: 0, max_streak: 0, total_study_hours: 0, task_completion: 0,
+})
+
+async function loadBoard() {
+  try {
+    board.value = await teacherAPI.getAnalyticsBoard()
+  } catch {
+    /* ignore */
+  }
+}
 
 async function loadIntervention() {
   ivLoading.value = true
@@ -370,6 +421,7 @@ const exportAllReport = async () => {
 onMounted(() => {
   fetchStats()
   loadIntervention()
+  loadBoard()
 })
 </script>
 
