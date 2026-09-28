@@ -14,6 +14,7 @@ from app.models.workflow_state import WorkflowState
 from app.models.knowledge_document import KnowledgeDocument
 from app.models.question_item import QuestionItem
 from app.models.study_note import StudyNote
+from app.models.discovery_item import DiscoveryItem
 
 __all__ = [
     "Base",
@@ -38,4 +39,5 @@ __all__ = [
     "KnowledgeDocument",
     "QuestionItem",
     "StudyNote",
+    "DiscoveryItem",
 ]

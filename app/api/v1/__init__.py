@@ -1,5 +1,5 @@
 from fastapi import APIRouter
-from app.api.v1 import auth, admin, student, tutor, tutor_stream, teacher, notification, profile_chat, showcase, question_bank, notes, knowledge
+from app.api.v1 import auth, admin, student, tutor, tutor_stream, teacher, notification, profile_chat, showcase, question_bank, notes, knowledge, discovery
 
 api_router = APIRouter()
 
@@ -15,3 +15,4 @@ api_router.include_router(showcase.router)
 api_router.include_router(question_bank.router)
 api_router.include_router(notes.router)
 api_router.include_router(knowledge.router)
+api_router.include_router(discovery.router)
