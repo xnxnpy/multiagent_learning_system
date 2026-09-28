@@ -5,20 +5,20 @@
       <el-tag type="info" effect="plain">管理各智能体和任务使用的 AI 模型</el-tag>
     </div>
 
-    <!-- 文本模型配置 - Agent 级别 -->
+    <!-- 4 个核心 Agent -->
     <el-card class="page-card" shadow="never">
       <template #header>
         <div class="card-header">
           <div class="card-header-left">
-            <h3 class="card-title">智能体文本模型配置</h3>
-            <el-tag size="small" type="primary">每个 Agent 使用的对话/生成模型</el-tag>
+            <h3 class="card-title">核心 Agent 文本模型</h3>
+            <el-tag size="small" type="primary">仅 4 个决策/交互 Agent · Supervisor 调度中枢</el-tag>
           </div>
           <el-button type="primary" :loading="saving" @click="saveAgentModels">保存配置</el-button>
         </div>
       </template>
 
-      <el-table :data="agentModelList" stripe>
-        <el-table-column prop="agent_name" label="智能体" width="180">
+      <el-table :data="coreAgentRows" stripe>
+        <el-table-column prop="agent_name" label="Agent" width="200">
           <template #default="{ row }">
             <span class="agent-name">{{ agentNames[row.agent_name] || row.agent_name }}</span>
           </template>
@@ -26,6 +26,47 @@
         <el-table-column prop="model_name" label="当前模型" width="180">
           <template #default="{ row }">
             <el-tag type="primary" effect="plain">{{ row.model_name }}</el-tag>
+          </template>
+        </el-table-column>
+        <el-table-column label="切换模型">
+          <template #default="{ row }">
+            <el-select v-model="row.model_key" size="small" style="width: 280px" @change="row.changed = true">
+              <el-option-group v-for="(models, provider) in groupedTextModels" :key="provider" :label="provider">
+                <el-option v-for="m in models" :key="m.key" :label="`${m.name} (${m.key})`" :value="m.key" />
+              </el-option-group>
+            </el-select>
+          </template>
+        </el-table-column>
+        <el-table-column label="状态" width="100">
+          <template #default="{ row }">
+            <el-tag v-if="row.changed" type="warning" size="small">已修改</el-tag>
+            <el-tag v-else type="success" size="small">未变更</el-tag>
+          </template>
+        </el-table-column>
+      </el-table>
+    </el-card>
+
+    <!-- 资源生成 Tool -->
+    <el-card class="page-card" shadow="never" style="margin-top: 24px;">
+      <template #header>
+        <div class="card-header">
+          <div class="card-header-left">
+            <h3 class="card-title">资源生成 Tool 文本模型</h3>
+            <el-tag size="small" type="warning">Supervisor 调度的生成/评估工具 · 非独立 Agent</el-tag>
+          </div>
+          <el-button type="primary" :loading="saving" @click="saveToolModels">保存 Tool 配置</el-button>
+        </div>
+      </template>
+
+      <el-table :data="toolRows" stripe>
+        <el-table-column prop="agent_name" label="Tool" width="200">
+          <template #default="{ row }">
+            <span class="agent-name tool-name">{{ agentNames[row.agent_name] || row.agent_name }}</span>
+          </template>
+        </el-table-column>
+        <el-table-column prop="model_name" label="当前模型" width="180">
+          <template #default="{ row }">
+            <el-tag type="warning" effect="plain">{{ row.model_name }}</el-tag>
           </template>
         </el-table-column>
         <el-table-column label="切换模型">
@@ -143,21 +184,34 @@ const ttsVoices = ref<{ id: string; name: string; gender: string }[]>([])
 const currentTtsVoice = ref('')
 
 const agentNames: Record<string, string> = {
+  // —— 4 Agents ——
+  supervisor: 'Supervisor Agent · 调度中枢',
   profile: '画像构建 Agent',
-  document: '文档生成 Agent',
-  question: '题库生成 Agent',
-  code: '代码实操 Agent',
-  mindmap: '思维导图 Agent',
-  knowledge_graph: '知识图谱 Agent',
-  learning_path: '路径规划 Agent',
-  evaluation: '学习评估 Agent',
   tutor: '智能辅导 Agent',
-  reading_material: '拓展阅读 Agent',
-  glossary: '术语词汇 Agent',
-  summary: '学习总结 Agent',
-  ppt_video: 'PPT 视频 Agent',
-  resource_quality: '质量评估 Agent',
+  evaluation: '学习评估 Agent',
+  // —— 资源生成 Tool ——
+  document: '文档 Tool',
+  question: '题库 Tool',
+  code: '代码 Tool',
+  mindmap: '思维导图 Tool',
+  knowledge_graph: '知识图谱 Tool',
+  learning_path: '路径规划 Tool',
+  reading_material: '拓展阅读 Tool',
+  glossary: '术语词汇 Tool',
+  summary: '学习总结 Tool',
+  ppt_video: 'PPT 视频 Tool',
+  resource_quality: '质量评估 Tool',
 }
+
+/** 4 个核心 Agent（其余视为 Tool） */
+const CORE_AGENT_KEYS = ['supervisor', 'profile', 'tutor', 'evaluation']
+
+const coreAgentRows = computed(() =>
+  agentModelList.value.filter(r => CORE_AGENT_KEYS.includes(r.agent_name))
+)
+const toolRows = computed(() =>
+  agentModelList.value.filter(r => !CORE_AGENT_KEYS.includes(r.agent_name))
+)
 
 const imageTaskNames: Record<string, string> = {
   document_illustration: '文档配图',
@@ -209,7 +263,7 @@ async function fetchModels() {
 }
 
 async function saveAgentModels() {
-  const changed = agentModelList.value.filter(a => a.changed)
+  const changed = coreAgentRows.value.filter(a => a.changed)
   if (!changed.length) { ElMessage.info('没有变更'); return }
 
   saving.value = true
@@ -219,6 +273,21 @@ async function saveAgentModels() {
       agent.changed = false
     }
     ElMessage.success(`已保存 ${changed.length} 个配置`)
+  } catch { ElMessage.error('保存失败') }
+  finally { saving.value = false }
+}
+
+async function saveToolModels() {
+  const changed = toolRows.value.filter(a => a.changed)
+  if (!changed.length) { ElMessage.info('没有变更'); return }
+
+  saving.value = true
+  try {
+    for (const agent of changed) {
+      await request.put(`/v1/admin/models/agent/${agent.agent_name}`, { model_key: agent.model_key })
+      agent.changed = false
+    }
+    ElMessage.success(`已保存 ${changed.length} 个 Tool 配置`)
   } catch { ElMessage.error('保存失败') }
   finally { saving.value = false }
 }
@@ -259,6 +328,7 @@ async function switchTtsVoice(voiceId: string) {
 .card-header-left { display: flex; align-items: center; gap: 12px; }
 .card-title { font-size: 16px; font-weight: 600; margin: 0; }
 .agent-name { font-weight: 600; color: var(--color-text-primary); }
+.tool-name { color: #B45309; font-weight: 500; }
 .page-card { border-radius: var(--radius-lg); box-shadow: var(--shadow-card); }
 .voice-id { background: var(--color-bg-page); padding: 2px 6px; border-radius: 4px; font-size: 12px; color: var(--color-text-secondary); }
 </style>

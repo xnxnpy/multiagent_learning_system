@@ -1342,10 +1342,22 @@ async def admin_learning_analytics(
         elif len(qs) >= 3 and (sum(1 for c in qs if c) / len(qs)) < 0.5:
             risk += 1
 
-    # 需求类型占比（记录类型）
+    # 需求类型占比（记录类型 → 中文）
+    TYPE_LABELS = {
+        "resource_view": "资源浏览",
+        "question": "答题练习",
+        "code_execute": "代码运行",
+        "stage_start": "开始阶段",
+        "stage_complete": "完成阶段",
+        "chat_message": "辅导对话",
+        "profile_chat": "画像对话",
+        "resource_page": "页面访问",
+        "wrong_book": "错题重练",
+        "note": "学习笔记",
+    }
     total_evt = sum(stage_types.values()) or 1
     type_share = [
-        {"name": k, "value": round(v / total_evt * 100, 1)}
+        {"name": TYPE_LABELS.get(k, k), "value": round(v / total_evt * 100, 1)}
         for k, v in sorted(stage_types.items(), key=lambda x: -x[1])[:8]
     ]
 

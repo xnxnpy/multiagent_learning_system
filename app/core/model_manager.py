@@ -198,17 +198,29 @@ IMAGE_MODELS = {
 
 
 # ── 默认 Agent → 文本模型映射 ──
+# 架构约定：仅 4 个决策/交互 Agent；其余均为 Supervisor 调度的资源生成 Tool
+#   Agent: supervisor / profile / tutor / evaluation
+#   Tool:  document/question/code/... 等生成与评估工具
+AGENT_KEYS = ("supervisor", "profile", "tutor", "evaluation")
+TOOL_KEYS = (
+    "document", "question", "code", "mindmap", "knowledge_graph",
+    "learning_path", "reading_material", "glossary", "summary",
+    "ppt_video", "resource_quality",
+)
+
 DEFAULT_AGENT_TEXT_MODELS = {
-    "profile": "spark_ultra",
+    # —— 4 Agents ——
     "supervisor": "spark_ultra",
+    "profile": "spark_ultra",
+    "tutor": "spark_ultra",
+    "evaluation": "spark_ultra",
+    # —— 资源生成 Tool ——
     "document": "spark_x2_flash",
     "question": "spark_x2_flash",
     "code": "spark_x2_flash",
     "mindmap": "spark_x2_flash",
     "knowledge_graph": "spark_x2_flash",
     "learning_path": "spark_x2_flash",
-    "evaluation": "spark_ultra",
-    "tutor": "spark_ultra",
     "reading_material": "spark_x2_flash",
     "glossary": "spark_x2_flash",
     "summary": "spark_x2_flash",
