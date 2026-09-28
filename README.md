@@ -113,8 +113,8 @@
 
 #### A1. 克隆项目
 ```bash
-git clone https://github.com/xnxnpy/ai-resgen-learning-multiagent-system.git
-cd ai-resgen-learning-multiagent-system
+git clone https://github.com/xnxnpy/multiagent_learning_system.git
+cd multiagent_learning_system
 ```
 
 #### A2. 后端启动
@@ -177,7 +177,7 @@ docker compose exec backend python scripts/create_admin.py --username admin --pa
 ## 项目目录结构
 
 ```
-ai-resgen-learning-multiagent-system/
+multiagent_learning_system/
 ├── main.py                          # FastAPI 入口，lifespan 管理
 ├── requirements.txt                 # Python 依赖
 ├── Dockerfile                       # 后端镜像（FFmpeg + Playwright）
