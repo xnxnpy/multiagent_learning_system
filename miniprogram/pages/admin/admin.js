@@ -6,7 +6,7 @@ Page({
     userName: '',
     currentTab: 0,
     currentTabName: '用户管理',
-    tabNames: ['用户管理', '系统配置', '模型管理', '内容安全', '系统监控', '数据备份'],
+    tabNames: ['用户管理', '系统配置', '模型管理', '内容安全', '系统监控', '数据备份', '知识库运维', '学习分析'],
     
     users: [],
     systemLogs: [],
@@ -51,6 +51,14 @@ Page({
         case 5:
           wx.hideLoading()
           wx.navigateTo({ url: '/pages/admin/backup' })
+          return
+        case 6:
+          wx.hideLoading()
+          wx.navigateTo({ url: '/pages/admin/kb' })
+          return
+        case 7:
+          wx.hideLoading()
+          wx.navigateTo({ url: '/pages/admin/analytics' })
           return
       }
     } catch (err) {

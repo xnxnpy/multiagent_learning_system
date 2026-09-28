@@ -1,4 +1,4 @@
-﻿<!--pages/teacher/teacher.wxml-->
+<!--pages/teacher/teacher.wxml-->
 <view class="teacher-container">
   <view class="header">
     <view class="header-left">
@@ -37,7 +37,7 @@
       </view>
     </view>
 
-    <view wx:if="{{currentTab === 1}}" class="tab-content">
+    <view wx:if="{{currentTab === 2}}" class="tab-content">
       <view class="section-header">
         <text class="section-title">资源审核</text>
         <view class="filter-btn" bindtap="showFilter">筛选</view>
@@ -62,7 +62,7 @@
       </view>
     </view>
 
-    <view wx:if="{{currentTab === 2}}" class="tab-content">
+    <view wx:if="{{currentTab === 3}}" class="tab-content">
       <view class="section-header">
         <text class="section-title">作业管理</text>
         <button class="add-btn" bindtap="addHomework">+ 发布作业</button>
@@ -86,10 +86,31 @@
       </view>
     </view>
 
-    <view wx:if="{{currentTab === 3}}" class="tab-content">
+    <view wx:if="{{currentTab === 4}}" class="tab-content">
       <view class="section-header">
-        <text class="section-title">班级学情</text>
+        <text class="section-title">学情分析 · 学生看板</text>
       </view>
+
+      <!-- 四指标看板 -->
+      <view class="stats-overview board-overview">
+        <view class="stat-card">
+          <text class="stat-value">{{board.avg_mastery}}%</text>
+          <text class="stat-label">平均掌握度</text>
+        </view>
+        <view class="stat-card">
+          <text class="stat-value">{{board.max_streak}} 天</text>
+          <text class="stat-label">最长连续学习</text>
+        </view>
+        <view class="stat-card">
+          <text class="stat-value">{{board.total_study_hours}} h</text>
+          <text class="stat-label">累计学时</text>
+        </view>
+        <view class="stat-card">
+          <text class="stat-value">{{board.task_completion}}%</text>
+          <text class="stat-label">任务完成率</text>
+        </view>
+      </view>
+
       <view class="stats-overview">
         <view class="stat-card">
           <text class="stat-value">{{classStats.totalStudents}}</text>
@@ -108,6 +129,26 @@
           <text class="stat-label">活跃人数</text>
         </view>
       </view>
+
+      <!-- 干预中心 -->
+      <view class="section-header" style="margin-top: 24rpx;">
+        <text class="section-title">干预中心 · 风险学生</text>
+      </view>
+      <view wx:if="{{!intervention.length}}" class="empty-tip">暂无中高风险学生</view>
+      <view class="iv-card" wx:for="{{intervention}}" wx:key="student_id">
+        <view class="iv-head">
+          <text class="iv-name">{{item.real_name}}</text>
+          <text class="iv-risk {{item.riskClass}}">{{item.riskText}}风险</text>
+        </view>
+        <view class="iv-metrics">
+          <text>正确率 {{item.accuracy != null ? item.accuracy + '%' : '-'}}</text>
+          <text>错题 {{item.wrong_active}}</text>
+          <text>7天 {{item.study_minutes_7d}} 分</text>
+        </view>
+        <view class="iv-line warn">⚠️ {{item.reasonsText}}</view>
+        <view class="iv-line tip">💡 {{item.suggestionsText}}</view>
+      </view>
+
       <view class="student-table">
         <view class="table-header">
           <text class="th">学生</text>
@@ -131,7 +172,7 @@
       </view>
     </view>
 
-    <view wx:if="{{currentTab === 4}}" class="tab-content">
+    <view wx:if="{{currentTab === 5}}" class="tab-content">
       <view class="section-header">
         <text class="section-title">统计报表</text>
         <button class="export-btn" bindtap="exportReport">导出报表</button>

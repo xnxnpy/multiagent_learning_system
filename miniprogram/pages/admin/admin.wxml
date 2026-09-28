@@ -80,5 +80,13 @@
       <text class="tab-icon">💾</text>
       <text class="tab-text">数据备份</text>
     </view>
+    <view class="tab-bar-item {{currentTab === 6 ? 'active' : ''}}" bindtap="switchTab" data-tab="6">
+      <text class="tab-icon">🗂️</text>
+      <text class="tab-text">知识库</text>
+    </view>
+    <view class="tab-bar-item {{currentTab === 7 ? 'active' : ''}}" bindtap="switchTab" data-tab="7">
+      <text class="tab-icon">📈</text>
+      <text class="tab-text">学习分析</text>
+    </view>
   </view>
 </view>

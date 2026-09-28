@@ -1,0 +1,45 @@
+<view class="container">
+  <view class="page-title">学习活动分析</view>
+  <view class="page-desc">日活趋势 · 时段分布 · 需求类型 · 风险学生</view>
+
+  <view class="kpis">
+    <view class="kpi"><text class="v">{{kpis.total_users}}</text><text class="l">总用户</text></view>
+    <view class="kpi"><text class="v">{{kpis.total_students}}</text><text class="l">学生数</text></view>
+    <view class="kpi danger"><text class="v">{{kpis.risk_students}}</text><text class="l">风险学生</text></view>
+    <view class="kpi ok"><text class="v">{{kpis.today_active}}</text><text class="l">今日活跃</text></view>
+  </view>
+
+  <view class="card">
+    <view class="card-title">近 14 天日活</view>
+    <view class="daily-row" wx:if="{{daily.length}}">
+      <view class="daily-col" wx:for="{{daily}}" wx:key="date">
+        <view class="daily-bar" style="height: {{Math.max(item.active * 40, 4)}}rpx"></view>
+        <text class="daily-label">{{item.date}}</text>
+        <text class="daily-val">{{item.active}}</text>
+      </view>
+    </view>
+    <view wx:else class="empty">暂无数据</view>
+  </view>
+
+  <view class="card">
+    <view class="card-title">学习时段分布（24h）</view>
+    <view class="hour-row" wx:if="{{hours.length}}">
+      <view class="hour-col" wx:for="{{hours}}" wx:key="hour">
+        <view class="hour-bar" style="height: {{Math.max(item.pct, 2)}}%"></view>
+        <text wx:if="{{item.hour % 4 === 0}}" class="hour-label">{{item.hour}}</text>
+      </view>
+    </view>
+  </view>
+
+  <view class="card">
+    <view class="card-title">需求类型占比</view>
+    <view wx:if="{{!typeShare.length}}" class="empty">暂无数据</view>
+    <view class="share-row" wx:for="{{typeShare}}" wx:key="name">
+      <text class="share-name">{{item.name}}</text>
+      <view class="share-track">
+        <view class="share-fill" style="width: {{item.value}}%"></view>
+      </view>
+      <text class="share-val">{{item.value}}%</text>
+    </view>
+  </view>
+</view>

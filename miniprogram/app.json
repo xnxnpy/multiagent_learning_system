@@ -22,6 +22,8 @@
     "pages/admin/models",
     "pages/admin/content-security",
     "pages/admin/backup",
+    "pages/admin/kb",
+    "pages/admin/analytics",
     "pages/video-player/video-player",
     "pages/kg/kg",
     "pages/mindmap/mindmap",

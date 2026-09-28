@@ -94,6 +94,9 @@ const API = {
     STUDENT_REEVALUATE: '/teacher/students/{student_id}/resources/{resource_type}/reevaluate',
     CLASS_STATS: '/teacher/analytics/class-stats',
     CLASS_EXPORT: '/teacher/analytics/export',
+    BOARD: '/teacher/analytics/board',
+    INTERVENTION: '/intervention/students',
+    KNOWLEDGE_DOC_DELETE: '/teacher/knowledge/documents/{doc_id}',
     STUDENT_PROGRESS: '/teacher/students/progress',
     ADJUST_PATH: '/teacher/students/{student_id}/adjust-path',
     ASSIGNMENTS: '/teacher/assignments',
@@ -130,7 +133,14 @@ const API = {
     IMAGE_MODEL: '/admin/models/image/{task_name}',
     VIDEO_MODEL: '/admin/models/video/{task_name}',
     TTS_VOICE: '/admin/tts/voice',
-    TTS_VOICES: '/admin/tts/voices'
+    TTS_VOICES: '/admin/tts/voices',
+    LEARNING_ANALYTICS: '/admin/learning-analytics',
+    KB_DOCUMENTS: '/admin/knowledge/documents',
+    KB_DOC: '/admin/knowledge/documents/{doc_id}',
+    KB_STATS: '/admin/knowledge/stats',
+    KB_CLEAR_UPLOADS: '/admin/knowledge/clear-uploads',
+    KB_CLEAR_USER: '/admin/knowledge/clear-user/{user_id}',
+    KB_CLEAR_LEGACY: '/admin/knowledge/legacy-shared'
   }
 }
 

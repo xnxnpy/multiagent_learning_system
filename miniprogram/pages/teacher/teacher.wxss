@@ -513,3 +513,21 @@
   padding: 2rpx 10rpx;
   border-radius: 20rpx;
 }
+
+/* 看板与干预 */
+.board-overview { margin-bottom: 12rpx; }
+.empty-tip { text-align: center; color: #8A8FA3; font-size: 24rpx; padding: 20rpx 0; }
+.iv-card {
+  background: #fff; border-radius: 14rpx; padding: 20rpx; margin-bottom: 14rpx;
+  border-left: 6rpx solid #F59E0B;
+}
+.iv-card.high { border-left-color: #EF4444; }
+.iv-head { display: flex; justify-content: space-between; align-items: center; margin-bottom: 8rpx; }
+.iv-name { font-size: 28rpx; font-weight: 600; }
+.iv-risk { font-size: 20rpx; padding: 4rpx 14rpx; border-radius: 999rpx; }
+.iv-risk.high { background: #FEE2E2; color: #B91C1C; }
+.iv-risk.medium { background: #FEF3C7; color: #B45309; }
+.iv-metrics { display: flex; gap: 20rpx; font-size: 22rpx; color: #6B7280; margin-bottom: 8rpx; }
+.iv-line { font-size: 24rpx; line-height: 1.5; margin-top: 4rpx; }
+.iv-line.warn { color: #B45309; }
+.iv-line.tip { color: #15803D; }

@@ -1,4 +1,4 @@
-﻿const { request } = require('../../utils/request')
+const { request } = require('../../utils/request')
 const { API } = require('../../utils/api')
 
 Page({
@@ -30,9 +30,10 @@ Page({
       const documents = (result.items || []).map(doc => ({
         id: doc.id,
         filename: doc.filename || doc.name || '',
-        size: doc.size || 0,
-        size_kb: doc.size ? (doc.size / 1024).toFixed(1) : '0',
-        chunks: doc.chunks || 0,
+        size: doc.file_size || doc.size || 0,
+        size_kb: ((doc.file_size || doc.size || 0) / 1024).toFixed(1),
+        chunks: doc.chunk_count ?? doc.chunks ?? 0,
+        uploader: doc.uploader || '',
         status: doc.status || 'processed',
         uploaded_at: doc.created_at ? new Date(doc.created_at).toLocaleString() : ''
       }))
@@ -79,7 +80,7 @@ Page({
           const uploadResult = await wx.uploadFile({
             url: `${API.TEACHER.KNOWLEDGE_UPLOAD}`,
             filePath: file.path,
-            name: 'file',
+            name: 'files',
             header: {
               'Authorization': `Bearer ${wx.getStorageSync('access_token')}`
             },
@@ -126,8 +127,8 @@ Page({
 
   async clearKnowledge() {
     wx.showModal({
-      title: '确认清空',
-      content: '确定要清空所有知识库吗？此操作不可恢复。',
+      title: '清空共享教材',
+      content: '仅删除教师上传的教材索引，学生资源与个人知识库不受影响。确定清空？',
       success: async (res) => {
         if (res.confirm) {
           wx.showLoading({ title: '清空中...' })

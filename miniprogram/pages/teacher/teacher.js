@@ -1,4 +1,4 @@
-﻿const { request } = require('../../utils/request')
+const { request } = require('../../utils/request')
 const { API } = require('../../utils/api')
 
 Page({
@@ -14,7 +14,9 @@ Page({
     homeworkList: [],
     classStats: {},
     studentList: [],
-    progressDistribution: []
+    progressDistribution: [],
+    board: { avg_mastery: 0, max_streak: 0, total_study_hours: 0, task_completion: 0 },
+    intervention: []
   },
 
   onLoad() {
@@ -47,6 +49,10 @@ Page({
           await this.loadHomework()
           break
         case 4:
+          await this.loadClassStats()
+          await this.loadBoard()
+          await this.loadIntervention()
+          break
         case 5:
           await this.loadClassStats()
           break
@@ -182,6 +188,40 @@ Page({
       this.setData({ classStats, studentList })
     } catch (err) {
       console.error('加载班级统计失败:', err)
+    }
+  },
+
+  async loadBoard() {
+    try {
+      const result = await request({ url: API.TEACHER.BOARD, method: 'GET' })
+      this.setData({
+        board: {
+          avg_mastery: Math.round((result.avg_mastery || 0) * 100),
+          max_streak: result.max_streak || 0,
+          total_study_hours: result.total_study_hours || 0,
+          task_completion: Math.round((result.task_completion || 0) * 100)
+        }
+      })
+    } catch (err) {
+      console.error('加载看板失败:', err)
+    }
+  },
+
+  async loadIntervention() {
+    try {
+      const result = await request({ url: API.TEACHER.INTERVENTION, method: 'GET' })
+      const list = (result || [])
+        .filter(s => s.risk_level === 'high' || s.risk_level === 'medium')
+        .map(s => ({
+          ...s,
+          riskText: s.risk_level === 'high' ? '高' : '中',
+          riskClass: s.risk_level === 'high' ? 'high' : 'medium',
+          reasonsText: (s.reasons || []).join('；') || '—',
+          suggestionsText: (s.suggestions || []).join('；') || '—'
+        }))
+      this.setData({ intervention: list })
+    } catch (err) {
+      console.error('加载干预列表失败:', err)
     }
   },
 

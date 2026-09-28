@@ -1,0 +1,29 @@
+<view class="container">
+  <view class="page-title">知识库运维</view>
+  <view class="page-desc">分区统计 · 上传材料治理 · 按用户清理</view>
+
+  <view class="stats-grid">
+    <view class="stat"><text class="v">{{stats.total}}</text><text class="l">向量总数</text></view>
+    <view class="stat"><text class="v">{{stats.personal_resources}}</text><text class="l">个人资源</text></view>
+    <view class="stat"><text class="v">{{stats.personal_notes}}</text><text class="l">个人笔记</text></view>
+    <view class="stat"><text class="v">{{stats.uploads}}</text><text class="l">上传材料</text></view>
+    <view class="stat warn"><text class="v">{{stats.legacy_shared}}</text><text class="l">历史无主</text></view>
+  </view>
+
+  <view class="btn-col">
+    <button class="op-btn warn" size="mini" bindtap="clearUploads">清空全部上传材料</button>
+    <button class="op-btn warn" size="mini" bindtap="clearLegacy">清理历史无主块</button>
+    <button class="op-btn danger" size="mini" bindtap="clearUser">按用户 ID 清理索引</button>
+  </view>
+
+  <view class="section-title">上传材料（{{total}}）</view>
+  <view wx:if="{{loading}}" class="empty">加载中…</view>
+  <view wx:elif="{{!docs.length}}" class="empty">暂无上传材料</view>
+  <view wx:for="{{docs}}" wx:key="id" class="doc">
+    <view class="doc-main">
+      <text class="doc-name">{{item.filename}}</text>
+      <text class="doc-meta">{{item.uploader}} · {{item.chunk_count}} 分块 · {{item.status}}</text>
+    </view>
+    <text class="doc-del" bindtap="deleteDoc" data-id="{{item.id}}">删除</text>
+  </view>
+</view>
