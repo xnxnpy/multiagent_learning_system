@@ -109,7 +109,14 @@
               <MermaidDiagram v-else :code="seg.content" :forceKey="mermaidRenderKey" />
             </template>
           </div>
-          <el-empty v-else description="暂无文档，请先生成" />
+          <div v-else class="missing-resource-card">
+            <div class="gate-icon">📄</div>
+            <div class="gate-info">
+              <div class="gate-title">本阶段尚未生成学习文档</div>
+              <div class="gate-detail">Supervisor 按画像与阶段缺口取舍，可点名补生成。</div>
+            </div>
+            <el-button type="primary" size="small" :loading="regeneratingType === 'document'" @click="handleRegenerateSingle('document')">按需生成文档</el-button>
+          </div>
         </div>
       </el-tab-pane>
 
@@ -190,7 +197,14 @@
             </div>
             <div v-else-if="store.resources.mindmap_markdown" ref="mindmapContainerRef" class="mindmap-container"></div>
           </template>
-          <el-empty v-else description="暂无思维导图，请先生成" />
+          <div v-else class="missing-resource-card">
+            <div class="gate-icon">🗺️</div>
+            <div class="gate-info">
+              <div class="gate-title">本阶段尚未生成思维导图</div>
+              <div class="gate-detail">可按需补生成，用于梳理知识结构。</div>
+            </div>
+            <el-button type="primary" size="small" :loading="regeneratingType === 'mindmap'" @click="handleRegenerateSingle('mindmap')">按需生成导图</el-button>
+          </div>
         </div>
       </el-tab-pane>
 
@@ -391,7 +405,14 @@
               </div>
             </div>
           </div>
-          <el-empty v-else description="暂无练习题目，请先生成" />
+          <div v-else class="missing-resource-card">
+            <div class="gate-icon">📝</div>
+            <div class="gate-info">
+              <div class="gate-title">本阶段尚未生成练习题目</div>
+              <div class="gate-detail">优先围绕薄弱知识点出题，可点名补生成。</div>
+            </div>
+            <el-button type="primary" size="small" :loading="regeneratingType === 'questions'" @click="handleRegenerateSingle('questions')">按需生成题目</el-button>
+          </div>
         </div>
       </el-tab-pane>
 
@@ -502,7 +523,14 @@
               <MermaidDiagram v-else :code="seg.content" :forceKey="mermaidRenderKey" />
             </template>
           </div>
-          <el-empty v-else description="暂无拓展阅读材料，请先生成" />
+          <div v-else class="missing-resource-card">
+            <div class="gate-icon">📚</div>
+            <div class="gate-info">
+              <div class="gate-title">本阶段尚未生成拓展阅读</div>
+              <div class="gate-detail">可按需补充延伸阅读材料。</div>
+            </div>
+            <el-button type="primary" size="small" :loading="regeneratingType === 'reading_material'" @click="handleRegenerateSingle('reading_material')">按需生成阅读</el-button>
+          </div>
         </div>
       </el-tab-pane>
 
@@ -538,7 +566,14 @@
               </div>
             </div>
           </div>
-          <el-empty v-else description="暂无术语词汇，请先生成" />
+          <div v-else class="missing-resource-card">
+            <div class="gate-icon">📖</div>
+            <div class="gate-info">
+              <div class="gate-title">本阶段尚未生成术语词汇</div>
+              <div class="gate-detail">可按需生成学科术语卡片。</div>
+            </div>
+            <el-button type="primary" size="small" :loading="regeneratingType === 'glossary'" @click="handleRegenerateSingle('glossary')">按需生成术语</el-button>
+          </div>
         </div>
       </el-tab-pane>
 
@@ -560,7 +595,14 @@
             <el-button type="warning" plain size="small" :loading="regeneratingType === 'knowledge_link'" @click="handleRegenerateSingle('knowledge_link')">重新生成</el-button>
           </div>
           <KnowledgeGraph v-if="knowledgeLinkData" :graphData="knowledgeLinkData" />
-          <el-empty v-else description="暂无知识关联图，请先生成" />
+          <div v-else class="missing-resource-card">
+            <div class="gate-icon">🔗</div>
+            <div class="gate-info">
+              <div class="gate-title">本阶段尚未生成知识关联图</div>
+              <div class="gate-detail">展示知识点前后置关系，可按需生成。</div>
+            </div>
+            <el-button type="primary" size="small" :loading="regeneratingType === 'knowledge_link'" @click="handleRegenerateSingle('knowledge_link')">按需生成关联图</el-button>
+          </div>
         </div>
       </el-tab-pane>
 
@@ -587,7 +629,14 @@
               <MermaidDiagram v-else :code="seg.content" :forceKey="mermaidRenderKey" />
             </template>
           </div>
-          <el-empty v-else description="暂无学习总结，请先生成" />
+          <div v-else class="missing-resource-card">
+            <div class="gate-icon">📋</div>
+            <div class="gate-info">
+              <div class="gate-title">本阶段尚未生成学习总结</div>
+              <div class="gate-detail">学完后可一键生成归纳总结。</div>
+            </div>
+            <el-button type="primary" size="small" :loading="regeneratingType === 'summary'" @click="handleRegenerateSingle('summary')">按需生成总结</el-button>
+          </div>
         </div>
       </el-tab-pane>
     </el-tabs>

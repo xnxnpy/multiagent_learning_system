@@ -6,55 +6,55 @@
     </div>
 
     <!-- 筛选栏 -->
-    <el-card shadow="never" class="filter-card">
-      <el-row :gutter="12" align="middle">
-        <el-col :xs="24" :sm="8" :md="6">
-          <el-select v-model="filters.status" placeholder="作答状态" clearable style="width: 100%" @change="load(1)">
-            <el-option label="未作答" value="unanswered" />
-            <el-option label="已答对" value="correct" />
-            <el-option label="答错过" value="wrong" />
-          </el-select>
-        </el-col>
-        <el-col :xs="24" :sm="8" :md="6">
-          <el-input
-            v-model="filters.knowledge_point"
-            placeholder="知识点筛选"
-            clearable
-            @keyup.enter="load(1)"
-            @clear="load(1)"
-          />
-        </el-col>
-        <el-col :xs="24" :sm="8" :md="6">
-          <el-button type="primary" plain @click="load(1)">查询</el-button>
-        </el-col>
-      </el-row>
-    </el-card>
+    <div class="filter-bar">
+      <div class="filter-chips">
+        <button
+          v-for="s in statusOptions"
+          :key="s.value"
+          class="chip"
+          :class="{ active: (filters.status || '') === s.value }"
+          @click="filters.status = s.value; load(1)"
+        >{{ s.label }}</button>
+      </div>
+      <div class="filter-actions">
+        <el-input
+          v-model="filters.knowledge_point"
+          placeholder="知识点筛选"
+          clearable
+          size="default"
+          class="kp-input"
+          @keyup.enter="load(1)"
+          @clear="load(1)"
+        />
+        <el-button type="primary" @click="load(1)">查询</el-button>
+      </div>
+    </div>
 
     <!-- 统计 -->
-    <el-row :gutter="16" class="stats-row">
+    <el-row :gutter="14" class="stats-row">
       <el-col :xs="12" :md="6">
-        <el-card shadow="never" class="stat-card">
+        <div class="stat-tile primary">
           <div class="stat-value">{{ total }}</div>
           <div class="stat-label">题目总数</div>
-        </el-card>
+        </div>
       </el-col>
       <el-col :xs="12" :md="6">
-        <el-card shadow="never" class="stat-card">
-          <div class="stat-value" style="color: #22c55e">{{ correctCount }}</div>
+        <div class="stat-tile success">
+          <div class="stat-value">{{ correctCount }}</div>
           <div class="stat-label">本页答对</div>
-        </el-card>
+        </div>
       </el-col>
       <el-col :xs="12" :md="6">
-        <el-card shadow="never" class="stat-card">
-          <div class="stat-value" style="color: #ef4444">{{ wrongCount }}</div>
+        <div class="stat-tile danger">
+          <div class="stat-value">{{ wrongCount }}</div>
           <div class="stat-label">本页答错</div>
-        </el-card>
+        </div>
       </el-col>
       <el-col :xs="12" :md="6">
-        <el-card shadow="never" class="stat-card">
-          <div class="stat-value" style="color: #f59e0b">{{ unansweredCount }}</div>
+        <div class="stat-tile warning">
+          <div class="stat-value">{{ unansweredCount }}</div>
           <div class="stat-label">本页未作答</div>
-        </el-card>
+        </div>
       </el-col>
     </el-row>
 
@@ -180,6 +180,13 @@ const filters = reactive({
   knowledge_point: '',
 })
 
+const statusOptions = [
+  { value: '', label: '全部' },
+  { value: 'unanswered', label: '未作答' },
+  { value: 'correct', label: '已答对' },
+  { value: 'wrong', label: '答错过' },
+]
+
 // ── 作答状态 ──
 const expandedId = ref<string | null>(null)
 const answers = reactive<Record<string, string>>({})
@@ -289,14 +296,69 @@ onMounted(() => load(1))
 
 <style scoped>
 .question-bank-page { max-width: 1000px; }
-.page-header h2 { margin: 0 0 4px; }
-.page-sub { color: var(--el-text-color-secondary); margin: 0 0 16px; font-size: 13px; }
-.filter-card { margin-bottom: 16px; }
+.page-header h2 {
+  margin: 0 0 4px;
+  padding-left: 12px;
+  border-left: 4px solid #B0512C;
+  line-height: 1.2;
+}
+.page-sub { color: var(--el-text-color-secondary); margin: 0 0 16px; font-size: 13px; padding-left: 16px; }
+
+.filter-bar {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px;
+  align-items: center;
+  justify-content: space-between;
+  background: #fff;
+  border: 1px solid var(--el-border-color-lighter);
+  border-radius: 12px;
+  padding: 12px 16px;
+  margin-bottom: 14px;
+}
+.filter-chips { display: flex; gap: 8px; flex-wrap: wrap; }
+.chip {
+  border: 1px solid var(--el-border-color);
+  background: #fff;
+  border-radius: 999px;
+  padding: 6px 16px;
+  font-size: 13px;
+  cursor: pointer;
+  color: var(--el-text-color-regular);
+  transition: all 0.15s;
+}
+.chip:hover { border-color: #B0512C; color: #B0512C; }
+.chip.active {
+  background: #2B2D42;
+  border-color: #2B2D42;
+  color: #fff;
+}
+.filter-actions { display: flex; gap: 8px; }
+.kp-input { width: 200px; }
+
 .stats-row { margin-bottom: 16px; }
-.stat-card { text-align: center; }
-.stat-value { font-size: 28px; font-weight: 600; }
-.stat-label { color: var(--el-text-color-secondary); font-size: 13px; margin-top: 4px; }
-.q-item { padding: 16px 0; border-bottom: 1px solid var(--el-border-color-lighter); }
+.stat-tile {
+  background: #fff;
+  border-radius: 12px;
+  padding: 16px;
+  text-align: center;
+  border-top: 3px solid transparent;
+  box-shadow: 0 1px 4px rgba(0,0,0,0.04);
+}
+.stat-tile.primary { border-top-color: #4F46E5; }
+.stat-tile.success { border-top-color: #22c55e; }
+.stat-tile.danger { border-top-color: #ef4444; }
+.stat-tile.warning { border-top-color: #f59e0b; }
+.stat-tile .stat-value { font-size: 26px; font-weight: 700; }
+.stat-tile .stat-label { color: var(--el-text-color-secondary); font-size: 12px; margin-top: 4px; }
+
+.q-item {
+  padding: 16px;
+  border-bottom: 1px solid var(--el-border-color-lighter);
+  border-radius: 10px;
+  transition: background 0.15s;
+}
+.q-item:hover { background: var(--el-fill-color-lighter); }
 .q-item:last-child { border-bottom: none; }
 .q-header { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; margin-bottom: 8px; }
 .q-meta { color: var(--el-text-color-secondary); font-size: 12px; margin-left: auto; }

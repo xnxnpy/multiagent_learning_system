@@ -188,8 +188,8 @@ onMounted(loadSaved)
 
 <style scoped>
 .discovery-page { max-width: 960px; }
-.page-header h2 { margin: 0 0 4px; }
-.page-sub { color: var(--el-text-color-secondary); margin: 0 0 16px; font-size: 13px; }
+.page-header h2 { margin: 0 0 4px; padding-left: 12px; border-left: 4px solid #3D6B4F; line-height: 1.2; }
+.page-sub { color: var(--el-text-color-secondary); margin: 0 0 16px; font-size: 13px; padding-left: 16px; }
 .card { margin-bottom: 16px; }
 .search-row { margin-bottom: 10px; }
 .type-filter { display: flex; justify-content: flex-start; }
@@ -198,8 +198,15 @@ onMounted(loadSaved)
   display: flex;
   gap: 12px;
   align-items: flex-start;
-  padding: 12px 0;
+  padding: 12px;
   border-bottom: 1px solid var(--el-border-color-lighter);
+  border-radius: 10px;
+  transition: box-shadow 0.15s, transform 0.15s, background 0.15s;
+}
+.res-item:hover {
+  box-shadow: 0 4px 12px rgba(0,0,0,0.06);
+  transform: translateY(-1px);
+  background: var(--el-fill-color-lighter);
 }
 .res-item:last-child { border-bottom: none; }
 .res-main { flex: 1; min-width: 0; }

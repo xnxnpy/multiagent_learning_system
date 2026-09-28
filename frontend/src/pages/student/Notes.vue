@@ -177,10 +177,13 @@ onMounted(() => load(1))
 <style scoped>
 .notes-page { max-width: 900px; }
 .page-header { display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 16px; }
-.page-header h2 { margin: 0 0 4px; }
+.page-header h2 { margin: 0 0 4px; padding-left: 12px; border-left: 4px solid #4F46E5; line-height: 1.2; }
 .page-sub { color: var(--el-text-color-secondary); margin: 0; font-size: 13px; }
 .search-input { margin-bottom: 16px; }
-.note-item { padding: 16px 0; border-bottom: 1px solid var(--el-border-color-lighter); }
+.note-item {
+  border-radius: 10px;
+  padding: 12px;
+  margin: 0 -12px; padding: 16px 0; border-bottom: 1px solid var(--el-border-color-lighter); }
 .note-item:last-child { border-bottom: none; }
 .note-header { display: flex; justify-content: space-between; align-items: center; gap: 12px; flex-wrap: wrap; }
 .note-title { margin: 0; font-size: 16px; }

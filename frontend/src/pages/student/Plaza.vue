@@ -168,11 +168,13 @@ onMounted(load)
 
 <style scoped>
 .plaza-page { max-width: 800px; }
-.page-header h2 { margin: 0 0 4px; }
-.page-sub { color: var(--el-text-color-secondary); margin: 0 0 16px; font-size: 13px; }
+.page-header h2 { margin: 0 0 4px; padding-left: 12px; border-left: 4px solid #70293C; line-height: 1.2; }
+.page-sub { color: var(--el-text-color-secondary); margin: 0 0 16px; font-size: 13px; padding-left: 16px; }
 .card { margin-bottom: 16px; }
 .head { display: flex; justify-content: space-between; align-items: center; }
-.post { padding: 14px 0; border-bottom: 1px solid var(--el-border-color-lighter); }
+.post { padding: 16px; border-bottom: 1px solid var(--el-border-color-lighter); border-radius: 12px; transition: box-shadow 0.15s; }
+.post:hover { box-shadow: 0 2px 10px rgba(0,0,0,0.05); }
+.post:last-child { border-bottom: none; }
 .post:last-child { border-bottom: none; }
 .post-head { display: flex; gap: 10px; font-size: 12px; color: var(--el-text-color-secondary); }
 .author { font-weight: 600; color: var(--el-text-color-primary); }
