@@ -2497,3 +2497,126 @@ async def recognize_image(
     except Exception as e:
         log.error(f"图片文字识别失败: {e}")
         raise HTTPException(status_code=500, detail=f"图片识别失败: {str(e)}")
+
+
+
+# ==================== AI 学习周报（生成 + 追问） ====================
+
+
+class WeeklyReportRequest(BaseModel):
+    """可选：带上历史对话做追问"""
+    question: Optional[str] = Field(None, description="对周报的追问；不传则生成本周周报")
+    history: List[dict] = Field(default_factory=list, description="[{role, content}] 最近几轮")
+
+
+async def _collect_weekly_stats(db, user_id: int) -> dict:
+    """汇总近 7 天学习数据"""
+    from datetime import date, timedelta as td
+    from app.models import QuestionItem, StudentProfile, LearningPath, EvaluationReport
+
+    since = date.today() - td(days=7)
+    recs = (await db.execute(
+        select(LearningRecord).where(
+            LearningRecord.user_id == user_id,
+            LearningRecord.created_at >= datetime.combine(since, datetime.min.time()),
+        )
+    )).scalars().all()
+
+    questions = [r for r in recs if r.resource_type == "question"]
+    correct = sum(1 for r in questions if r.correct)
+    accuracy = round(correct / len(questions) * 100, 1) if questions else None
+    study_sec = sum(r.duration_seconds or 0 for r in recs)
+    views = sum(1 for r in recs if r.resource_type == "resource_view")
+
+    wrong = (await db.execute(
+        select(func.count(QuestionItem.id)).where(
+            QuestionItem.user_id == user_id,
+            QuestionItem.wrong_book_status == "active",
+        )
+    )).scalar() or 0
+
+    prof = (await db.execute(
+        select(StudentProfile).where(
+            StudentProfile.user_id == user_id,
+            StudentProfile.is_active == True,
+        )
+    )).scalar_one_or_none()
+    path = (await db.execute(
+        select(LearningPath).where(LearningPath.user_id == user_id)
+    )).scalars().first()
+
+    report = (await db.execute(
+        select(EvaluationReport).where(EvaluationReport.user_id == user_id)
+        .order_by(EvaluationReport.created_at.desc()).limit(1)
+    )).scalar_one_or_none()
+
+    completed = len(path.completed_stages or []) if path else 0
+    total = len(path.stages or []) if path else 0
+
+    return {
+        "accuracy_7d": accuracy,
+        "questions_7d": len(questions),
+        "correct_7d": correct,
+        "study_minutes_7d": round(study_sec / 60, 1),
+        "resource_views_7d": views,
+        "wrong_active": wrong,
+        "path_progress": f"{completed}/{total}" if total else "-",
+        "goal": prof.goal if prof else "",
+        "weakness": prof.weakness or [] if prof else [],
+        "latest_grade": (report.report_data or {}).get("overall_grade") if report and report.report_data else None,
+        "weakness_stats": (report.report_data or {}).get("knowledge_points") if report and report.report_data else [],
+    }
+
+
+async def _chat_weekly(user_id: int, system: str, question: str, history: list) -> str:
+    from app.core.model_manager import model_manager
+    messages = [{"role": "system", "content": system}]
+    for h in (history or [])[-6:]:
+        if h.get("role") in ("user", "assistant") and h.get("content"):
+            messages.append({"role": h["role"], "content": str(h["content"])[:2000]})
+    messages.append({"role": "user", "content": question})
+    reply = await model_manager.chat(messages, agent_name="evaluation")
+    return (reply or "").strip()
+
+
+@router.post("/evaluation/weekly-report")
+async def generate_weekly_report(
+    request: WeeklyReportRequest,
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    """生成 AI 学习周报，或对周报追问
+
+    - 不传 question：生成本周周报（Markdown）
+    - 传 question：基于周报上下文追问
+    """
+    stats = await _collect_weekly_stats(db, current_user.id)
+    stats_json = json.dumps(stats, ensure_ascii=False, default=str)
+
+    system = (
+        "你是学习助手，根据学生的近7天学习数据写周报或回答追问。\n"
+        "数据（JSON）：\n" + stats_json + "\n"
+        "要求：结论具体、有数字、给1-3条可执行建议；用 Markdown；不要编造数据之外的事实。"
+    )
+
+    if request.question and request.question.strip():
+        answer = await _chat_weekly(
+            current_user.id, system, request.question.strip(), request.history
+        )
+        return {"type": "answer", "content": answer, "stats": stats}
+
+    prompt = (
+        "请生成本周学习周报，包含：①本周概览（用数据）②掌握/薄弱观察 "
+        "③下周建议（3条以内）④一句话鼓励。使用 Markdown 分段。"
+    )
+    content = await _chat_weekly(current_user.id, system, prompt, [])
+    if not content:
+        # 降级：纯数据摘要
+        content = (
+            f"## 本周学习概览\n\n"
+            f"- 答题：{stats['questions_7d']} 道，正确率 {stats['accuracy_7d'] or '-'}%\n"
+            f"- 学习时长：{stats['study_minutes_7d']} 分钟\n"
+            f"- 错题本待重练：{stats['wrong_active']} 题\n"
+            f"- 路径进度：{stats['path_progress']}\n"
+        )
+    return {"type": "report", "content": content, "stats": stats}

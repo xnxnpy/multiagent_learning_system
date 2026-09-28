@@ -22,6 +22,40 @@
       </el-col>
     </el-row>
 
+    <!-- AI 学习周报 -->
+    <el-card class="content-card section-row" shadow="never">
+      <template #header>
+        <div class="card-header">
+          <span class="card-title">AI 学习周报</span>
+          <div>
+            <el-button size="small" type="primary" plain :loading="weeklyLoading" @click="generateWeekly">
+              {{ weeklyContent ? '重新生成' : '生成本周周报' }}
+            </el-button>
+          </div>
+        </div>
+      </template>
+      <div v-if="weeklyContent" class="weekly-wrap">
+        <div class="markdown-body weekly-md" v-html="renderWeekly(weeklyContent)"></div>
+        <div class="weekly-chat">
+          <el-input
+            v-model="weeklyQuestion"
+            placeholder="对周报追问，如：最值得投入时间的内容是什么？"
+            clearable
+            @keyup.enter="askWeekly"
+          >
+            <template #append>
+              <el-button :loading="weeklyChatLoading" @click="askWeekly">提问</el-button>
+            </template>
+          </el-input>
+          <div v-for="(m, i) in weeklyChat" :key="i" class="chat-bubble" :class="m.role">
+            <span class="chat-role">{{ m.role === 'user' ? '我' : 'AI' }}</span>
+            <div class="chat-body">{{ m.content }}</div>
+          </div>
+        </div>
+      </div>
+      <el-empty v-else description="点击右上角生成近 7 天 AI 周报" :image-size="80" />
+    </el-card>
+
     <!-- Radar chart + Suggestions -->
     <el-row :gutter="24" class="section-row">
       <el-col :xs="24" :lg="12">
@@ -441,6 +475,79 @@ async function fetchReport() {
   }
 }
 
+/* ── AI 学习周报 ─────────────────────────────── */
+
+const weeklyContent = ref('')
+const weeklyLoading = ref(false)
+const weeklyQuestion = ref('')
+const weeklyChatLoading = ref(false)
+const weeklyChat = ref<{ role: 'user' | 'assistant'; content: string }[]>([])
+
+function escapeHtml(s: string) {
+  return s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
+}
+
+function renderWeekly(md: string): string {
+  // 轻量 Markdown → HTML（标题/粗体/列表/段落）
+  const lines = escapeHtml(md || '').split(/\r?\n/)
+  const out: string[] = []
+  let inList = false
+  for (const raw of lines) {
+    const line = raw.trimEnd()
+    if (/^#{1,4}\s+/.test(line)) {
+      if (inList) { out.push('</ul>'); inList = false }
+      out.push(`<h4>${line.replace(/^#{1,4}\s+/, '')}</h4>`)
+    } else if (/^[-*]\s+/.test(line)) {
+      if (!inList) { out.push('<ul>'); inList = true }
+      out.push(`<li>${line.replace(/^[-*]\s+/, '')}</li>`)
+    } else if (line === '') {
+      if (inList) { out.push('</ul>'); inList = false }
+    } else {
+      if (inList) { out.push('</ul>'); inList = false }
+      let html = line
+        .replace(/\*\*([^*]+)\*\*/g, '<strong>$1</strong>')
+        .replace(/`([^`]+)`/g, '<code>$1</code>')
+      out.push(`<p>${html}</p>`)
+    }
+  }
+  if (inList) out.push('</ul>')
+  return out.join('')
+}
+
+async function generateWeekly() {
+  weeklyLoading.value = true
+  try {
+    const res: any = await request.post('/v1/student/evaluation/weekly-report', {})
+    weeklyContent.value = res?.content || ''
+    weeklyChat.value = []
+    if (res?.type === 'report') ElMessage.success('周报已生成')
+  } catch (e: any) {
+    ElMessage.error(e?.response?.data?.detail || '生成周报失败')
+  } finally {
+    weeklyLoading.value = false
+  }
+}
+
+async function askWeekly() {
+  const q = weeklyQuestion.value.trim()
+  if (!q) return
+  if (!weeklyContent.value) await generateWeekly()
+  weeklyChatLoading.value = true
+  weeklyChat.value.push({ role: 'user', content: q })
+  weeklyQuestion.value = ''
+  try {
+    const res: any = await request.post('/v1/student/evaluation/weekly-report', {
+      question: q,
+      history: weeklyChat.value.slice(0, -1),
+    })
+    weeklyChat.value.push({ role: 'assistant', content: res?.content || '（无回复）' })
+  } catch (e: any) {
+    weeklyChat.value.push({ role: 'assistant', content: '追问失败，请重试' })
+  } finally {
+    weeklyChatLoading.value = false
+  }
+}
+
 /* ── Regenerate path ─────────────────────────── */
 
 async function regeneratePath() {
@@ -671,4 +778,27 @@ onBeforeUnmount(() => {
   gap: 12px;
   flex-wrap: wrap;
 }
+
+/* AI 周报 */
+.weekly-wrap { display: flex; flex-direction: column; gap: 14px; }
+.weekly-md :deep(h4),
+.weekly-md h4 {
+  margin: 12px 0 6px;
+  font-size: 15px;
+  font-weight: 600;
+}
+.weekly-md p,
+.weekly-md :deep(p) { margin: 6px 0; line-height: 1.7; font-size: 14px; }
+.weekly-md ul { margin: 6px 0; padding-left: 20px; }
+.weekly-chat { display: flex; flex-direction: column; gap: 8px; }
+.chat-bubble {
+  padding: 10px 12px;
+  border-radius: 10px;
+  font-size: 13px;
+  line-height: 1.6;
+}
+.chat-bubble.user { background: var(--color-primary-faint, #EEF2FF); align-self: flex-end; max-width: 85%; }
+.chat-bubble.assistant { background: var(--el-fill-color-light, #f5f7fa); max-width: 95%; }
+.chat-role { font-size: 11px; color: var(--el-text-color-secondary); display: block; margin-bottom: 2px; }
+.chat-body { white-space: pre-wrap; }
 </style>
