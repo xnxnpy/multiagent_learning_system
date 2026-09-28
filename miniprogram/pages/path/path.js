@@ -32,15 +32,26 @@ Page({
     floatIsVoiceLoading: false,
     floatRecordingTime: 0,
     progressTagClass: '',
-    progressTagText: ''
+    progressTagText: '',
+    profileWeakness: []
   },
 
   onLoad() {
     this.loadPathData()
+    this.loadWeakness()
   },
 
   onShow() {
     this.loadPathData()
+    this.loadWeakness()
+  },
+
+  async loadWeakness() {
+    try {
+      const p = await request({ url: API.STUDENT.PROFILE, method: 'GET' })
+      const w = (p && p.weakness) || []
+      this.setData({ profileWeakness: Array.isArray(w) ? w : [] })
+    } catch (e) { /* ignore */ }
   },
 
   async loadPathData() {
@@ -251,18 +262,46 @@ Page({
   },
 
   async generateStageResources() {
-    const { currentStageData } = this.data
+    const { currentStageData, profileWeakness } = this.data
     if (!currentStageData) {
       wx.showToast({ title: '请先选择阶段', icon: 'none' })
       return
     }
 
+    // 生成向导：可选薄弱点优先 + 视频风格
+    const weak = (profileWeakness || []).slice(0, 5)
+    const styleList = ['讲解动画', '绿色科技风', '温馨治愈', '商务专业', '趣味卡通', '学术典雅']
+    const that = this
+
+    const openWizard = () => {
+      wx.showActionSheet({
+        itemList: ['直接生成（按缺口补齐）', ...styleList.map(s => `带视频风格：${s}`), ...(weak.length ? ['按画像薄弱点优先生成'] : [])],
+        success: (res) => {
+          const idx = res.tapIndex
+          const payload = { stage_id: currentStageData.stage_id || currentStageData.id }
+          if (idx === 0) {
+            that._runStageGenerate(payload)
+          } else if (weak.length && idx === 1 + styleList.length) {
+            payload.weak_focus = weak
+            that._runStageGenerate(payload)
+          } else {
+            payload.video_style = styleList[idx - 1]
+            if (weak.length) payload.weak_focus = weak
+            that._runStageGenerate(payload)
+          }
+        }
+      })
+    }
+    openWizard()
+  },
+
+  async _runStageGenerate(payload) {
     this.setData({ stageGenerating: true })
     try {
       await request({
         url: API.STUDENT.GENERATE_STAGE_RESOURCES,
         method: 'POST',
-        data: { stage_id: currentStageData.id }
+        data: payload
       })
       await this.loadPathData()
       wx.showToast({ title: '资源生成成功', icon: 'success' })

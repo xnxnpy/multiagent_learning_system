@@ -1,0 +1,39 @@
+.container { padding: 24rpx 28rpx 60rpx; background: #F7F5F0; min-height: 100vh; }
+.page-title { font-size: 40rpx; font-weight: 700; }
+.page-desc { font-size: 24rpx; color: #8A8FA3; margin: 8rpx 0 20rpx; }
+.type-row { display: flex; gap: 12rpx; flex-wrap: wrap; margin-bottom: 20rpx; }
+.type-chip {
+  padding: 8rpx 20rpx; border-radius: 999rpx; background: #fff;
+  font-size: 24rpx; border: 1rpx solid #E5E7EB; color: #5A5E72;
+}
+.type-chip.active { background: #2B2D42; color: #fff; border-color: #2B2D42; }
+.q-item {
+  background: #fff; border-radius: 14rpx; padding: 20rpx; margin-bottom: 14rpx;
+}
+.q-head { display: flex; justify-content: space-between; align-items: center; margin-bottom: 10rpx; }
+.q-tags { display: flex; gap: 8rpx; flex-wrap: wrap; }
+.tag { font-size: 20rpx; padding: 4rpx 12rpx; border-radius: 6rpx; }
+.tag-info { background: #F3F4F6; color: #6B7280; }
+.tag-ok { background: #DCFCE7; color: #15803D; }
+.tag-bad { background: #FEE2E2; color: #B91C1C; }
+.tag-kp { background: #EEF2FF; color: #4338CA; }
+.q-toggle { font-size: 22rpx; color: #B0512C; }
+.q-text { font-size: 28rpx; line-height: 1.6; }
+.q-opts { margin-top: 12rpx; display: flex; flex-direction: column; gap: 10rpx; }
+.opt {
+  padding: 14rpx 18rpx; background: #F7F5F0; border-radius: 10rpx;
+  font-size: 26rpx; border: 1rpx solid transparent;
+}
+.opt-active { background: #EEF2FF; border-color: #6366F1; color: #4338CA; }
+.ans-input {
+  margin-top: 14rpx; background: #F7F5F0; border-radius: 10rpx;
+  padding: 14rpx 16rpx; font-size: 26rpx;
+}
+.submit-btn { margin-top: 14rpx; margin-left: auto; background: #B0512C; border: none; }
+.result { margin-top: 12rpx; padding: 14rpx 16rpx; border-radius: 10rpx; font-size: 26rpx; }
+.result.ok { background: #DCFCE7; color: #15803D; }
+.result.bad { background: #FEE2E2; color: #B91C1C; }
+.q-meta { margin-top: 10rpx; font-size: 22rpx; color: #8A8FA3; }
+.empty { text-align: center; color: #8A8FA3; padding: 40rpx 0; }
+.pager { display: flex; align-items: center; justify-content: center; gap: 16rpx; margin-top: 20rpx; }
+.page-num { font-size: 24rpx; color: #8A8FA3; }

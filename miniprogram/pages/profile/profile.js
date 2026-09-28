@@ -430,8 +430,20 @@ Page({
     wx.navigateTo({ url: '/pages/knowledge/knowledge' })
   },
 
+  goToQBank() {
+    wx.navigateTo({ url: '/pages/qbank/qbank' })
+  },
+
   goToWrongBook() {
     wx.navigateTo({ url: '/pages/wrong-book/wrong-book' })
+  },
+
+  goToDiscovery() {
+    wx.navigateTo({ url: '/pages/discovery/discovery' })
+  },
+
+  goToPlaza() {
+    wx.navigateTo({ url: '/pages/plaza/plaza' })
   },
 
   goToNotifications() {

@@ -1,0 +1,38 @@
+<view class="container">
+  <view class="page-title">学习广场</view>
+  <view class="page-desc">分享笔记与速查表，点赞互动</view>
+
+  <view class="compose">
+    <input class="c-input" placeholder="标题，如：Python 函数速查表" value="{{form.title}}" data-field="title" bindinput="onField" />
+    <textarea class="c-textarea" placeholder="分享内容…" value="{{form.content}}" data-field="content" bindinput="onField" maxlength="2000" />
+    <input class="c-input" placeholder="标签，逗号分隔" value="{{form.tags}}" data-field="tags" bindinput="onField" />
+    <button class="c-btn" type="primary" size="mini" bindtap="submitPost" disabled="{{posting}}">发布分享</button>
+  </view>
+
+  <view class="section-title">最新分享</view>
+  <view wx:if="{{!posts.length && !loading}}" class="empty">还没有分享，来发第一帖</view>
+  <view wx:for="{{posts}}" wx:key="id" class="post">
+    <view class="post-head">
+      <text class="author">{{item.author}}</text>
+      <text class="time">{{item.created_at}}</text>
+    </view>
+    <view class="post-title">{{item.title}}</view>
+    <view class="post-content">{{item.content}}</view>
+    <view class="post-actions">
+      <button
+        size="mini"
+        class="like-btn {{item.liked ? 'liked' : ''}}"
+        bindtap="toggleLike"
+        data-id="{{item.id}}"
+        disabled="{{likingId === item.id}}"
+      >👍 {{item.like_count}}</button>
+      <button
+        wx:if="{{myId && item.user_id === myId}}"
+        size="mini"
+        type="warn"
+        bindtap="removePost"
+        data-id="{{item.id}}"
+      >删除</button>
+    </view>
+  </view>
+</view>

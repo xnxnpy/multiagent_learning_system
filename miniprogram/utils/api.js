@@ -60,6 +60,22 @@ const API = {
     STATS: '/knowledge/stats',
     DELETE: '/knowledge/documents/{doc_id}'
   },
+  DISCOVERY: {
+    SEARCH: '/discovery/search',
+    SAVED: '/discovery/saved',
+    SAVE_ITEM: '/discovery/save',
+    UNSAVE: '/discovery/saved/{item_id}'
+  },
+  PLAZA: {
+    POSTS: '/plaza/posts',
+    LIKE: '/plaza/posts/{post_id}/like',
+    DELETE: '/plaza/posts/{post_id}'
+  },
+  QBANK: {
+    LIST: '/question-bank',
+    WRONG: '/question-bank/wrong-book',
+    WRONG_STATS: '/question-bank/wrong-book/stats'
+  },
   TEACHER: {
     COURSES: '/teacher/courses',
     COURSE: '/teacher/courses/{course_id}',

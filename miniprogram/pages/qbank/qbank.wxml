@@ -1,0 +1,80 @@
+<view class="container">
+  <view class="page-title">题库</view>
+  <view class="page-desc">按状态筛选，展开即可作答判分</view>
+
+  <view class="type-row">
+    <view class="type-chip {{status === '' ? 'active' : ''}}" data-value="" bindtap="onStatus">全部</view>
+    <view class="type-chip {{status === 'unanswered' ? 'active' : ''}}" data-value="unanswered" bindtap="onStatus">未作答</view>
+    <view class="type-chip {{status === 'correct' ? 'active' : ''}}" data-value="correct" bindtap="onStatus">已答对</view>
+    <view class="type-chip {{status === 'wrong' ? 'active' : ''}}" data-value="wrong" bindtap="onStatus">答错过</view>
+  </view>
+
+  <view wx:if="{{loading}}" class="empty">加载中…</view>
+  <view wx:elif="{{!items.length}}" class="empty">题库为空，先去资源页生成练习题</view>
+
+  <view wx:for="{{items}}" wx:key="id" class="q-item">
+    <view class="q-head" bindtap="toggleExpand" data-uid="{{item.question_uid}}">
+      <view class="q-tags">
+        <text class="tag {{item.attempt_count === 0 ? 'tag-info' : item.last_correct ? 'tag-ok' : 'tag-bad'}}">
+          {{item.attempt_count === 0 ? '未作答' : item.last_correct ? '已掌握' : '待重练'}}
+        </text>
+        <text wx:if="{{item.knowledge_point}}" class="tag tag-kp">{{item.knowledge_point}}</text>
+      </view>
+      <text class="q-toggle">{{expanded === item.question_uid ? '收起 ▲' : '作答 ▼'}}</text>
+    </view>
+    <view class="q-text">{{item.question_data.question}}</view>
+
+    <view wx:if="{{item.question_data.options && item.question_data.options.length}}" class="q-opts">
+      <view
+        wx:for="{{item.question_data.options}}"
+        wx:for-item="opt"
+        wx:for-index="oi"
+        wx:key="oi"
+        class="opt {{answers[item.question_uid] === opt ? 'opt-active' : ''}}"
+        bindtap="pickOption"
+        data-uid="{{item.question_uid}}"
+        data-value="{{opt}}"
+      >{{String.fromCharCode(65 + oi)}}. {{opt}}</view>
+    </view>
+
+    <view wx:if="{{expanded === item.question_uid}}">
+      <input
+        wx:if="{{!item.question_data.options || !item.question_data.options.length}}"
+        class="ans-input"
+        placeholder="请输入答案"
+        value="{{answers[item.question_uid] || ''}}"
+        data-uid="{{item.question_uid}}"
+        bindinput="onAnswer"
+      />
+      <button
+        class="submit-btn"
+        size="mini"
+        type="primary"
+        bindtap="submitOne"
+        data-uid="{{item.question_uid}}"
+        disabled="{{submitting === item.question_uid}}"
+      >{{submitting === item.question_uid ? '提交中…' : '提交答案'}}</button>
+
+      <view wx:if="{{results[item.question_uid]}}" class="result {{results[item.question_uid].correct ? 'ok' : 'bad'}}">
+        <block wx:if="{{results[item.question_uid].code_results}}">
+          <view wx:for="{{results[item.question_uid].code_results.results}}" wx:key="test_case">
+            用例{{item.test_case}}: {{item.status === 'passed' ? '✓' : '✗'}}
+          </view>
+        </block>
+        <block wx:else>
+          {{results[item.question_uid].correct ? '✓ 正确，得分 ' + results[item.question_uid].score : '✗ 错误，正确答案 ' + item.question_data.answer}}
+        </block>
+      </view>
+    </view>
+
+    <view wx:if="{{item.last_correct !== null && item.attempt_count > 0}}" class="q-meta">
+      最近：{{item.last_correct ? '正确' : '错误'}} · {{item.last_score}} 分 · 作答 {{item.attempt_count}} 次
+    </view>
+  </view>
+
+  <view wx:if="{{total > 20}}" class="pager">
+    <button size="mini" disabled="{{page <= 1}}" bindtap="prevPage">上一页</button>
+    <text class="page-num">{{page}} / {{Math.ceil(total / 20) || 1}}</text>
+    <button size="mini" disabled="{{page * 20 >= total}}" bindtap="nextPage">下一页</button>
+  </view>
+</view>

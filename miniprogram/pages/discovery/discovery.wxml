@@ -1,0 +1,42 @@
+<view class="container">
+  <view class="page-title">学习发现</view>
+  <view class="page-desc">搜索外部视频 / 文章 / 论文 / 仓库，一键收藏</view>
+
+  <view class="search-row">
+    <input class="search-input" placeholder="例如：Python 装饰器" value="{{query}}" bindinput="onInput" confirm-type="search" bindconfirm="doSearch" />
+    <button class="search-btn" size="mini" bindtap="doSearch" disabled="{{loading}}">{{loading ? '搜索中…' : '发现'}}</button>
+  </view>
+
+  <view class="type-row">
+    <view
+      wx:for="{{typeList}}"
+      wx:key="value"
+      class="type-chip {{typeFilter === item.value ? 'active' : ''}}"
+      data-value="{{item.value}}"
+      bindtap="onType"
+    >{{item.label}}</view>
+  </view>
+
+  <view wx:if="{{items.length}}" class="section-title">结果 · {{items.length}}（{{source === 'ddg' ? '联网' : '快捷入口'}}）</view>
+  <view wx:for="{{items}}" wx:key="url" class="res-item">
+    <view class="res-type">{{item.type === 'video' ? '视频' : item.type === 'paper' ? '论文' : item.type === 'repo' ? '仓库' : '文章'}}</view>
+    <view class="res-title" bindtap="copyLink" data-url="{{item.url}}">{{item.title}}</view>
+    <view class="res-summary">{{item.summary || '暂无简介'}}</view>
+    <view class="res-actions">
+      <button size="mini" bindtap="copyLink" data-url="{{item.url}}">复制链接</button>
+      <button size="mini" type="primary" bindtap="saveItem" data-index="{{index}}">收藏</button>
+    </view>
+  </view>
+  <view wx:elif="{{searched && !loading}}" class="empty">没有结果，换个词试试</view>
+
+  <view class="section-title">我的收藏（{{saved.length}}）</view>
+  <view wx:if="{{!saved.length}}" class="empty">还没有收藏</view>
+  <view wx:for="{{saved}}" wx:key="id" class="res-item saved">
+    <view class="res-title" bindtap="copyLink" data-url="{{item.url}}">{{item.title}}</view>
+    <view class="res-summary">{{item.summary}}</view>
+    <view class="res-actions">
+      <button size="mini" bindtap="copyLink" data-url="{{item.url}}">打开</button>
+      <button size="mini" type="warn" bindtap="removeSaved" data-id="{{item.id}}">移除</button>
+    </view>
+  </view>
+</view>
