@@ -113,6 +113,12 @@ class StageGenerateRequest(BaseModel):
         None,
         description="显式要生成的资源类型（如 [\"ppt_video\"]）。非空时进入 force 模式：只做这些，画像偏好跳过的可按需补生成",
     )
+    weak_focus: Optional[List[str]] = Field(
+        None, description="生成向导：本次须覆盖的薄弱知识点"
+    )
+    video_style: Optional[str] = Field(
+        None, description="生成向导：视频风格（讲解动画/绿色科技风/温馨治愈/商务专业/趣味卡通/学术典雅）"
+    )
 
 
 class AnswerEvaluation(BaseModel):
@@ -1888,7 +1894,14 @@ async def generate_stage_resources(
     from app.workflows.stage_workflow import run_stage_workflow
 
     force_tools = request.resource_types or None
+    gen_prefs = {}
+    if request.weak_focus:
+        gen_prefs["weak_focus"] = request.weak_focus
+    if request.video_style:
+        gen_prefs["video_style"] = request.video_style
     mode = f"force={force_tools}" if force_tools else "incremental"
+    if gen_prefs:
+        mode += f" prefs={list(gen_prefs.keys())}"
     log.info(f"学生 {current_user.id} 请求阶段 {request.stage_id} 生成资源（Supervisor，{mode}）")
     try:
         final = await run_stage_workflow(
@@ -1898,6 +1911,7 @@ async def generate_stage_resources(
             profile_id=request.profile_id,
             force_tools=force_tools,
             progress_user_id=current_user.id,
+            gen_prefs=gen_prefs or None,
         )
     except Exception as e:
         log.error(f"阶段 {request.stage_id} Supervisor 学习环失败: {e}", exc_info=True)

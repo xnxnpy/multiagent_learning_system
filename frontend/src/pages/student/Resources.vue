@@ -585,6 +585,45 @@
       </el-tab-pane>
     </el-tabs>
 
+    <!-- 生成向导：配置薄弱点 / 视频风格后再触发 Supervisor -->
+    <el-dialog v-model="showWizard" title="生成要求配置" width="520px" :close-on-click-modal="false">
+      <p class="wizard-tip">先配置本次生成的侧重点，Supervisor 将按你的选择调度资源。</p>
+      <el-form label-position="top">
+        <el-form-item label="薄弱知识点（优先出题/写进讲义）">
+          <el-select
+            v-model="wizard.weak_focus"
+            multiple
+            filterable
+            allow-create
+            default-first-option
+            placeholder="可多选或输入知识点"
+            style="width: 100%"
+          >
+            <el-option
+              v-for="w in weaknessOptions"
+              :key="w"
+              :label="w"
+              :value="w"
+            />
+          </el-select>
+        </el-form-item>
+        <el-form-item label="视频风格（将强制重生教学视频）">
+          <el-select v-model="wizard.video_style" clearable placeholder="可选" style="width: 100%">
+            <el-option v-for="s in videoStyles" :key="s" :label="s" :value="s" />
+          </el-select>
+        </el-form-item>
+        <el-form-item label="额外类型（可选，默认按缺口补齐）">
+          <el-select v-model="wizard.resource_types" multiple placeholder="不选则自动" style="width: 100%">
+            <el-option v-for="t in typeOptions" :key="t.value" :label="t.label" :value="t.value" />
+          </el-select>
+        </el-form-item>
+      </el-form>
+      <template #footer>
+        <el-button @click="showWizard = false">取消</el-button>
+        <el-button type="primary" :loading="generatingAll" @click="confirmWizard">开始生成</el-button>
+      </template>
+    </el-dialog>
+
     <!-- Workflow Dialog — 绑定 appStore 后台任务的真实进度 -->
     <el-dialog v-model="showWorkflow" title="资源生成进度" width="500px" :close-on-click-modal="false">
       <el-progress :percentage="wfTask?.progress || 0" :stroke-width="16" />
@@ -990,8 +1029,31 @@ function stepName(step: string): string {
 
 // ── Actions ────────────────────────────────────────
 
+const showWizard = ref(false)
+const wizard = reactive<{ weak_focus: string[]; video_style: string; resource_types: string[] }>({
+  weak_focus: [],
+  video_style: '',
+  resource_types: [],
+})
+const videoStyles = ['讲解动画', '绿色科技风', '温馨治愈', '商务专业', '趣味卡通', '学术典雅']
+const typeOptions = [
+  { value: 'document', label: '图文讲义' },
+  { value: 'ppt_video', label: '教学视频' },
+  { value: 'mindmap', label: '思维导图' },
+  { value: 'question', label: '练习题' },
+  { value: 'code', label: '代码示例' },
+  { value: 'reading_material', label: '拓展阅读' },
+  { value: 'glossary', label: '术语词汇' },
+  { value: 'summary', label: '学习总结' },
+  { value: 'knowledge_link', label: '知识关联图' },
+]
+const weaknessOptions = computed(() => {
+  const w = profileInfo.weakness || []
+  return Array.isArray(w) ? w : []
+})
+
 async function handleGenerateAll() {
-  // 走 Supervisor 学习环：按当前阶段增量生成（不再跑旧的全量工作流）
+  // 走生成向导：配置薄弱点/视频风格后再触发 Supervisor
   if (!pathStore.learningPath) await pathStore.fetchPath()
   const stages = pathStore.learningPath?.stages
   if (!stages?.length) {
@@ -1004,11 +1066,37 @@ async function handleGenerateAll() {
     ElMessage.warning('无法确定当前阶段')
     return
   }
+  // 预填画像薄弱点
+  wizard.weak_focus = [...weaknessOptions.value]
+  wizard.video_style = ''
+  wizard.resource_types = []
+  showWizard.value = true
+}
+
+async function confirmWizard() {
+  showWizard.value = false
+  if (!pathStore.learningPath) await pathStore.fetchPath()
+  const stages = pathStore.learningPath?.stages
+  const idx = store.currentStageIndex ?? pathStore.currentStage ?? 0
+  const stageId = stages?.[idx]?.stage_id
+  if (stageId === undefined) {
+    ElMessage.warning('无法确定当前阶段')
+    return
+  }
+
+  const genPrefs: { weak_focus?: string[]; video_style?: string } = {}
+  if (wizard.weak_focus.length) genPrefs.weak_focus = wizard.weak_focus
+  if (wizard.video_style) genPrefs.video_style = wizard.video_style
 
   generatingAll.value = true
   showWorkflow.value = true
   try {
-    const res = await pathStore.generateStageResources(stageId)
+    const res = await pathStore.generateStageResources(
+      stageId,
+      false,
+      wizard.resource_types.length ? wizard.resource_types : undefined,
+      genPrefs,
+    )
     const generated = Object.keys(res?.generated || {})
     ElMessage.success(generated.length
       ? `Supervisor 已完成本阶段资源：${generated.length} 类`
@@ -1429,6 +1517,12 @@ watch(
 }
 .missing-resource-card .gate-title { color: #1D4ED8; }
 .missing-resource-card .gate-detail { color: #1E40AF; }
+.wizard-tip {
+  font-size: 13px;
+  color: var(--el-text-color-secondary);
+  margin: 0 0 12px;
+  line-height: 1.5;
+}
 
 .section-title {
   font-size: var(--text-xl);

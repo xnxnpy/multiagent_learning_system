@@ -2,7 +2,7 @@
 import os
 import json
 import asyncio
-from typing import Dict, Any, Optional
+from typing import Dict, Any, Optional, List
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select
 from app.agents.base import BaseAgent
@@ -30,11 +30,17 @@ class PptVideoAgent(BaseAgent):
         user_id: int = None,
         skip_cache: bool = False,
         on_progress=None,
+        video_style: Optional[str] = None,
+        weak_focus: Optional[List[str]] = None,
     ) -> Dict[str, Any]:
-        """生成 PPT 教学视频"""
-        log.info(f"PptVideoAgent 开始: topic={topic}, user={user_id}")
+        """生成 PPT 教学视频
 
-        # 先查缓存
+        video_style: 讲解动画 / 绿色科技风 / 温馨治愈 / 商务专业 / 趣味卡通 / 学术典雅
+        weak_focus: 本次须覆盖的薄弱知识点
+        """
+        log.info(f"PptVideoAgent 开始: topic={topic}, user={user_id}, style={video_style}")
+
+        # 先查缓存（有风格/薄弱点定制时跳过缓存）
         if user_id and self.db and not skip_cache:
             existing = await self._get_from_db(user_id, stage_id, topic)
             if existing:
@@ -44,7 +50,11 @@ class PptVideoAgent(BaseAgent):
         # Step 1: LLM 生成 PPT 内容
         if on_progress:
             on_progress("generating_pages", 0.0)
-        pages = await self._generate_pages(topic, user_id)
+        pages = await self._generate_pages(
+            topic, user_id,
+            video_style=video_style,
+            weak_focus=weak_focus,
+        )
         if on_progress:
             on_progress("generating_pages", 1.0)
 
@@ -124,7 +134,13 @@ class PptVideoAgent(BaseAgent):
         log.info(f"PptVideoAgent 完成: {oss_result['url']}")
         return video_data
 
-    async def _generate_pages(self, topic: str, user_id: int = None) -> list:
+    async def _generate_pages(
+        self,
+        topic: str,
+        user_id: int = None,
+        video_style: Optional[str] = None,
+        weak_focus: Optional[List[str]] = None,
+    ) -> list:
         """调用 LLM 生成 PPT 页面内容（带重试）"""
         profile = None
         if user_id and self.db:
@@ -134,7 +150,11 @@ class PptVideoAgent(BaseAgent):
                 log.warning(f"获取画像失败(不影响生成): {e}")
 
         try:
-            prompt = self._load_and_format_prompt(topic, profile)
+            prompt = self._load_and_format_prompt(
+                topic, profile,
+                video_style=video_style,
+                weak_focus=weak_focus,
+            )
         except Exception as e:
             log.error(f"PPT prompt 格式化失败: {e}, topic={topic}")
             prompt = self._load_prompt(self.PROMPT_PATH).replace("{topic}", topic).replace("{profile_context}", "")
@@ -322,13 +342,20 @@ class PptVideoAgent(BaseAgent):
             log.warning(f"获取学生画像失败: {e}")
         return None
 
-    def _load_and_format_prompt(self, topic: str, profile: Dict = None) -> str:
+    def _load_and_format_prompt(
+        self,
+        topic: str,
+        profile: Dict = None,
+        video_style: Optional[str] = None,
+        weak_focus: Optional[List[str]] = None,
+    ) -> str:
         """加载并格式化 Prompt"""
         template = self._load_prompt(self.PROMPT_PATH)
 
+        parts = []
         if profile:
             weakness_str = ", ".join(profile.get("weakness", [])) or "无"
-            profile_context = f"""
+            parts.append(f"""
 ## 学生画像信息
 - 专业：{profile.get('major', '未知')}
 - 年级：{profile.get('grade', '未知')}
@@ -337,10 +364,20 @@ class PptVideoAgent(BaseAgent):
 - 薄弱点：{weakness_str}
 
 请根据学生知识水平调整讲解深度和术语使用。
-"""
-        else:
-            profile_context = ""
-
+""")
+        if video_style:
+            parts.append(f"""
+## 视频风格（页面配色/文案语气必须贴合）
+{video_style}
+可选参考：讲解动画 / 绿色科技风 / 温馨治愈 / 商务专业 / 趣味卡通 / 学术典雅
+""")
+        if weak_focus:
+            parts.append(f"""
+## 本次必须覆盖的薄弱知识点
+{'、'.join(weak_focus)}
+请在页面与讲解脚本中重点展开这些知识点。
+""")
+        profile_context = "".join(parts)
         return self._format_prompt(template, topic=topic, profile_context=profile_context)
 
     async def _get_from_db(self, user_id: int, stage_id: int, topic: str) -> Optional[Dict]:

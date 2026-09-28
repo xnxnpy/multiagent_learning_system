@@ -157,6 +157,7 @@ export const useLearningPathStore = defineStore('learningPath', () => {
     stageId: number,
     force = false,
     resourceTypes?: string[],
+    genPrefs?: { weak_focus?: string[]; video_style?: string },
   ) {
     stageGenerating.value = true
     appStore.addTask({ id: 'workflow', type: 'workflow', label: 'Supervisor 正在编排本阶段资源', progress: 5, status: 'running' })
@@ -180,6 +181,8 @@ export const useLearningPathStore = defineStore('learningPath', () => {
       const res: any = await request.post('/v1/student/learn/stage/generate', {
         stage_id: stageId,
         ...(types ? { resource_types: types } : {}),
+        ...(genPrefs?.weak_focus?.length ? { weak_focus: genPrefs.weak_focus } : {}),
+        ...(genPrefs?.video_style ? { video_style: genPrefs.video_style } : {}),
       }, { timeout: 600000 })
       stageResources.value = res.generated || {}
 

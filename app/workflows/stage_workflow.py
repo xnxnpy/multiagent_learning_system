@@ -58,6 +58,8 @@ class StageState(BaseModel):
     force_mode: bool = False
     # 进度接收者（教师代操作时与 user_id 不同）
     progress_user_id: Optional[int] = None
+    # 生成向导偏好：weak_focus / video_style 等
+    gen_prefs: Dict[str, Any] = Field(default_factory=dict)
 
     decision: Optional[Dict[str, Any]] = None
     tool_result: Optional[Dict[str, Any]] = None
@@ -215,7 +217,10 @@ async def act_node(state: StageState) -> Dict[str, Any]:
 
     try:
         content = await asyncio.wait_for(
-            _dispatch_tool(db, user_id, topic, stage_id, tool, state.profile, grounding, fix_hints),
+            _dispatch_tool(
+                db, user_id, topic, stage_id, tool, state.profile, grounding, fix_hints,
+                gen_prefs=state.gen_prefs,
+            ),
             timeout=TOOL_TIMEOUT_SECONDS,
         )
     except asyncio.TimeoutError:
@@ -443,12 +448,18 @@ async def _dispatch_tool(
     profile: Dict[str, Any],
     grounding: List[Dict[str, str]],
     fix_hints: List[str],
+    gen_prefs: Optional[Dict[str, Any]] = None,
 ) -> Any:
     """调用对应的专业工具 Agent（这些是无脑手脚，决策在 Supervisor）"""
+    prefs = gen_prefs or {}
+    weak_focus = list(prefs.get("weak_focus") or [])
+    video_style = prefs.get("video_style") or ""
     grounding_text = "\n".join(
         f"[{g['evidence_id']}] {g['text']}" for g in grounding
     ) if grounding else ""
     hints_text = "；".join(fix_hints) if fix_hints else ""
+    focus_text = ("、".join(weak_focus)) if weak_focus else ""
+    focus_extra = f"\n\n## 本次重点（必须覆盖）\n薄弱知识点：{focus_text}" if focus_text else ""
 
     if tool == "document":
         from app.agents.document_agent import DocumentAgent
@@ -456,6 +467,7 @@ async def _dispatch_tool(
         extra = f"\n\n## 参考资料（以此为准，参考资料未覆盖的才允许拓展并标注「拓展」）\n{grounding_text}" if grounding_text else ""
         if hints_text:
             extra += f"\n\n## 上次生成的问题（必须修正）\n{hints_text}"
+        extra += focus_extra
         return await agent.run(topic, user_id=user_id, force=True, extra_instructions=extra)
 
     if tool == "question":
@@ -464,6 +476,8 @@ async def _dispatch_tool(
         extra = f"\n\n## 参考资料（题目须基于以下材料，不得超纲）\n{grounding_text}" if grounding_text else ""
         if hints_text:
             extra += f"\n\n## 上次生成的问题（必须修正）\n{hints_text}"
+        if focus_text:
+            extra += f"\n\n## 出题重点\n优先围绕薄弱知识点出题：{focus_text}"
         return await agent.run(topic, user_id=user_id, force=True, extra_instructions=extra)
 
     if tool == "code":
@@ -499,7 +513,12 @@ async def _dispatch_tool(
     if tool == "ppt_video":
         from app.agents.ppt_video_agent import PptVideoAgent
         agent = PptVideoAgent(db)
-        return await agent.run(topic, user_id=user_id)
+        return await agent.run(
+            topic, user_id=user_id, stage_id=stage_id,
+            video_style=video_style or None,
+            weak_focus=weak_focus or None,
+            skip_cache=bool(video_style or weak_focus),
+        )
 
     if tool == "knowledge_link":
         from app.agents.knowledge_graph_agent import KnowledgeGraphAgent
@@ -732,6 +751,7 @@ async def run_stage_workflow(
     progress_cb=None,
     force_tools: Optional[List[str]] = None,
     progress_user_id: Optional[int] = None,
+    gen_prefs: Optional[Dict[str, Any]] = None,
 ) -> StageState:
     """为指定阶段运行 Supervisor 学习环（真 LangGraph ainvoke）
 
@@ -739,8 +759,8 @@ async def run_stage_workflow(
         progress_cb: 可选回调 async (state: StageState) -> None，用于推送进度
         force_tools: 用户显式要求生成/重生的资源类型（如 ["ppt_video"]）。
             非空时进入 force 模式：只做这些工具，做完即结束。
-            画像偏好跳过的资源（如「看文档」不生成视频）由此按需补生成。
         progress_user_id: 进度卡片接收者（教师代操作时传教师 ID）
+        gen_prefs: 生成向导偏好 {"weak_focus": [...], "video_style": "讲解动画"}
     """
     # ── 组装初始状态 ──
     profile, stage, topic = await _load_context(db, user_id, profile_id, stage_id)
@@ -753,6 +773,17 @@ async def run_stage_workflow(
     for t in forced:
         existing_generated.pop(t, None)
         existing_scores.pop(t, None)
+
+    prefs = dict(gen_prefs or {})
+    # 向导选了薄弱点/风格但未点名类型 → 强制重生相关资源
+    if not forced and (prefs.get("weak_focus") or prefs.get("video_style")):
+        tools = ["question", "document"]
+        if prefs.get("video_style"):
+            tools.append("ppt_video")
+        forced = _sanitize_force_tools(tools)
+        for t in forced:
+            existing_generated.pop(t, None)
+            existing_scores.pop(t, None)
 
     initial = StageState(
         user_id=user_id,
@@ -767,8 +798,11 @@ async def run_stage_workflow(
         force_tools=forced,
         force_mode=bool(forced),
         progress_user_id=progress_user_id or user_id,
+        gen_prefs=prefs,
     )
     mode_label = f"force={forced}" if forced else "incremental"
+    if prefs:
+        mode_label += f" prefs={list(prefs.keys())}"
     _log_msg(initial, "system", "supervisor", "start", f"阶段 {stage_id} 学习环启动（{mode_label}）")
 
     graph = get_stage_graph()
